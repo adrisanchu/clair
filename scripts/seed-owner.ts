@@ -12,16 +12,15 @@ try {
 	// Env vars may already be set in the shell
 }
 
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import { eq } from 'drizzle-orm';
-
-// Resolve env before importing auth (auth reads DATABASE_URL at module load)
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
 	console.error('Error: DATABASE_URL is not set. Make sure .env is present.');
 	process.exit(1);
 }
+
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import { eq } from 'drizzle-orm';
 
 // Dynamic imports after env check
 const { betterAuth } = await import('better-auth');
@@ -49,19 +48,27 @@ if (!email || !name || !password) {
 
 // Set up DB client
 const client = postgres(DATABASE_URL);
-const { user, workspaces } = await import('../src/lib/server/db/schema.js');
-const db = drizzle(client, { schema: { user, workspaces } });
+const { authUser, authSession, authAccount, authVerification, workspaces } = await import(
+	'../src/lib/server/db/schema.js'
+);
+const db = drizzle(client, { schema: { authUser, workspaces } });
 
-// Set up a minimal auth instance for the seed script
+// Minimal auth instance for the seed script — must match auth.ts schema mapping
 const auth = betterAuth({
-	baseURL: process.env.ORIGIN ?? 'http://localhost:5173',
-	secret: process.env.BETTER_AUTH_SECRET ?? 'seed-secret-not-used-in-prod',
-	database: drizzleAdapter(db as never, { provider: 'pg' }),
+	database: drizzleAdapter(db as never, {
+		provider: 'pg',
+		schema: {
+			user: authUser,
+			session: authSession,
+			account: authAccount,
+			verification: authVerification
+		}
+	}),
 	emailAndPassword: { enabled: true },
 	user: {
 		additionalFields: {
-			workspaceId: { type: 'string', required: false },
-			role: { type: 'string', defaultValue: 'member' }
+			workspaceId: { type: 'string', required: false, input: false },
+			role: { type: 'string', required: false, defaultValue: 'member', input: false }
 		}
 	}
 });
@@ -69,11 +76,13 @@ const auth = betterAuth({
 console.log(`Creating owner account for ${email}...`);
 
 try {
-	// Create the user via Better Auth
 	await auth.api.signUpEmail({ body: { email, password, name } });
 } catch (err: unknown) {
 	const message = err instanceof Error ? err.message : String(err);
-	if (message.toLowerCase().includes('already exists') || message.toLowerCase().includes('duplicate')) {
+	if (
+		message.toLowerCase().includes('already exists') ||
+		message.toLowerCase().includes('duplicate')
+	) {
 		console.log('User already exists, continuing to workspace setup...');
 	} else {
 		console.error('Failed to create user:', message);
@@ -82,7 +91,7 @@ try {
 }
 
 // Fetch the created user
-const createdUser = await db.query.user.findFirst({ where: eq(user.email, email) });
+const createdUser = await db.query.authUser.findFirst({ where: eq(authUser.email, email) });
 if (!createdUser) {
 	console.error('Could not find user after creation. Aborting.');
 	process.exit(1);
@@ -99,10 +108,7 @@ if (!workspaceId) {
 }
 
 // Set role=owner and workspaceId on the user
-await db
-	.update(user)
-	.set({ role: 'owner', workspaceId })
-	.where(eq(user.id, createdUser.id));
+await db.update(authUser).set({ role: 'owner', workspaceId }).where(eq(authUser.id, createdUser.id));
 
 console.log(`\nOwner account created successfully!`);
 console.log(`  Name:        ${name}`);

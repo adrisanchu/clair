@@ -1,5 +1,5 @@
 import {
-	pgTable,
+	pgSchema,
 	pgEnum,
 	text,
 	timestamp,
@@ -10,13 +10,14 @@ import {
 	index
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { user, session, account } from './auth.schema';
+import { authUser } from './auth.schema';
 
-export * from './auth.schema';
+export { authUser, authSession, authAccount, authVerification } from './auth.schema';
+
+const coreSchema = pgSchema('core');
 
 // ─── Enums ─────────────────────────────────────────────────────────────────
-
-export const roleEnum = pgEnum('role', ['owner', 'member']);
+// Enums live in the public schema (Postgres default) for simplicity.
 
 export const accountStatusEnum = pgEnum('account_status', ['no_data', 'active']);
 
@@ -33,18 +34,19 @@ export const syncSourceEnum = pgEnum('sync_source', ['csv_upload', 'cron', 'manu
 
 // ─── Workspaces ────────────────────────────────────────────────────────────
 
-export const workspaces = pgTable('workspaces', {
+export const workspaces = coreSchema.table('workspaces', {
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
 	name: text('name').notNull(),
+	// ownerId references auth.user.id — enforced at app layer (cross-schema)
 	ownerId: text('owner_id').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull()
 });
 
 // ─── Invites ───────────────────────────────────────────────────────────────
 
-export const invites = pgTable('invites', {
+export const invites = coreSchema.table('invites', {
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
@@ -53,9 +55,8 @@ export const invites = pgTable('invites', {
 		.references(() => workspaces.id),
 	email: text('email').notNull(),
 	tokenHash: text('token_hash').notNull().unique(),
-	invitedById: text('invited_by_id')
-		.notNull()
-		.references(() => user.id),
+	// invitedById references auth.user.id — enforced at app layer (cross-schema)
+	invitedById: text('invited_by_id').notNull(),
 	expiresAt: timestamp('expires_at').notNull(),
 	usedAt: timestamp('used_at'),
 	createdAt: timestamp('created_at').defaultNow().notNull()
@@ -63,13 +64,12 @@ export const invites = pgTable('invites', {
 
 // ─── Bank accounts ─────────────────────────────────────────────────────────
 
-export const bankAccounts = pgTable('bank_accounts', {
+export const bankAccounts = coreSchema.table('bank_accounts', {
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
-	ownerUserId: text('owner_user_id')
-		.notNull()
-		.references(() => user.id),
+	// ownerUserId references auth.user.id — enforced at app layer (cross-schema)
+	ownerUserId: text('owner_user_id').notNull(),
 	workspaceId: text('workspace_id')
 		.notNull()
 		.references(() => workspaces.id),
@@ -86,19 +86,16 @@ export const bankAccounts = pgTable('bank_accounts', {
 
 // ─── Account shares ────────────────────────────────────────────────────────
 
-export const accountShares = pgTable('account_shares', {
+export const accountShares = coreSchema.table('account_shares', {
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
 	bankAccountId: text('bank_account_id')
 		.notNull()
 		.references(() => bankAccounts.id),
-	sharedById: text('shared_by_id')
-		.notNull()
-		.references(() => user.id),
-	sharedWithId: text('shared_with_id')
-		.notNull()
-		.references(() => user.id),
+	// sharedById / sharedWithId reference auth.user.id — enforced at app layer
+	sharedById: text('shared_by_id').notNull(),
+	sharedWithId: text('shared_with_id').notNull(),
 	status: shareStatusEnum('status').default('pending').notNull(),
 	requestedAt: timestamp('requested_at').defaultNow().notNull(),
 	respondedAt: timestamp('responded_at')
@@ -106,22 +103,22 @@ export const accountShares = pgTable('account_shares', {
 
 // ─── CSV uploads ───────────────────────────────────────────────────────────
 
-export const csvUploads = pgTable('csv_uploads', {
+export const csvUploads = coreSchema.table('csv_uploads', {
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
 	bankAccountId: text('bank_account_id')
 		.notNull()
 		.references(() => bankAccounts.id),
-	userId: text('user_id')
-		.notNull()
-		.references(() => user.id),
+	// userId references auth.user.id — enforced at app layer
+	userId: text('user_id').notNull(),
 	filename: text('filename').notNull(),
 	bankProfileId: text('bank_profile_id').notNull(),
 	rowCount: integer('row_count').notNull(),
 	importedCount: integer('imported_count').notNull(),
 	duplicateCount: integer('duplicate_count').notNull(),
 	flaggedCount: integer('flagged_count').notNull(),
+	statusUpdates: integer('status_updates').default(0).notNull(),
 	openingBalance: numeric('opening_balance', { precision: 15, scale: 4 }),
 	dateRangeFrom: timestamp('date_range_from', { mode: 'date' }),
 	dateRangeTo: timestamp('date_range_to', { mode: 'date' }),
@@ -130,7 +127,7 @@ export const csvUploads = pgTable('csv_uploads', {
 
 // ─── Transactions ──────────────────────────────────────────────────────────
 
-export const transactions = pgTable(
+export const transactions = coreSchema.table(
 	'transactions',
 	{
 		id: text('id')
@@ -155,21 +152,29 @@ export const transactions = pgTable(
 		creditorName: text('creditor_name'),
 		debtorName: text('debtor_name'),
 
+		// AI tagging — never overwritten on re-upload
 		category: text('category'),
 		categoryConfidence: numeric('category_confidence', { precision: 4, scale: 3 }),
-		categoryOverride: text('category_override'),
-		categoryOverrideById: text('category_override_by_id').references(() => user.id),
 
+		// User corrections — never overwritten on re-upload
+		categoryOverride: text('category_override'),
+		// categoryOverrideById references auth.user.id — enforced at app layer
+		categoryOverrideById: text('category_override_by_id'),
+		notes: text('notes'),
+		city: text('city'),
+		tags: text('tags').array().default([]).notNull(),
+
+		// Transfer linking — self-referential; set via UPDATE after insert
 		isTransfer: boolean('is_transfer').default(false).notNull(),
-		transferCounterpartId: text('transfer_counterpart_id'),
-		transferLinkedById: text('transfer_linked_by_id').references(() => user.id),
+		transferCounterpartId: text('transfer_counterpart_id'), // → transactions.id
+		// transferLinkedById references auth.user.id — enforced at app layer
+		transferLinkedById: text('transfer_linked_by_id'),
 		transferLinkedAt: timestamp('transfer_linked_at'),
 
+		// System flags
 		isOpeningBalance: boolean('is_opening_balance').default(false).notNull(),
-		payerUserId: text('payer_user_id')
-			.notNull()
-			.references(() => user.id),
-		tags: text('tags').array().default([]).notNull(),
+		// payerUserId references auth.user.id — enforced at app layer
+		payerUserId: text('payer_user_id').notNull(),
 
 		status: transactionStatusEnum('status').default('posted').notNull(),
 		syncSource: syncSourceEnum('sync_source').default('csv_upload').notNull(),
@@ -186,7 +191,7 @@ export const transactions = pgTable(
 
 // ─── Per-user category overrides ──────────────────────────────────────────
 
-export const transactionOverrides = pgTable(
+export const transactionOverrides = coreSchema.table(
 	'transaction_overrides',
 	{
 		id: text('id')
@@ -195,9 +200,8 @@ export const transactionOverrides = pgTable(
 		transactionId: text('transaction_id')
 			.notNull()
 			.references(() => transactions.id),
-		userId: text('user_id')
-			.notNull()
-			.references(() => user.id),
+		// userId references auth.user.id — enforced at app layer
+		userId: text('user_id').notNull(),
 		category: text('category').notNull(),
 		tags: text('tags').array().default([]).notNull(),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -208,7 +212,7 @@ export const transactionOverrides = pgTable(
 
 // ─── Categories ────────────────────────────────────────────────────────────
 
-export const categories = pgTable('categories', {
+export const categories = coreSchema.table('categories', {
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
@@ -223,7 +227,7 @@ export const categories = pgTable('categories', {
 
 // ─── CSV column mappings ───────────────────────────────────────────────────
 
-export const csvColumnMappings = pgTable('csv_column_mappings', {
+export const csvColumnMappings = coreSchema.table('csv_column_mappings', {
 	id: text('id')
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
@@ -237,31 +241,49 @@ export const csvColumnMappings = pgTable('csv_column_mappings', {
 });
 
 // ─── Relations ─────────────────────────────────────────────────────────────
+// Cross-schema relations (touching authUser) use Drizzle relation API without
+// a DB-level FK. This is fine — relations are used only by the query builder.
 
 export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
-	owner: one(user, { fields: [workspaces.ownerId], references: [user.id] }),
+	owner: one(authUser, { fields: [workspaces.ownerId], references: [authUser.id] }),
 	bankAccounts: many(bankAccounts),
 	categories: many(categories),
-	csvColumnMappings: many(csvColumnMappings)
-}));
-
-// Overrides auth.schema's userRelations — includes both auth and business relations
-export const userRelations = relations(user, ({ many }) => ({
-	sessions: many(session),
-	accounts: many(account),
-	bankAccounts: many(bankAccounts),
-	sentShares: many(accountShares, { relationName: 'SharedBy' }),
-	receivedShares: many(accountShares, { relationName: 'SharedWith' }),
-	transactionOverrides: many(transactionOverrides),
-	csvUploads: many(csvUploads)
+	csvColumnMappings: many(csvColumnMappings),
+	invites: many(invites)
 }));
 
 export const bankAccountsRelations = relations(bankAccounts, ({ one, many }) => ({
-	owner: one(user, { fields: [bankAccounts.ownerUserId], references: [user.id] }),
+	owner: one(authUser, { fields: [bankAccounts.ownerUserId], references: [authUser.id] }),
 	workspace: one(workspaces, { fields: [bankAccounts.workspaceId], references: [workspaces.id] }),
 	transactions: many(transactions),
 	shares: many(accountShares),
 	csvUploads: many(csvUploads)
+}));
+
+export const accountSharesRelations = relations(accountShares, ({ one }) => ({
+	bankAccount: one(bankAccounts, {
+		fields: [accountShares.bankAccountId],
+		references: [bankAccounts.id]
+	}),
+	sharedBy: one(authUser, {
+		fields: [accountShares.sharedById],
+		references: [authUser.id],
+		relationName: 'SharedBy'
+	}),
+	sharedWith: one(authUser, {
+		fields: [accountShares.sharedWithId],
+		references: [authUser.id],
+		relationName: 'SharedWith'
+	})
+}));
+
+export const csvUploadsRelations = relations(csvUploads, ({ one, many }) => ({
+	bankAccount: one(bankAccounts, {
+		fields: [csvUploads.bankAccountId],
+		references: [bankAccounts.id]
+	}),
+	uploadedBy: one(authUser, { fields: [csvUploads.userId], references: [authUser.id] }),
+	transactions: many(transactions)
 }));
 
 export const transactionsRelations = relations(transactions, ({ one, many }) => ({
@@ -269,12 +291,23 @@ export const transactionsRelations = relations(transactions, ({ one, many }) => 
 		fields: [transactions.bankAccountId],
 		references: [bankAccounts.id]
 	}),
-	csvUpload: one(csvUploads, { fields: [transactions.csvUploadId], references: [csvUploads.id] }),
-	payer: one(user, { fields: [transactions.payerUserId], references: [user.id] }),
+	csvUpload: one(csvUploads, {
+		fields: [transactions.csvUploadId],
+		references: [csvUploads.id]
+	}),
+	payer: one(authUser, { fields: [transactions.payerUserId], references: [authUser.id] }),
 	counterpart: one(transactions, {
 		fields: [transactions.transferCounterpartId],
 		references: [transactions.id],
 		relationName: 'TransferPair'
 	}),
 	overrides: many(transactionOverrides)
+}));
+
+export const transactionOverridesRelations = relations(transactionOverrides, ({ one }) => ({
+	transaction: one(transactions, {
+		fields: [transactionOverrides.transactionId],
+		references: [transactions.id]
+	}),
+	user: one(authUser, { fields: [transactionOverrides.userId], references: [authUser.id] })
 }));
