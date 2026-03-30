@@ -1,93 +1,56 @@
-import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+// AUTH SCHEMA — manually maintained with pgSchema("auth") namespace.
+// Structure mirrors what the Better Auth CLI generates, but wrapped in pgSchema.
+// After running `npm run auth:schema`, re-apply the pgSchema wrapper if needed.
+import { pgSchema, text, boolean, timestamp } from 'drizzle-orm/pg-core';
 
-export const user = pgTable("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").default(false).notNull(),
-  image: text("image"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
+export const authSchema = pgSchema('auth');
+
+export const authUser = authSchema.table('user', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull().unique(),
+	emailVerified: boolean('email_verified').notNull(),
+	image: text('image'),
+	createdAt: timestamp('created_at').notNull(),
+	updatedAt: timestamp('updated_at').notNull(),
+
+	// Clair additionalFields — populated by Better Auth after configuring auth.ts
+	workspaceId: text('workspace_id'), // FK enforced at app layer (cross-schema)
+	role: text('role').default('member').notNull()
 });
 
-export const session = pgTable(
-  "session",
-  {
-    id: text("id").primaryKey(),
-    expiresAt: timestamp("expires_at").notNull(),
-    token: text("token").notNull().unique(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .$onUpdate(() => /* @__PURE__ */ new Date())
-      .notNull(),
-    ipAddress: text("ip_address"),
-    userAgent: text("user_agent"),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-  },
-  (table) => [index("session_userId_idx").on(table.userId)],
-);
+export const authSession = authSchema.table('session', {
+	id: text('id').primaryKey(),
+	userId: text('user_id').notNull(),
+	token: text('token').notNull().unique(),
+	expiresAt: timestamp('expires_at').notNull(),
+	ipAddress: text('ip_address'),
+	userAgent: text('user_agent'),
+	createdAt: timestamp('created_at').notNull(),
+	updatedAt: timestamp('updated_at').notNull()
+});
 
-export const account = pgTable(
-  "account",
-  {
-    id: text("id").primaryKey(),
-    accountId: text("account_id").notNull(),
-    providerId: text("provider_id").notNull(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    accessToken: text("access_token"),
-    refreshToken: text("refresh_token"),
-    idToken: text("id_token"),
-    accessTokenExpiresAt: timestamp("access_token_expires_at"),
-    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
-    scope: text("scope"),
-    password: text("password"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .$onUpdate(() => /* @__PURE__ */ new Date())
-      .notNull(),
-  },
-  (table) => [index("account_userId_idx").on(table.userId)],
-);
+export const authAccount = authSchema.table('account', {
+	id: text('id').primaryKey(),
+	userId: text('user_id').notNull(),
+	accountId: text('account_id').notNull(),
+	providerId: text('provider_id').notNull(),
+	accessToken: text('access_token'),
+	refreshToken: text('refresh_token'),
+	accessTokenExpiresAt: timestamp('access_token_expires_at'),
+	refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+	scope: text('scope'),
+	idToken: text('id_token'),
+	password: text('password'), // hashed password for email/password auth
+	createdAt: timestamp('created_at').notNull(),
+	updatedAt: timestamp('updated_at').notNull()
+});
 
-export const verification = pgTable(
-  "verification",
-  {
-    id: text("id").primaryKey(),
-    identifier: text("identifier").notNull(),
-    value: text("value").notNull(),
-    expiresAt: timestamp("expires_at").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .defaultNow()
-      .$onUpdate(() => /* @__PURE__ */ new Date())
-      .notNull(),
-  },
-  (table) => [index("verification_identifier_idx").on(table.identifier)],
-);
-
-export const userRelations = relations(user, ({ many }) => ({
-  sessions: many(session),
-  accounts: many(account),
-}));
-
-export const sessionRelations = relations(session, ({ one }) => ({
-  user: one(user, {
-    fields: [session.userId],
-    references: [user.id],
-  }),
-}));
-
-export const accountRelations = relations(account, ({ one }) => ({
-  user: one(user, {
-    fields: [account.userId],
-    references: [user.id],
-  }),
-}));
+export const authVerification = authSchema.table('verification', {
+	id: text('id').primaryKey(),
+	identifier: text('identifier').notNull(),
+	value: text('value').notNull(),
+	expiresAt: timestamp('expires_at').notNull(),
+	createdAt: timestamp('created_at'),
+	updatedAt: timestamp('updated_at')
+});

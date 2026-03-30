@@ -14,13 +14,36 @@ Two users max (invite-only couple). Designed to scale to more users in v2 with n
 | Framework | SvelteKit 2.x + **Svelte 5 runes** (strict — no legacy syntax) |
 | Language | TypeScript strict mode throughout |
 | Styling | Tailwind CSS v4 (CSS `@theme` config — no `tailwind.config.ts`) |
-| Components | shadcn-svelte (`npx shadcn-svelte@latest init` before first use) |
+| Components | shadcn-svelte (already initialised — `src/lib/components/ui/`) |
 | Auth | **Better Auth** (`better-auth ~1.4`) — `emailAndPassword` plugin |
 | Database | PostgreSQL via Docker Compose (local) / Neon (prod) |
 | ORM | Drizzle ORM (`drizzle-orm` + `postgres` driver) |
 | AI | Anthropic Claude Haiku — Phase 5 only |
 | Email | Resend — invites |
 | Deploy | Vercel (SvelteKit adapter) |
+
+## Critical: Svelte 5 / SvelteKit Patterns
+
+### `$app/state` — NOT `$app/stores`
+
+PRD code samples use `import { page } from '$app/stores'` (Svelte 4). Always use Svelte 5 syntax:
+
+```typescript
+// ✅ Svelte 5 — reactive state object, no $ prefix needed in template
+import { page } from '$app/state'
+page.url.pathname  // access directly
+
+// ❌ Wrong — Svelte 4 store syntax
+import { page } from '$app/stores'
+$page.url.pathname
+```
+
+### Auth client (client-side)
+
+```typescript
+import { authClient } from '$lib/auth-client'
+const { data: session } = authClient.useSession()
+```
 
 ## Critical: Svelte 5 Runes Only
 
@@ -100,7 +123,7 @@ npm run db:migrate    # applies migration to DB
 ```bash
 docker compose up -d                     # start Postgres
 npm install
-npm run db:generate && npm run db:migrate
+npm run db:generate && npm run db:migrate    # NOTE: db:generate needs a TTY — run in terminal, not CI
 npx tsx scripts/seed-owner.ts --email=you@example.com --name="Pablo" --password=yourpassword
 npm run dev
 ```
@@ -177,7 +200,7 @@ src/routes/
 
 | Phase | Description | Status |
 |---|---|---|
-| 1 | Scaffold, Docker, schema, Better Auth, login, invite, seed | **In progress** |
+| 1 | Scaffold, Docker, schema, Better Auth, login, invite, seed | **Complete** |
 | 2 | Bank account CRUD + sharing model | Pending |
 | 3a–d | CSV parsers + full upload pipeline | Pending |
 | 4 | Transaction list + detail panel + transfer linking | Pending |

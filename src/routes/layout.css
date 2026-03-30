@@ -1,29 +1,30 @@
 @import 'tailwindcss';
 @import "tw-animate-css";
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
 @plugin '@tailwindcss/typography';
 
 :root {
 	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
+	--foreground: oklch(0.131 0.028 261.7);
 	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
+	--card-foreground: oklch(0.131 0.028 261.7);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
+	--popover-foreground: oklch(0.131 0.028 261.7);
+	--primary: oklch(0.656 0.241 354);
+	--primary-foreground: oklch(1 0 0);
+	--secondary: oklch(0.967 0.003 264.5);
 	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
+	--muted: oklch(0.967 0.003 264.5);
+	--muted-foreground: oklch(0.556 0.018 264.4);
+	--accent: oklch(0.967 0.003 264.5);
 	--accent-foreground: oklch(0.205 0 0);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
+	--destructive: oklch(0.628 0.237 25.5);
+	--border: oklch(0.922 0.005 264.5);
+	--input: oklch(0.922 0.005 264.5);
+	--ring: oklch(0.656 0.241 354);
 	--chart-1: oklch(0.809 0.105 251.813);
 	--chart-2: oklch(0.623 0.214 259.815);
 	--chart-3: oklch(0.546 0.245 262.881);
@@ -31,13 +32,13 @@
 	--chart-5: oklch(0.424 0.199 265.638);
 	--radius: 0.625rem;
 	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.205 0 0);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
+	--sidebar-foreground: oklch(0.131 0.028 261.7);
+	--sidebar-primary: oklch(0.656 0.241 354);
+	--sidebar-primary-foreground: oklch(1 0 0);
+	--sidebar-accent: oklch(0.967 0.003 264.5);
 	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.922 0 0);
-	--sidebar-ring: oklch(0.708 0 0);
+	--sidebar-border: oklch(0.922 0.005 264.5);
+	--sidebar-ring: oklch(0.656 0.241 354);
 }
 
 .dark {
@@ -72,6 +73,46 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(1 0 0 / 10%);
 	--sidebar-ring: oklch(0.556 0 0);
+}
+
+@theme {
+	/* Primary — pink */
+	--color-primary-50: #fdf2f8;
+	--color-primary-100: #fce7f3;
+	--color-primary-200: #fbcfe8;
+	--color-primary-300: #f9a8d4;
+	--color-primary-400: #f472b6;
+	--color-primary-500: #ec4899;
+	--color-primary-600: #db2777;
+	--color-primary-700: #be185d;
+	--color-primary-800: #9d174d;
+	--color-primary-900: #831843;
+
+	/* Success — positive amounts */
+	--color-success-50: #ecfdf5;
+	--color-success-500: #10b981;
+	--color-success-600: #059669;
+	--color-success-700: #047857;
+
+	/* Danger — negative amounts */
+	--color-danger-50: #fff1f2;
+	--color-danger-500: #f43f5e;
+	--color-danger-600: #e11d48;
+	--color-danger-700: #be123c;
+
+	/* Surfaces & borders */
+	--color-surface: #ffffff;
+	--color-surface-raised: #f9fafb;
+	--color-surface-sunken: #f3f4f6;
+	--color-border: #e5e7eb;
+	--color-border-strong: #d1d5db;
+	--color-text-primary: #111827;
+	--color-text-secondary: #6b7280;
+	--color-text-tertiary: #9ca3af;
+
+	/* Fonts */
+	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 }
 
 @theme inline {
@@ -121,7 +162,8 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply bg-background text-foreground;
+		@apply bg-background text-foreground font-sans;
+		-webkit-font-smoothing: antialiased;
 	}
 	html {
 		@apply font-sans;
