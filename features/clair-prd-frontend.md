@@ -259,7 +259,7 @@ Displays a monetary amount with correct sign, colour, and monospace font.
 ```svelte
 <!-- src/lib/components/layout/Sidebar.svelte -->
 <script lang="ts">
-  import { page } from "$app/stores"
+  import { page } from "$app/state"
 
   const links = [
     { href: "/dashboard",    label: "Dashboard",     icon: "home" },
@@ -279,7 +279,7 @@ Displays a monetary amount with correct sign, colour, and monospace font.
       href={link.href}
       class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm
              transition-colors
-             {$page.url.pathname.startsWith(link.href)
+             {page.url.pathname.startsWith(link.href)
                ? 'bg-primary-50 text-primary-600 font-medium'
                : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary'}"
     >
@@ -304,7 +304,7 @@ Displays a monetary amount with correct sign, colour, and monospace font.
 ```svelte
 <!-- src/lib/components/layout/BottomNav.svelte -->
 <script lang="ts">
-  import { page } from "$app/stores"
+  import { page } from "$app/state"
   const tabs = [
     { href: "/dashboard",    label: "Home",         icon: "home" },
     { href: "/accounts",     label: "Accounts",     icon: "credit-card" },
@@ -318,7 +318,7 @@ Displays a monetary amount with correct sign, colour, and monospace font.
   {#each tabs as tab}
     <a href={tab.href}
        class="flex-1 flex flex-col items-center justify-center gap-1
-              {$page.url.pathname.startsWith(tab.href)
+              {page.url.pathname.startsWith(tab.href)
                 ? 'text-primary-500'
                 : 'text-text-tertiary'}">
       <!-- icon -->
@@ -595,6 +595,7 @@ Ready to import
 
 ┌─────────────────────────────┐
 │  New transactions      312  │
+│  Status updates          5  │  ← PENDING→COMPLETED upgrades (shown only if > 0)
 │  Duplicates skipped      8  │
 │  Needs review            4  │
 │  Date range    Jan–Mar 2025 │
@@ -604,11 +605,14 @@ Ready to import
          Cancel
 ```
 
+"Status updates" row: only show when > 0. Tooltip on hover/tap:
+`"5 transactions moved from Pending to Completed. Your notes and categories are preserved."`
+
 **Result state (replace modal content after import):**
 ```
 ✓  312 transactions imported
 
-   8 duplicates skipped · 4 flagged for review
+   5 status updates · 8 duplicates skipped · 4 flagged for review
 
 [View transactions →]     [Upload another file]
 ```
@@ -694,6 +698,16 @@ AI confidence: 87%  ████████░░
 ─────────────────────────────────────
 TAGS
 [groceries ×]  [weekly ×]  [+ Add tag]    ← chips, inline input
+
+─────────────────────────────────────
+NOTES
+[Free-form note about this transaction]   ← single-line text input, auto-save on blur
+                                            placeholder: "Add a note…"
+
+─────────────────────────────────────
+CITY / TRIP
+[Copenhagen ▾]                            ← free text + recent values dropdown
+                                            placeholder: "City or trip name…"
 
 ─────────────────────────────────────
 TRANSFER
@@ -831,8 +845,10 @@ Colour dot is a `<button>` that opens a small colour-picker popover.
 [✓]  Currency      currency        ☰
 [✓]  Category      effective cat   ☰
 [✓]  Account       display_name    ☰
-[ ]  Payer         payer_name      ☰    ← toggled off
+[ ]  Payer         payer_name      ☰    ← toggled off by default
 [✓]  Tags          tags (csv)      ☰
+[ ]  Notes         notes           ☰    ← toggled off by default
+[ ]  City          city            ☰    ← toggled off by default
 
 [Restore defaults]
 ```

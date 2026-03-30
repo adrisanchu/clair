@@ -173,6 +173,10 @@ export const transactions = pgTable("transactions", {
                            .references(() => user.id),
   tags:                  text("tags").array().default([]).notNull(),
 
+  // User-editable enrichment fields — never overwritten by re-uploads
+  notes:                 text("notes"),           // free-form note ("CPH Day 1 — Café La Cabra")
+  city:                  text("city"),            // city/trip tag ("Copenhagen")
+
   status:                transactionStatusEnum("status").default("posted").notNull(),
   syncSource:            syncSourceEnum("sync_source").default("csv_upload").notNull(),
 
@@ -381,8 +385,9 @@ export interface BankParserProfile {
   encoding:           string        // "utf-8" | "iso-8859-1"
   delimiter:          string        // "," | ";"
   skipRows:           number        // metadata rows before the header row
-  dateColumn:         string
+  dateColumn:         string        // booking/start date
   dateFormat:         string        // "DD/MM/YYYY" | "DD-MM-YYYY" | "YYYY-MM-DD HH:mm:ss"
+  valueDateColumn:    string | null // settlement/end date (e.g. "Fecha de finalización" in Revolut)
   amountColumn:       string | null
   debitColumn:        string | null
   creditColumn:       string | null
@@ -390,16 +395,21 @@ export interface BankParserProfile {
   currencyColumn:     string | null
   localAmountColumn:  string | null
   balanceColumn:      string | null
+  statusColumn:       string | null // "COMPLETADO"/"PENDIENTE" etc. — maps to 'posted'/'pending'
+  typeColumn:         string | null // raw transaction type (e.g. "Tipo" in Revolut)
 }
 
 export interface NormalizedTransaction {
   bookingDate:      Date
+  valueDate:        Date | null     // null when transaction is pending
   amount:           number
   currency:         string
   amountOriginal:   number
   currencyOriginal: string
   description:      string
-  runningBalance:   number | null
+  runningBalance:   number | null   // null when transaction is pending
+  status:           'pending' | 'posted'
+  rawType:          string | null   // original type string from CSV (for transfer detection)
 }
 ```
 
@@ -482,29 +492,45 @@ POST /api/upload
       5. Create csv_uploads record
       6. Update bank_accounts.current_balance
       7. Run transfer auto-detection (see §6)
-  - Return: { imported, duplicates, flagged, unresolvedTransfers[] }
+  - Return: { imported, statusUpdates, duplicates, flagged, unresolvedTransfers[] }
+  - `statusUpdates` = count of PENDING→COMPLETED transitions applied
 ```
 
 ### Deduplication
 
+The dedup function returns one of four actions. Key invariant: **user-enriched fields
+(`category`, `categoryOverride`, `notes`, `city`, `tags`) are NEVER overwritten** — not
+even when a status update is applied. Only system-owned fields change on update.
+
 ```typescript
-// Run before DB insert, per row
-async function isDuplicate(
+type DedupAction =
+  | "insert"         // new transaction — write to DB
+  | "update_status"  // PENDING in DB, now COMPLETED in CSV — update system fields only
+  | "update_desc"    // same date+amount, description changed — update description only
+  | "skip"           // exact duplicate — ignore
+  | "review"         // ambiguous match — flag for manual review
+
+// Run before DB insert, per normalised row
+async function classifyRow(
   row: NormalizedTransaction,
   bankAccountId: string,
   externalId?: string,
-): Promise<"skip" | "update" | "insert" | "review"> {
+): Promise<{ action: DedupAction; existingId?: string }> {
 
-  // Priority 1: externalId match
+  // Priority 1: externalId match (when available from the bank profile)
   if (externalId) {
     const existing = await db.query.transactions.findFirst({
       where: (t, { and, eq }) =>
         and(eq(t.bankAccountId, bankAccountId), eq(t.externalId, externalId)),
     })
-    if (existing) return "skip"
+    if (existing) {
+      if (existing.status === "pending" && row.status === "posted")
+        return { action: "update_status", existingId: existing.id }
+      return { action: "skip" }
+    }
   }
 
-  // Priority 2: date + amount + description hash
+  // Priority 2: bookingDate + amount + description hash (exact match)
   const descHash = createHash("md5").update(row.description).digest("hex")
   const sameExact = await db.query.transactions.findFirst({
     where: (t, { and, eq, sql }) =>
@@ -515,9 +541,13 @@ async function isDuplicate(
         sql`md5(${t.description}) = ${descHash}`,
       ),
   })
-  if (sameExact) return "skip"
+  if (sameExact) {
+    if (sameExact.status === "pending" && row.status === "posted")
+      return { action: "update_status", existingId: sameExact.id }
+    return { action: "skip" }
+  }
 
-  // Priority 3: date + amount, description differs
+  // Priority 3: bookingDate + amount only (description may have changed)
   const sameAmountDate = await db.query.transactions.findMany({
     where: (t, { and, eq, sql }) =>
       and(
@@ -526,10 +556,28 @@ async function isDuplicate(
         sql`${t.amount} = ${row.amount}`,
       ),
   })
-  if (sameAmountDate.length === 1) return "update"  // update description
-  if (sameAmountDate.length > 1)  return "review"   // ambiguous — flag
+  if (sameAmountDate.length === 1) {
+    if (sameAmountDate[0].status === "pending" && row.status === "posted")
+      return { action: "update_status", existingId: sameAmountDate[0].id }
+    return { action: "update_desc", existingId: sameAmountDate[0].id }
+  }
+  if (sameAmountDate.length > 1) return { action: "review" }
 
-  return "insert"
+  return { action: "insert" }
+}
+
+// Apply an update_status action — only touch system-owned fields
+async function applyStatusUpdate(existingId: string, row: NormalizedTransaction) {
+  await db
+    .update(transactions)
+    .set({
+      status:    "posted",
+      valueDate: row.valueDate,
+      // runningBalance is stored on the account, not per-transaction
+      updatedAt: new Date(),
+      // DO NOT touch: category, categoryOverride, notes, city, tags
+    })
+    .where(eq(transactions.id, existingId))
 }
 ```
 
