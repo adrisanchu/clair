@@ -301,6 +301,7 @@ export const transactionsRelations = relations(transactions, ({ one, many }) => 
 		references: [transactions.id],
 		relationName: 'TransferPair'
 	}),
+	counterpartOf: many(transactions, { relationName: 'TransferPair' }),
 	overrides: many(transactionOverrides)
 }));
 
@@ -310,4 +311,33 @@ export const transactionOverridesRelations = relations(transactionOverrides, ({ 
 		references: [transactions.id]
 	}),
 	user: one(authUser, { fields: [transactionOverrides.userId], references: [authUser.id] })
+}));
+
+export const categoriesRelations = relations(categories, ({ one }) => ({
+	workspace: one(workspaces, { fields: [categories.workspaceId], references: [workspaces.id] })
+}));
+
+export const csvColumnMappingsRelations = relations(csvColumnMappings, ({ one }) => ({
+	workspace: one(workspaces, {
+		fields: [csvColumnMappings.workspaceId],
+		references: [workspaces.id]
+	})
+}));
+
+export const invitesRelations = relations(invites, ({ one }) => ({
+	workspace: one(workspaces, { fields: [invites.workspaceId], references: [workspaces.id] }),
+	invitedBy: one(authUser, { fields: [invites.invitedById], references: [authUser.id] })
+}));
+
+// Cross-schema inverse: authUser many-sides for all core references.
+// Defined here (not in auth.schema.ts) to keep auth schema auto-regenerable.
+export const userRelations = relations(authUser, ({ many }) => ({
+	ownedWorkspaces: many(workspaces),
+	bankAccounts: many(bankAccounts),
+	csvUploads: many(csvUploads),
+	paidTransactions: many(transactions),
+	transactionOverrides: many(transactionOverrides),
+	invitesSent: many(invites),
+	sharedAccountsBy: many(accountShares, { relationName: 'SharedBy' }),
+	sharedAccountsWith: many(accountShares, { relationName: 'SharedWith' })
 }));
