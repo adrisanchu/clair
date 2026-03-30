@@ -1,42 +1,80 @@
-# sv
+# Clair
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Personal finance aggregator for couples. Upload bank CSVs, let AI tag your transactions, and export a clean unified CSV — all in a private, invite-only app.
 
-## Creating a project
+## Stack
 
-If you're seeing this, you've probably already done this step. Congrats!
+| Layer | Choice |
+|---|---|
+| Framework | SvelteKit 2.x + Svelte 5 runes |
+| Language | TypeScript (strict) |
+| Styling | Tailwind CSS v4 |
+| Components | shadcn-svelte |
+| Auth | Better Auth ~1.4 (email + password) |
+| ORM | Drizzle ORM + `postgres` driver |
+| Database | PostgreSQL — Docker Compose (local) / Neon (prod) |
+| AI | Anthropic Claude Haiku (Phase 5) |
+| Email | Resend (invite flow) |
+| Deploy | Vercel |
 
-```sh
-# create a new project
-npx sv create my-app
-```
+## Quickstart
 
-To recreate this project with the same configuration:
+### Prerequisites
 
-```sh
-# recreate this project
-npx sv@0.13.0 create --template minimal --types ts --add prettier eslint tailwindcss="plugins:typography" drizzle="database:postgresql+postgresql:postgres.js+docker:yes" better-auth="demo:password" --install npm ./
-```
+- Node.js 20+
+- Docker (for local Postgres)
 
-## Developing
+### First-time setup
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+```bash
+# 1. Start the database
+docker compose up -d
 
-```sh
+# 2. Install dependencies
+npm install
+
+# 3. Copy and fill in environment variables
+cp .env.example .env   # then edit .env
+
+# 4. Generate the Better Auth schema and run migrations
+npm run auth:schema
+npm run db:generate
+npm run db:migrate
+
+# 5. Seed the owner account (run once)
+npx tsx scripts/seed-owner.ts --email=you@example.com --name="Your Name" --password=yourpassword
+
+# 6. Start the dev server
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
+### Daily workflow
 
-To create a production version of your app:
-
-```sh
-npm run build
+```bash
+docker compose up -d   # ensure DB is running
+npm run dev
 ```
 
-You can preview the production build with `npm run preview`.
+## Useful commands
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+| Command | Description |
+|---|---|
+| `npm run dev` | Start dev server at `localhost:5173` |
+| `npm run build` | Build for production |
+| `npm run preview` | Preview the production build |
+| `npm run auth:schema` | Regenerate `auth.schema.ts` after editing `auth.ts` |
+| `npm run db:generate` | Generate a new Drizzle migration after schema changes |
+| `npm run db:migrate` | Apply pending migrations to the database |
+| `npm run db:studio` | Open Drizzle Studio (DB GUI) at `localhost:4983` |
+| `docker compose down -v` | Destroy the local DB and all data (full reset) |
+
+## Environment variables
+
+```bash
+DATABASE_URL="postgres://root:mysecretpassword@localhost:5432/local"
+ORIGIN="http://localhost:5173"
+BETTER_AUTH_SECRET=""        # generate: openssl rand -base64 32
+RESEND_API_KEY="re_..."
+EMAIL_FROM="noreply@clair.app"
+ANTHROPIC_API_KEY="sk-ant-..."   # Phase 5 only
+```
