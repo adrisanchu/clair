@@ -12,6 +12,8 @@ export const user = pgTable("user", {
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  workspaceId: text("workspace_id"),
+  role: text("role").default("member"),
 });
 
 export const session = pgTable(
