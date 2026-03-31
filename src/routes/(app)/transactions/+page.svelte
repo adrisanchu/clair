@@ -5,8 +5,9 @@
 	import { DropdownMenu } from 'bits-ui'
 	import { Search, ChevronDown, X, ArrowLeftRight, AlertTriangle, ChevronLeft, ChevronRight } from '@lucide/svelte'
 	import Amount from '$lib/components/Amount.svelte'
-	import { Button } from '$lib/components/ui/button'
+	import { Button, buttonVariants } from '$lib/components/ui/button'
 	import { Input } from '$lib/components/ui/input'
+	import { cn } from '$lib/utils'
 	import type { PageData } from './$types'
 
 	let { data }: { data: PageData } = $props()
@@ -26,11 +27,8 @@
 	function navigate(params: Record<string, string | null>) {
 		const url = new URL(page.url)
 		for (const [k, v] of Object.entries(params)) {
-			if (!v) {
-				url.searchParams.delete(k)
-			} else {
-				url.searchParams.set(k, v)
-			}
+			if (!v) url.searchParams.delete(k)
+			else url.searchParams.set(k, v)
 		}
 		goto(url.toString(), { keepFocus: true })
 	}
@@ -55,9 +53,7 @@
 		const q = (e.target as HTMLInputElement).value
 		searchInput = q
 		clearTimeout(debounceTimer)
-		debounceTimer = setTimeout(() => {
-			navigate({ q: q || null, page: null })
-		}, 350)
+		debounceTimer = setTimeout(() => navigate({ q: q || null, page: null }), 350)
 	}
 
 	// ── Derived state ──────────────────────────────────────────────────────────
@@ -67,14 +63,16 @@
 	const activeAccountName = $derived(
 		data.accounts.find((a) => a.id === activeAccountId)?.displayName ?? null
 	)
-	const hasFilters = $derived(!!(data.filters.q || data.filters.accountId || data.filters.filter !== 'all'))
+	const hasFilters = $derived(
+		!!(data.filters.q || data.filters.accountId || data.filters.filter !== 'all')
+	)
 
 	const totalPages = $derived(Math.max(1, Math.ceil(data.total / data.limit)))
 	const currentPage = $derived(data.page)
 	const showingFrom = $derived((currentPage - 1) * data.limit + 1)
 	const showingTo = $derived(Math.min(currentPage * data.limit, data.total))
 
-	// ── Pagination pages ───────────────────────────────────────────────────────
+	// ── Pagination ─────────────────────────────────────────────────────────────
 
 	function getPaginationPages(cur: number, total: number): (number | '…')[] {
 		if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
@@ -100,9 +98,9 @@
 	])
 </script>
 
-<div>
-	<!-- ── Page header ─────────────────────────────────────────────────────────── -->
-	<div class="px-4 pt-6 pb-4 md:px-8 md:pt-8 border-b border-border">
+<div class="px-4 py-6 md:px-8 md:py-8 max-w-5xl">
+	<!-- ── Page header ────────────────────────────────────────────────────────── -->
+	<div class="pb-4 border-b border-border">
 		<div class="flex items-start justify-between gap-4 flex-wrap">
 			<div>
 				<h1 class="text-2xl font-semibold text-text-primary">Transactions</h1>
@@ -111,30 +109,33 @@
 				</p>
 			</div>
 
-			<!-- Tab filter pills -->
-			<div class="flex items-center gap-1 flex-wrap">
+			<!-- Tab filter pills — using buttonVariants for consistent base styles -->
+			<div class="flex items-center gap-1.5 flex-wrap">
 				{#each tabs as tab}
 					<button
 						onclick={() => setFilter(tab.key)}
-						class="relative flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors {activeFilter === tab.key
-							? 'bg-primary-500 text-white shadow-sm'
-							: 'text-text-secondary hover:text-text-primary hover:bg-surface-sunken border border-border'}"
+						class={cn(
+							buttonVariants({ size: 'sm' }),
+							'rounded-full gap-1.5',
+							activeFilter === tab.key
+								? 'bg-primary-500 text-white hover:bg-primary-600 border-transparent'
+								: 'bg-transparent text-text-secondary border-border hover:bg-surface-sunken hover:text-text-primary'
+						)}
 					>
 						{tab.label}
 						{#if tab.key === 'review' && tab.count > 0}
 							<span
-								class="flex items-center justify-center rounded-full text-[10px] font-bold min-w-4 h-4 px-1 {activeFilter === 'review'
-									? 'bg-white/25 text-white'
-									: 'bg-danger-500 text-white'}"
+								class={cn(
+									'flex items-center justify-center rounded-full text-[10px] font-bold min-w-[1rem] h-4 px-1',
+									activeFilter === 'review'
+										? 'bg-white/25 text-white'
+										: 'bg-danger-500 text-white'
+								)}
 							>
 								{tab.count}
 							</span>
 						{:else}
-							<span
-								class="text-xs {activeFilter === tab.key
-									? 'text-white/80'
-									: 'text-text-tertiary'}"
-							>
+							<span class={activeFilter === tab.key ? 'text-white/75' : 'text-text-tertiary'}>
 								({tab.count})
 							</span>
 						{/if}
@@ -145,30 +146,42 @@
 	</div>
 
 	<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
-	<div class="px-4 py-3 md:px-8 border-b border-border bg-surface-raised flex items-center gap-2 flex-wrap">
-		<!-- Search -->
+	<div
+		class="py-3 border-b border-border bg-surface-raised flex items-center gap-2 flex-wrap"
+	>
+		<!-- Search using shadcn Input -->
 		<div class="relative flex-1 min-w-48">
-			<Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
+			<Search
+				size={14}
+				class="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
+			/>
 			<Input
 				type="search"
 				placeholder="Search transactions…"
 				value={searchInput}
 				oninput={handleSearch}
-				class="pl-8 h-8 text-sm bg-surface"
+				class="pl-8 h-8 text-sm"
 			/>
 		</div>
 
-		<!-- Account filter -->
+		<!-- Account filter — bits-ui DropdownMenu with shadcn Button trigger -->
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger>
 				{#snippet child({ props })}
-					<button
+					<Button
+						variant="outline"
+						size="sm"
 						{...props}
-						class="flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 h-8 text-sm text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors {activeAccountId ? 'border-primary-300 text-primary-600 bg-primary-50' : ''}"
+						class={cn(
+							'gap-1.5',
+							activeAccountId
+								? 'border-primary-300 text-primary-600 bg-primary-50 hover:bg-primary-100'
+								: ''
+						)}
 					>
 						{activeAccountName ?? 'Account'}
-						<ChevronDown size={13} class="text-text-tertiary" />
-					</button>
+						<ChevronDown size={13} class="text-muted-foreground" />
+					</Button>
 				{/snippet}
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content
@@ -176,7 +189,9 @@
 				sideOffset={4}
 			>
 				<DropdownMenu.Item
-					class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-text-primary hover:bg-surface-sunken cursor-pointer outline-none {!activeAccountId ? 'font-medium' : ''}"
+					class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-text-primary hover:bg-surface-sunken cursor-pointer outline-none {!activeAccountId
+						? 'font-medium'
+						: ''}"
 					onclick={() => setAccount('')}
 				>
 					All accounts
@@ -184,7 +199,10 @@
 				<DropdownMenu.Separator class="my-1 -mx-1 h-px bg-border" />
 				{#each data.accounts as account}
 					<DropdownMenu.Item
-						class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-text-primary hover:bg-surface-sunken cursor-pointer outline-none {activeAccountId === account.id ? 'font-medium text-primary-600' : ''}"
+						class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-text-primary hover:bg-surface-sunken cursor-pointer outline-none {activeAccountId ===
+						account.id
+							? 'font-medium text-primary-600'
+							: ''}"
 						onclick={() => setAccount(account.id)}
 					>
 						{account.displayName}
@@ -193,50 +211,61 @@
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
 
-		<!-- Clear filters -->
+		<!-- Clear filters — shadcn Button -->
 		{#if hasFilters}
-			<button
+			<Button
+				variant="ghost"
+				size="sm"
 				onclick={clearFilters}
-				class="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-primary-500 hover:text-primary-600 transition-colors"
+				class="gap-1 text-primary-500 hover:text-primary-600 hover:bg-primary-50"
 			>
 				<X size={12} />
 				Clear filters
-			</button>
+			</Button>
 		{/if}
 	</div>
 
 	<!-- ── Transactions table ──────────────────────────────────────────────────── -->
 	<div class="overflow-x-auto">
 		{#if data.rows.length === 0}
-			<!-- Empty state -->
 			<div class="flex flex-col items-center justify-center py-24 text-center px-4">
 				<p class="text-sm font-medium text-text-primary mb-1">No transactions found</p>
 				<p class="text-sm text-text-secondary">
 					{hasFilters ? 'Try adjusting your filters.' : 'Upload a CSV to get started.'}
 				</p>
 				{#if hasFilters}
-					<button onclick={clearFilters} class="mt-4 text-sm text-primary-500 hover:underline">
+					<Button variant="link" onclick={clearFilters} class="mt-3 text-primary-500">
 						Clear all filters
-					</button>
+					</Button>
 				{/if}
 			</div>
 		{:else}
 			<table class="w-full text-sm border-collapse">
 				<thead>
 					<tr class="border-b border-border bg-surface-raised">
-						<th class="text-left text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-4 md:px-8 py-2.5 w-32">
+						<th
+							class="text-left text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-2 md:px-4 py-2.5 w-36"
+						>
 							Date
 						</th>
-						<th class="text-left text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-3 py-2.5">
+						<th
+							class="text-left text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-2 py-2.5"
+						>
 							Description
 						</th>
-						<th class="text-left text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-3 py-2.5 w-36 hidden md:table-cell">
+						<th
+							class="text-left text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-2 py-2.5 w-36 hidden md:table-cell"
+						>
 							Account
 						</th>
-						<th class="text-left text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-3 py-2.5 w-36 hidden lg:table-cell">
+						<th
+							class="text-left text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-2 py-2.5 w-36 hidden lg:table-cell"
+						>
 							Category
 						</th>
-						<th class="text-right text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-4 md:px-8 py-2.5 w-32">
+						<th
+							class="text-right text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-2 md:px-4 py-2.5 w-32"
+						>
 							Amount
 						</th>
 					</tr>
@@ -246,15 +275,23 @@
 						{@const isReview = tx.status === 'review'}
 						{@const isTransfer = tx.isTransfer}
 						<tr
-							class="border-b border-border hover:bg-surface-sunken/60 transition-colors group {isReview ? 'border-l-2 border-l-amber-400' : ''}"
+							class={cn(
+								'border-b border-border transition-colors hover:bg-surface-sunken/60',
+								isReview && 'border-l-2 border-l-amber-400'
+							)}
 						>
 							<!-- Date -->
-							<td class="px-4 md:px-8 py-3 text-text-tertiary whitespace-nowrap text-xs tabular-nums {isReview ? 'pl-3.5 md:pl-7.5' : ''}">
+							<td
+								class={cn(
+									'py-3 text-text-tertiary whitespace-nowrap text-xs tabular-nums',
+									isReview ? 'px-2 md:px-4' : 'px-2 md:px-4'
+								)}
+							>
 								{format(tx.bookingDate, 'd MMM yyyy')}
 							</td>
 
 							<!-- Description -->
-							<td class="px-3 py-3 text-text-primary max-w-xs">
+							<td class="px-2 py-3 text-text-primary max-w-xs">
 								<div class="flex items-center gap-2 min-w-0">
 									{#if isTransfer}
 										<ArrowLeftRight size={13} class="text-text-tertiary shrink-0" />
@@ -263,35 +300,38 @@
 									{/if}
 									<span class="truncate font-medium">{tx.description}</span>
 								</div>
-								<!-- Account shown on mobile only -->
 								{#if tx.accountName}
-									<span class="md:hidden text-[10px] text-text-tertiary mt-0.5 block">{tx.accountName}</span>
+									<span class="md:hidden text-[10px] text-text-tertiary mt-0.5 block">
+										{tx.accountName}
+									</span>
 								{/if}
 							</td>
 
 							<!-- Account (desktop) -->
-							<td class="px-3 py-3 hidden md:table-cell">
+							<td class="px-2 py-3 hidden md:table-cell">
 								{#if tx.accountName}
-									<span class="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-surface-sunken text-text-secondary border border-border">
+									<span
+										class="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-surface-sunken text-text-secondary border border-border"
+									>
 										{tx.accountName}
 									</span>
 								{/if}
 							</td>
 
 							<!-- Category (desktop) -->
-							<td class="px-3 py-3 hidden lg:table-cell">
+							<td class="px-2 py-3 hidden lg:table-cell">
 								{#if isReview}
-									<span class="inline-flex items-center gap-1 text-xs text-amber-600">
+									<span class="inline-flex items-center gap-1.5 text-xs text-amber-600">
 										<span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
 										Review Required
 									</span>
 								{:else if isTransfer}
-									<span class="inline-flex items-center gap-1 text-xs text-text-tertiary">
-										<span class="w-1.5 h-1.5 rounded-full bg-text-tertiary/40 shrink-0"></span>
+									<span class="inline-flex items-center gap-1.5 text-xs text-text-tertiary">
+										<span class="w-1.5 h-1.5 rounded-full bg-border-strong shrink-0"></span>
 										Transfer
 									</span>
 								{:else if tx.category}
-									<span class="inline-flex items-center gap-1 text-xs text-text-secondary">
+									<span class="inline-flex items-center gap-1.5 text-xs text-text-secondary">
 										<span class="w-1.5 h-1.5 rounded-full bg-primary-400 shrink-0"></span>
 										{tx.category}
 									</span>
@@ -301,7 +341,7 @@
 							</td>
 
 							<!-- Amount -->
-							<td class="px-4 md:px-8 py-3 text-right">
+							<td class="px-2 md:px-4 py-3 text-right">
 								<Amount value={tx.amount} currency={tx.currency} size="sm" />
 							</td>
 						</tr>
@@ -313,13 +353,16 @@
 
 	<!-- ── Footer / Pagination ────────────────────────────────────────────────── -->
 	{#if data.total > 0}
-		<div class="px-4 md:px-8 py-3 border-t border-border bg-surface flex items-center justify-between gap-4 flex-wrap">
+		<div
+			class="md:px-8 py-3 border-t border-border bg-surface flex items-center justify-between gap-4 flex-wrap"
+		>
 			<!-- Count label -->
 			<p class="text-xs text-text-tertiary">
-				Showing {showingFrom}–{showingTo} of {data.total} transaction{data.total === 1 ? '' : 's'}
+				Showing {showingFrom}–{showingTo} of {data.total}
+				{data.total === 1 ? 'transaction' : 'transactions'}
 			</p>
 
-			<!-- Pagination -->
+			<!-- Pagination — all using shadcn Button -->
 			{#if totalPages > 1}
 				<div class="flex items-center gap-1">
 					<Button
@@ -333,16 +376,16 @@
 
 					{#each paginationPages as p}
 						{#if p === '…'}
-							<span class="w-8 text-center text-xs text-text-tertiary">…</span>
+							<span class="w-8 text-center text-xs text-text-tertiary select-none">…</span>
 						{:else}
-							<button
+							<Button
+								variant={p === currentPage ? 'default' : 'ghost'}
+								size="icon-sm"
 								onclick={() => setPage(p as number)}
-								class="w-8 h-8 rounded-md text-sm font-medium transition-colors {p === currentPage
-									? 'bg-primary-500 text-white'
-									: 'text-text-secondary hover:bg-surface-sunken'}"
+								class={p === currentPage ? 'bg-primary-500 hover:bg-primary-600' : ''}
 							>
 								{p}
-							</button>
+							</Button>
 						{/if}
 					{/each}
 
