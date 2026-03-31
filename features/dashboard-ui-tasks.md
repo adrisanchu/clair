@@ -78,11 +78,9 @@ The shadcn Sidebar's mobile mode renders as a Sheet automatically via `SidebarPr
 
 ## Summary & Recommended Order
 
-| # | Task | Effort | Resolves |
+| # | Task | Effort | Status |
 |---|---|---|---|
-| 1 | Migrate to shadcn Sidebar component | Medium | #1, #3, #4 |
-| 2 | Badge for trend indicator | Trivial | #2 |
-| 3 | Sidebar breakpoint fix | Blocked by #1 | #3 |
-| 4 | Mobile Settings/Sign-out access | Blocked by #1 | #4 |
-
-**Start with Task 2** (trivial, standalone), then **Task 1** (unlocks 3 & 4).
+| 1 | Migrate to shadcn Sidebar component | Medium | ✅ Done — `AppSidebar.svelte` + updated `(app)/+layout.svelte` |
+| 2 | Badge for trend indicator | Trivial | ✅ Done — `dashboard/+page.svelte` |
+| 3 | Sidebar breakpoint fix | Resolved by #1 | ✅ Done — shadcn Sidebar handles md/lg natively |
+| 4 | Mobile Settings/Sign-out access | Resolved by #1 | ✅ Done — Sheet overlay on mobile via SidebarProvider |

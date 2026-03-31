@@ -89,10 +89,10 @@
 			<span class="font-mono tabular-nums text-5xl md:text-6xl font-bold text-text-primary leading-none">
 				{formattedTotal}
 			</span>
-			<div class="flex items-center gap-1 text-success-600 text-sm font-semibold mb-1">
-				<TrendingUp size={15} />
+			<Badge class="mb-1 gap-1 border-0 bg-success-50 text-success-600 font-semibold">
+				<TrendingUp size={12} />
 				+2.4%
-			</div>
+			</Badge>
 		</div>
 	</div>
 
@@ -162,7 +162,7 @@
 		<!-- Add Account placeholder -->
 		<a
 			href="/accounts/new"
-			class="rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-text-tertiary hover:text-text-secondary hover:border-border-strong transition-colors min-h-[148px] p-4"
+			class="rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-text-tertiary hover:text-text-secondary hover:border-border-strong transition-colors min-h-37 p-4"
 		>
 			<div
 				class="h-10 w-10 rounded-full border-2 border-dashed border-current flex items-center justify-center"
