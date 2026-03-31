@@ -70,7 +70,7 @@
 							<Sidebar.MenuButton
 								isActive={active}
 								tooltipContent={link.label}
-								class={active ? '!bg-primary-50 !text-primary-600 font-medium' : ''}
+								class={active ? 'bg-primary-50! text-primary-600! font-medium' : ''}
 							>
 								{#snippet child({ props })}
 									<a href={link.href} {...props}>
