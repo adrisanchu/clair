@@ -6,6 +6,7 @@
 	import Amount from '$lib/components/Amount.svelte'
 	import BankLogo from '$lib/components/BankLogo.svelte'
 	import AddAccountSheet from '$lib/components/accounts/AddAccountSheet.svelte'
+	import UploadCsvDialog from '$lib/components/accounts/UploadCsvDialog.svelte'
 	import * as Card from '$lib/components/ui/card'
 	import { Button } from '$lib/components/ui/button'
 	import type { PageData } from './$types'
@@ -13,6 +14,8 @@
 	let { data }: { data: PageData } = $props()
 
 	let addOpen = $state(false)
+	let uploadOpen = $state(false)
+	let uploadAccount = $state<(typeof data.accounts)[0] | null>(null)
 	let renamingId = $state<string | null>(null)
 	let renameValue = $state('')
 	let deletingId = $state<string | null>(null)
@@ -41,7 +44,7 @@
 		await invalidateAll()
 	}
 
-	function formatLastUpload(date: string | null): string {
+	function formatLastUpload(date: Date | string | null): string {
 		if (!date) return 'No uploads yet'
 		return formatDistanceToNow(new Date(date), { addSuffix: true })
 	}
@@ -175,8 +178,10 @@
 							variant="outline"
 							size="sm"
 							class="flex-1 gap-1.5 text-xs"
-							disabled
-							title="Upload — coming in next phase"
+							onclick={() => {
+								uploadAccount = account
+								uploadOpen = true
+							}}
 						>
 							<Upload size={13} />
 							Upload CSV
@@ -211,3 +216,14 @@
 </div>
 
 <AddAccountSheet profiles={data.profiles} bind:open={addOpen} />
+
+{#if uploadAccount}
+	<UploadCsvDialog
+		bind:open={uploadOpen}
+		accountId={uploadAccount.id}
+		accountName={uploadAccount.displayName}
+		bankProfileId={uploadAccount.bankProfileId}
+		currency={uploadAccount.currency}
+		isFirstUpload={uploadAccount.txCount === 0}
+	/>
+{/if}
