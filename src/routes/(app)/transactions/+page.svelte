@@ -134,7 +134,7 @@
 						{#if tab.key === 'review' && tab.count > 0}
 							<span
 								class={cn(
-									'flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold',
+									'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold',
 									activeFilter === 'review' ? 'bg-white/25 text-white' : 'bg-danger-500 text-white'
 								)}
 							>
