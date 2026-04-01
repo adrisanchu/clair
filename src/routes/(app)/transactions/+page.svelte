@@ -287,7 +287,7 @@
 									isReview ? 'px-2 md:px-4' : 'px-2 md:px-4'
 								)}
 							>
-								{format(tx.bookingDate, 'd MMM yyyy')}
+								{format(tx.accountingDate, 'd MMM yyyy')}
 							</td>
 
 							<!-- Description -->

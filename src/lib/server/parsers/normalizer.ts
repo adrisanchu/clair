@@ -10,8 +10,8 @@ export function normalizeRow(
 		: parseAmount(raw[profile.creditColumn!] ?? '') -
 			parseAmount(raw[profile.debitColumn!] ?? '')
 
-	const bookingDate = parseDateField(raw[profile.dateColumn], profile.dateFormat)
-	if (!bookingDate) return null // unparseable date → skip row
+	const accountingDate = parseDateField(raw[profile.dateColumn], profile.dateFormat)
+	if (!accountingDate) return null // unparseable date → skip row
 
 	const valueDate = profile.valueDateColumn
 		? parseDateField(raw[profile.valueDateColumn], profile.dateFormat)
@@ -35,7 +35,7 @@ export function normalizeRow(
 		: null
 
 	return {
-		bookingDate,
+		accountingDate,
 		valueDate,
 		amount,
 		currency: profile.currencyColumn ? (raw[profile.currencyColumn]?.trim() || 'EUR') : 'EUR',
@@ -56,7 +56,9 @@ function parseDateField(raw: string | undefined, format: string): Date | null {
 	// date-fns format uses lowercase dd/yyyy
 	const dfnsFormat = format.replace(/DD/g, 'dd').replace(/YYYY/g, 'yyyy')
 	const parsed = parseDate(raw.trim(), dfnsFormat, new Date())
-	return isValid(parsed) ? parsed : null
+	if (!isValid(parsed)) return null
+	// Normalize to UTC midnight so dedup eq comparisons are stable across uploads
+	return new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()))
 }
 
 export function parseAmount(raw: string): number {

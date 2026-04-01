@@ -48,7 +48,7 @@ export async function upsertOpeningBalance(
 	} else {
 		await db.insert(transactions).values({
 			bankAccountId,
-			bookingDate: openingDate,
+			accountingDate: openingDate,
 			amount: openingAmount.toFixed(4),
 			currency: 'EUR',
 			description: 'Opening balance (system)',

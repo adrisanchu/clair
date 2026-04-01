@@ -68,7 +68,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.where(
 				and(
 					inArray(transactions.bankAccountId, accessibleIds),
-					gte(transactions.bookingDate, thirtyDaysAgo),
+					gte(transactions.accountingDate, thirtyDaysAgo),
 					eq(transactions.isOpeningBalance, false)
 				)
 			)

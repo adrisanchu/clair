@@ -32,7 +32,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Date range from parsed rows
-	const dates = rows.map((r) => r.bookingDate.getTime())
+	const dates = rows.map((r) => r.accountingDate.getTime())
 	const dateRangeFrom = dates.length ? new Date(Math.min(...dates)).toISOString().split('T')[0] : null
 	const dateRangeTo = dates.length ? new Date(Math.max(...dates)).toISOString().split('T')[0] : null
 
@@ -43,7 +43,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	// Latest balance from the most recent completed row (Revolut provides this)
 	const latestCompletedRow = rows
 		.filter((r) => r.status === 'posted' && r.runningBalance !== null)
-		.sort((a, b) => b.bookingDate.getTime() - a.bookingDate.getTime())[0]
+		.sort((a, b) => b.accountingDate.getTime() - a.accountingDate.getTime())[0]
 
 	return json({
 		detectedProfile: profileId,
@@ -58,7 +58,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		latestBalance: latestCompletedRow?.runningBalance ?? null,
 		// First 5 rows for preview table
 		preview: rows.slice(0, 5).map((r) => ({
-			bookingDate: r.bookingDate.toISOString().split('T')[0],
+			accountingDate: r.accountingDate.toISOString().split('T')[0],
 			description: r.description,
 			amount: r.amount,
 			currency: r.currency,

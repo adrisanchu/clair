@@ -16,7 +16,7 @@ export interface TxQueryParams {
 
 export interface TxRow {
 	id: string
-	bookingDate: Date
+	accountingDate: Date
 	description: string
 	amount: number
 	currency: string
@@ -75,7 +75,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 		db
 			.select({
 				id: transactions.id,
-				bookingDate: transactions.bookingDate,
+				accountingDate: transactions.accountingDate,
 				description: transactions.description,
 				amount: transactions.amount,
 				currency: transactions.currency,
@@ -89,7 +89,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 			.from(transactions)
 			.leftJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
 			.where(fullWhere)
-			.orderBy(desc(transactions.bookingDate), desc(transactions.createdAt))
+			.orderBy(desc(transactions.accountingDate), desc(transactions.createdAt))
 			.limit(limit)
 			.offset(offset),
 

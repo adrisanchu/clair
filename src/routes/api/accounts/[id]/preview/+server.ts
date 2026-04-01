@@ -34,7 +34,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const { rows, skippedCount } = parseCSV(csvText, profile)
 
 	const preview = rows.slice(0, 5).map((r) => ({
-		date: r.bookingDate.toISOString().split('T')[0],
+		date: r.accountingDate.toISOString().split('T')[0],
 		description: r.description,
 		amount: r.amount,
 		currency: r.currency

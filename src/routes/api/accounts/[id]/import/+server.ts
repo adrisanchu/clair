@@ -104,9 +104,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	// Handle balance reconciliation if a current balance was provided
 	if (currentBalance !== null && !isNaN(currentBalance) && rows.length > 0) {
-		const earliest = rows.reduce((a, b) => (a.bookingDate <= b.bookingDate ? a : b))
+		const earliest = rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a : b))
 		const openingAmt = await computeOpeningBalance(account.id, currentBalance, rows)
-		await upsertOpeningBalance(account.id, openingAmt, earliest.bookingDate, locals.user.id)
+		await upsertOpeningBalance(account.id, openingAmt, earliest.accountingDate, locals.user.id)
 	}
 
 	// Mark account as active and refresh balance
@@ -135,7 +135,7 @@ function buildTxInsert(
 	return {
 		bankAccountId,
 		csvUploadId,
-		bookingDate: row.bookingDate,
+		accountingDate: row.accountingDate,
 		valueDate: row.valueDate,
 		amount: row.amount.toFixed(4),
 		currency: row.currency,

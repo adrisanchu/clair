@@ -5,7 +5,7 @@ import { transactions } from './db/schema.js'
 
 export interface TransferCandidate {
 	id: string
-	bookingDate: Date
+	accountingDate: Date
 	amount: number
 	description: string
 	bankAccountId: string
@@ -53,17 +53,17 @@ export async function detectAndLinkTransfers(
 	const results: TransferMatch[] = []
 
 	for (const source of sources) {
-		const sourceDate = source.bookingDate as unknown as Date
+		const sourceDate = source.accountingDate as unknown as Date
 
 		const candidates = await db
 			.select({
 				id: transactions.id,
-				bookingDate: transactions.bookingDate,
+				accountingDate: transactions.accountingDate,
 				amount: transactions.amount,
 				description: transactions.description,
 				bankAccountId: transactions.bankAccountId,
 				daysDiff: sql<number>`ABS(EXTRACT(DAY FROM (
-					${transactions.bookingDate} - ${source.bookingDate}::date
+					${transactions.accountingDate} - ${source.accountingDate}::date
 				)))`
 			})
 			.from(transactions)
@@ -73,14 +73,14 @@ export async function detectAndLinkTransfers(
 					inArray(transactions.bankAccountId, accessibleAccountIds),
 					sql`ABS(${transactions.amount}::numeric) = ABS(${source.amount}::numeric)`,
 					sql`SIGN(${transactions.amount}::numeric) != SIGN(${source.amount}::numeric)`,
-					gte(transactions.bookingDate, subDays(sourceDate, 3)),
-					lte(transactions.bookingDate, addDays(sourceDate, 3)),
+					gte(transactions.accountingDate, subDays(sourceDate, 3)),
+					lte(transactions.accountingDate, addDays(sourceDate, 3)),
 					isNull(transactions.transferCounterpartId),
 					eq(transactions.isOpeningBalance, false)
 				)
 			)
 			.orderBy(
-				sql`ABS(EXTRACT(DAY FROM (${transactions.bookingDate} - ${source.bookingDate}::date)))`
+				sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${source.accountingDate}::date)))`
 			)
 			.limit(5)
 
@@ -93,7 +93,7 @@ export async function detectAndLinkTransfers(
 				candidateId: null,
 				candidates: candidates.map((c) => ({
 					id: c.id,
-					bookingDate: c.bookingDate as unknown as Date,
+					accountingDate: c.accountingDate as unknown as Date,
 					amount: parseFloat(c.amount as unknown as string),
 					description: c.description,
 					bankAccountId: c.bankAccountId,

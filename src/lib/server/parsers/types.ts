@@ -4,7 +4,7 @@ export interface BankParserProfile {
 	encoding: string // 'utf-8' | 'iso-8859-1'
 	delimiter: string // ',' | ';'
 	skipRows: number // metadata rows before the header row
-	dateColumn: string // booking / start date
+	dateColumn: string // accounting date / start date
 	dateFormat: string // date-fns format: 'yyyy-MM-dd HH:mm:ss' | 'dd/MM/yyyy' etc.
 	valueDateColumn: string | null // settlement/end date (empty for PENDING rows)
 	amountColumn: string | null // signed amount; null when debit/credit split
@@ -20,7 +20,7 @@ export interface BankParserProfile {
 }
 
 export interface NormalizedTransaction {
-	bookingDate: Date
+	accountingDate: Date
 	valueDate: Date | null // null when transaction is pending
 	amount: number
 	currency: string

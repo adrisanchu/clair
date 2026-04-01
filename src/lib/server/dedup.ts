@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from './db/index.js'
 import { transactions } from './db/schema.js'
 import type { NormalizedTransaction, DedupAction, DedupResult } from './parsers/types.js'
@@ -8,8 +8,8 @@ import type { NormalizedTransaction, DedupAction, DedupResult } from './parsers/
  *
  * Priority order:
  *  1. externalId match (when the bank profile provides one)
- *  2. bookingDate + amount + description exact match
- *  3. bookingDate + amount only (description may have changed)
+ *  2. accountingDate + amount + description exact match
+ *  3. accountingDate + amount only (description may have changed)
  *
  * PENDING → POSTED transitions trigger "update_status" instead of "skip",
  * preserving all user-enriched fields (category, notes, city, tags).
@@ -33,12 +33,12 @@ export async function classifyRow(
 		}
 	}
 
-	// Priority 2: bookingDate + amount + description (exact)
+	// Priority 2: accountingDate + amount + description (exact)
 	const sameExact = await db.query.transactions.findFirst({
 		where: (t, { and, eq, sql: s }) =>
 			and(
 				eq(t.bankAccountId, bankAccountId),
-				eq(t.bookingDate, row.bookingDate),
+				eq(t.accountingDate, row.accountingDate),
 				s`${t.amount}::numeric = ${row.amount}`,
 				s`md5(${t.description}) = md5(${row.description})`
 			),
@@ -50,12 +50,12 @@ export async function classifyRow(
 		return { action: 'skip' }
 	}
 
-	// Priority 3: bookingDate + amount only (description may have changed)
+	// Priority 3: accountingDate + amount only (description may have changed)
 	const sameAmountDate = await db.query.transactions.findMany({
 		where: (t, { and, eq, sql: s }) =>
 			and(
 				eq(t.bankAccountId, bankAccountId),
-				eq(t.bookingDate, row.bookingDate),
+				eq(t.accountingDate, row.accountingDate),
 				s`${t.amount}::numeric = ${row.amount}`
 			),
 		columns: { id: true, status: true }

@@ -66,7 +66,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 					.values({
 						bankAccountId,
 						csvUploadId: null, // filled after csvUploads insert below
-						bookingDate: row.bookingDate,
+						accountingDate: row.accountingDate,
 						valueDate: row.valueDate,
 						amount: row.amount.toFixed(4),
 						currency: row.currency,
@@ -107,7 +107,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 					.insert(transactions)
 					.values({
 						bankAccountId,
-						bookingDate: row.bookingDate,
+						accountingDate: row.accountingDate,
 						valueDate: row.valueDate,
 						amount: row.amount.toFixed(4),
 						currency: row.currency,
@@ -131,7 +131,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const postedRows = rows.filter((r) => r.status === 'posted')
 	const latestBalanceFromCSV = postedRows
 		.filter((r) => r.runningBalance !== null)
-		.sort((a, b) => b.bookingDate.getTime() - a.bookingDate.getTime())[0]?.runningBalance
+		.sort((a, b) => b.accountingDate.getTime() - a.accountingDate.getTime())[0]?.runningBalance
 
 	if (latestBalanceFromCSV != null) {
 		// Profile provides balance (e.g. Revolut Saldo) — use it directly
@@ -145,8 +145,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		if (!isNaN(enteredBalance)) {
 			const opening = await computeOpeningBalance(bankAccountId, enteredBalance, rows)
 			const earliest = rows.reduce(
-				(min, r) => (r.bookingDate < min ? r.bookingDate : min),
-				rows[0].bookingDate
+				(min, r) => (r.accountingDate < min ? r.accountingDate : min),
+				rows[0].accountingDate
 			)
 			await upsertOpeningBalance(bankAccountId, opening, earliest, locals.user.id)
 			await refreshCurrentBalance(bankAccountId)
@@ -160,7 +160,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.where(and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.status, 'no_data')))
 
 	// 4. Create csv_uploads record
-	const dates = rows.map((r) => r.bookingDate)
+	const dates = rows.map((r) => r.accountingDate)
 	const dateRangeFrom = dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : null
 	const dateRangeTo = dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : null
 
