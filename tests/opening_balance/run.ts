@@ -36,7 +36,8 @@ console.log('══════════════════════�
 for (const r of rows) {
 	const date = r.accountingDate.toISOString().split('T')[0];
 	const amt = String(r.amount.toFixed(2)).padStart(9);
-	const bal = r.runningBalance !== null ? String(r.runningBalance.toFixed(2)).padStart(9) : '        —';
+	const bal =
+		r.runningBalance !== null ? String(r.runningBalance.toFixed(2)).padStart(9) : '        —';
 	console.log(`  ${date}  amount: ${amt}  balance: ${bal}  ${r.description}`);
 }
 console.log(`  (${skippedCount} rows skipped, ${errors.length} errors)`);
@@ -52,7 +53,9 @@ const firstRow = rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a
 const lastRow = rows.reduce((a, b) => (a.accountingDate >= b.accountingDate ? a : b));
 
 if (firstRow.runningBalance === null) {
-	console.error('\n  ERROR: first row has no running balance — CSV may not include a balance column');
+	console.error(
+		'\n  ERROR: first row has no running balance — CSV may not include a balance column'
+	);
 	process.exit(1);
 }
 if (lastRow.runningBalance === null) {
@@ -84,7 +87,9 @@ console.log('══════════════════════�
 console.log(`  Opening balance  (saldo inicial):   ${openingBalance.toFixed(2).padStart(9)}`);
 console.log(`  Period balance   (variación):       ${periodBalance.toFixed(2).padStart(9)}`);
 console.log(`  Closing balance  (saldo final):     ${closingBalance.toFixed(2).padStart(9)}`);
-console.log(`  Reconciliation check (open+period): ${(openingBalance + periodBalance).toFixed(2).padStart(9)}  (should equal closing)`);
+console.log(
+	`  Reconciliation check (open+period): ${(openingBalance + periodBalance).toFixed(2).padStart(9)}  (should equal closing)`
+);
 
 // ── Assertions ────────────────────────────────────────────────────────────────
 
@@ -118,6 +123,8 @@ check('closingBalance', closingBalance, EXPECTED_CLOSING);
 check('open + period = close', openingBalance + periodBalance, EXPECTED_CLOSING);
 
 console.log('──────────────────────────────────────────────────────────────');
-console.log(pass ? '\n ✓ PASS — all balance assertions met\n' : '\n ✗ FAIL — see rows marked above\n');
+console.log(
+	pass ? '\n ✓ PASS — all balance assertions met\n' : '\n ✗ FAIL — see rows marked above\n'
+);
 
 if (!pass) process.exit(1);

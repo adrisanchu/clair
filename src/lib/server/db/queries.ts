@@ -23,6 +23,7 @@ export interface TxRow {
 	status: 'pending' | 'posted' | 'review';
 	isTransfer: boolean;
 	isOpeningBalance: boolean;
+	notes: string | null;
 	category: string | null;
 	bankAccountId: string;
 	accountName: string | null;
@@ -87,6 +88,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				status: transactions.status,
 				isTransfer: transactions.isTransfer,
 				isOpeningBalance: transactions.isOpeningBalance,
+				notes: transactions.notes,
 				category: transactions.category,
 				bankAccountId: transactions.bankAccountId,
 				accountName: bankAccounts.displayName,
