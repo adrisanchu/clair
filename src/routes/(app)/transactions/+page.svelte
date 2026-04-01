@@ -292,7 +292,7 @@
 								</td>
 								<td class="max-w-xs px-2 py-3">
 									<div class="flex min-w-0 items-center gap-2">
-										<span class="truncate text-xs italic text-text-tertiary">{tx.description}</span>
+										<span class="truncate text-xs text-text-tertiary italic">{tx.description}</span>
 										{#if tx.notes}
 											<HoverCard.Root>
 												<HoverCard.Trigger
