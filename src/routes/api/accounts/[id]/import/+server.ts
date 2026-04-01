@@ -5,11 +5,7 @@ import { db } from '$lib/server/db/index.js';
 import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
 import { getProfile, parseCSV, fileToText } from '$lib/server/parsers/index.js';
 import { classifyRow, applyStatusUpdate, applyDescUpdate } from '$lib/server/dedup.js';
-import {
-	computeOpeningBalance,
-	upsertOpeningBalance,
-	refreshCurrentBalance
-} from '$lib/server/balance.js';
+import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
 import type { NormalizedTransaction } from '$lib/server/parsers/types.js';
 
 // ─── POST /api/accounts/[id]/import ───────────────────────────────────────────
@@ -28,8 +24,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const file = formData.get('file') as File | null;
 	if (!file) throw error(400, 'No file provided');
 
-	const currentBalanceRaw = formData.get('currentBalance') as string | null;
-	const currentBalance = currentBalanceRaw ? parseFloat(currentBalanceRaw.replace(',', '.')) : null;
+	const openingBalanceRaw = formData.get('openingBalance') as string | null;
+	const openingBalance = openingBalanceRaw ? parseFloat(openingBalanceRaw.replace(',', '.')) : null;
 
 	const profile = getProfile(account.bankProfileId);
 	if (!profile) throw error(400, `No parser for bank profile: ${account.bankProfileId}`);
@@ -101,11 +97,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		})
 		.where(eq(csvUploads.id, upload.id));
 
-	// Handle balance reconciliation if a current balance was provided
-	if (currentBalance !== null && !isNaN(currentBalance) && rows.length > 0) {
+	// Persist the opening balance transaction if one was provided (or auto-computed from CSV)
+	if (openingBalance !== null && !isNaN(openingBalance) && rows.length > 0) {
 		const earliest = rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a : b));
-		const openingAmt = await computeOpeningBalance(account.id, currentBalance, rows);
-		await upsertOpeningBalance(account.id, openingAmt, earliest.accountingDate, locals.user.id);
+		await upsertOpeningBalance(account.id, openingBalance, earliest.accountingDate, locals.user.id);
 	}
 
 	// Mark account as active and refresh balance
