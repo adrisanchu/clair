@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm'
-import { db } from './db/index.js'
-import { transactions } from './db/schema.js'
-import type { NormalizedTransaction, DedupAction, DedupResult } from './parsers/types.js'
+import { eq } from 'drizzle-orm';
+import { db } from './db/index.js';
+import { transactions } from './db/schema.js';
+import type { NormalizedTransaction, DedupAction, DedupResult } from './parsers/types.js';
 
 /**
  * Classify a normalised row before writing to the DB.
@@ -25,11 +25,11 @@ export async function classifyRow(
 			where: (t, { and, eq }) =>
 				and(eq(t.bankAccountId, bankAccountId), eq(t.externalId, externalId)),
 			columns: { id: true, status: true }
-		})
+		});
 		if (existing) {
 			if (existing.status === 'pending' && row.status === 'posted')
-				return { action: 'update_status', existingId: existing.id }
-			return { action: 'skip' }
+				return { action: 'update_status', existingId: existing.id };
+			return { action: 'skip' };
 		}
 	}
 
@@ -43,11 +43,11 @@ export async function classifyRow(
 				s`md5(${t.description}) = md5(${row.description})`
 			),
 		columns: { id: true, status: true }
-	})
+	});
 	if (sameExact) {
 		if (sameExact.status === 'pending' && row.status === 'posted')
-			return { action: 'update_status', existingId: sameExact.id }
-		return { action: 'skip' }
+			return { action: 'update_status', existingId: sameExact.id };
+		return { action: 'skip' };
 	}
 
 	// Priority 3: accountingDate + amount only (description may have changed)
@@ -59,16 +59,16 @@ export async function classifyRow(
 				s`${t.amount}::numeric = ${row.amount}`
 			),
 		columns: { id: true, status: true }
-	})
+	});
 
 	if (sameAmountDate.length === 1) {
 		if (sameAmountDate[0].status === 'pending' && row.status === 'posted')
-			return { action: 'update_status', existingId: sameAmountDate[0].id }
-		return { action: 'update_desc', existingId: sameAmountDate[0].id }
+			return { action: 'update_status', existingId: sameAmountDate[0].id };
+		return { action: 'update_desc', existingId: sameAmountDate[0].id };
 	}
-	if (sameAmountDate.length > 1) return { action: 'review' }
+	if (sameAmountDate.length > 1) return { action: 'review' };
 
-	return { action: 'insert' }
+	return { action: 'insert' };
 }
 
 /**
@@ -87,7 +87,7 @@ export async function applyStatusUpdate(
 			updatedAt: new Date()
 			// Intentionally NOT updating: category, categoryOverride, notes, city, tags
 		})
-		.where(eq(transactions.id, existingId))
+		.where(eq(transactions.id, existingId));
 }
 
 /**
@@ -103,5 +103,5 @@ export async function applyDescUpdate(
 			description: row.description,
 			updatedAt: new Date()
 		})
-		.where(eq(transactions.id, existingId))
+		.where(eq(transactions.id, existingId));
 }

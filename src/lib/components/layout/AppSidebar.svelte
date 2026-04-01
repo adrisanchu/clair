@@ -49,7 +49,7 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton size="lg" class="gap-3" tooltipContent="Clair">
 					<div
-						class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500 text-white text-sm font-bold shrink-0"
+						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-500 text-sm font-bold text-white"
 					>
 						C
 					</div>
@@ -70,7 +70,7 @@
 							<Sidebar.MenuButton
 								isActive={active}
 								tooltipContent={link.label}
-								class={active ? 'bg-primary-50! text-primary-600! font-medium' : ''}
+								class={active ? 'bg-primary-50! font-medium text-primary-600!' : ''}
 							>
 								{#snippet child({ props })}
 									<a href={link.href} {...props}>
@@ -115,11 +115,11 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton size="lg" tooltipContent={user.name}>
 					<div
-						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-xs font-semibold"
+						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700"
 					>
 						{initials}
 					</div>
-					<div class="grid flex-1 text-left text-sm leading-tight min-w-0">
+					<div class="grid min-w-0 flex-1 text-left text-sm leading-tight">
 						<span class="truncate font-medium">{user.name}</span>
 						<span class="truncate text-xs text-muted-foreground">{roleLabel}</span>
 					</div>

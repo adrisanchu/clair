@@ -31,14 +31,15 @@
 	};
 
 	const colour = $derived(
-		BANK_COLOURS[bankProfileId] ??
-			FALLBACK_PALETTE[name.charCodeAt(0) % FALLBACK_PALETTE.length]
+		BANK_COLOURS[bankProfileId] ?? FALLBACK_PALETTE[name.charCodeAt(0) % FALLBACK_PALETTE.length]
 	);
 	const letter = $derived(name[0]?.toUpperCase() ?? '?');
 </script>
 
 <div
-	class="rounded-full flex items-center justify-center font-semibold shrink-0 {sizeMap[size]} {colour} {cls}"
+	class="flex shrink-0 items-center justify-center rounded-full font-semibold {sizeMap[
+		size
+	]} {colour} {cls}"
 >
 	{letter}
 </div>

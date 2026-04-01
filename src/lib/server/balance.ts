@@ -1,6 +1,6 @@
-import { eq, sql } from 'drizzle-orm'
-import { db } from './db/index.js'
-import { transactions, bankAccounts } from './db/schema.js'
+import { eq, sql } from 'drizzle-orm';
+import { db } from './db/index.js';
+import { transactions, bankAccounts } from './db/schema.js';
 
 /**
  * Compute the synthetic opening balance needed so that:
@@ -14,10 +14,10 @@ export async function computeOpeningBalance(
 	const [{ sum }] = await db
 		.select({ sum: sql<string>`COALESCE(SUM(amount), 0)` })
 		.from(transactions)
-		.where(eq(transactions.bankAccountId, bankAccountId))
+		.where(eq(transactions.bankAccountId, bankAccountId));
 
-	const uploadSum = uploadedRows.reduce((acc, r) => acc + r.amount, 0)
-	return enteredCurrentBalance - uploadSum - parseFloat(sum)
+	const uploadSum = uploadedRows.reduce((acc, r) => acc + r.amount, 0);
+	return enteredCurrentBalance - uploadSum - parseFloat(sum);
 }
 
 /**
@@ -30,21 +30,21 @@ export async function upsertOpeningBalance(
 	earliestDate: Date,
 	userId: string
 ): Promise<void> {
-	const openingDate = new Date(earliestDate)
-	openingDate.setDate(openingDate.getDate() - 1)
+	const openingDate = new Date(earliestDate);
+	openingDate.setDate(openingDate.getDate() - 1);
 
 	// Check for an existing opening balance row
 	const existing = await db.query.transactions.findFirst({
 		where: (t, { and, eq }) =>
 			and(eq(t.bankAccountId, bankAccountId), eq(t.isOpeningBalance, true)),
 		columns: { id: true }
-	})
+	});
 
 	if (existing) {
 		await db
 			.update(transactions)
 			.set({ amount: openingAmount.toFixed(4), updatedAt: new Date() })
-			.where(eq(transactions.id, existing.id))
+			.where(eq(transactions.id, existing.id));
 	} else {
 		await db.insert(transactions).values({
 			bankAccountId,
@@ -57,7 +57,7 @@ export async function upsertOpeningBalance(
 			payerUserId: userId,
 			status: 'posted',
 			syncSource: 'csv_upload'
-		})
+		});
 	}
 }
 
@@ -68,10 +68,10 @@ export async function refreshCurrentBalance(bankAccountId: string): Promise<void
 	const [{ sum }] = await db
 		.select({ sum: sql<string>`COALESCE(SUM(amount), 0)` })
 		.from(transactions)
-		.where(eq(transactions.bankAccountId, bankAccountId))
+		.where(eq(transactions.bankAccountId, bankAccountId));
 
 	await db
 		.update(bankAccounts)
 		.set({ currentBalance: sum })
-		.where(eq(bankAccounts.id, bankAccountId))
+		.where(eq(bankAccounts.id, bankAccountId));
 }

@@ -19,7 +19,7 @@
 		<header
 			class="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-4"
 		>
-			<Sidebar.Trigger class="text-text-secondary hover:text-text-primary -ml-1" />
+			<Sidebar.Trigger class="-ml-1 text-text-secondary hover:text-text-primary" />
 		</header>
 
 		{@render children()}

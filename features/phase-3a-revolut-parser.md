@@ -12,18 +12,18 @@
 All backend logic implemented and type-checking clean. Dependencies added:
 `papaparse`, `@types/papaparse`, `date-fns`.
 
-| File | Status |
-|---|---|
-| `src/lib/server/parsers/types.ts` | ✅ Done |
-| `src/lib/server/parsers/normalizer.ts` | ✅ Done |
-| `src/lib/server/parsers/profiles/revolut_eu.ts` | ✅ Done |
-| `src/lib/server/parsers/index.ts` | ✅ Done — profile registry, `detectProfile()`, `parseCSV()`, `fileToText()` |
-| `src/lib/server/db/access.ts` | ✅ Done — `getAccessibleAccountIds()` |
-| `src/lib/server/dedup.ts` | ✅ Done — `classifyRow()`, `applyStatusUpdate()`, `applyDescUpdate()` |
-| `src/lib/server/balance.ts` | ✅ Done — `computeOpeningBalance()`, `upsertOpeningBalance()`, `refreshCurrentBalance()` |
-| `src/lib/server/transfer-detector.ts` | ✅ Done — `detectAndLinkTransfers()`, `linkPair()`, `unlinkPair()` |
-| `src/routes/api/upload/preview/+server.ts` | ✅ Done |
-| `src/routes/api/upload/+server.ts` | ✅ Done |
+| File                                            | Status                                                                                   |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/lib/server/parsers/types.ts`               | ✅ Done                                                                                  |
+| `src/lib/server/parsers/normalizer.ts`          | ✅ Done                                                                                  |
+| `src/lib/server/parsers/profiles/revolut_eu.ts` | ✅ Done                                                                                  |
+| `src/lib/server/parsers/index.ts`               | ✅ Done — profile registry, `detectProfile()`, `parseCSV()`, `fileToText()`              |
+| `src/lib/server/db/access.ts`                   | ✅ Done — `getAccessibleAccountIds()`                                                    |
+| `src/lib/server/dedup.ts`                       | ✅ Done — `classifyRow()`, `applyStatusUpdate()`, `applyDescUpdate()`                    |
+| `src/lib/server/balance.ts`                     | ✅ Done — `computeOpeningBalance()`, `upsertOpeningBalance()`, `refreshCurrentBalance()` |
+| `src/lib/server/transfer-detector.ts`           | ✅ Done — `detectAndLinkTransfers()`, `linkPair()`, `unlinkPair()`                       |
+| `src/routes/api/upload/preview/+server.ts`      | ✅ Done                                                                                  |
+| `src/routes/api/upload/+server.ts`              | ✅ Done                                                                                  |
 
 ### Pending
 
@@ -35,18 +35,18 @@ All backend logic implemented and type-checking clean. Dependencies added:
 
 Revolut's personal account CSV (Spanish locale) has the following columns:
 
-| Column (ES) | Column (EN equiv.) | Type | Notes |
-|---|---|---|---|
-| `Tipo` | Transaction type | string | See §3 for semantics |
-| `Producto` | Product | string | Always "Actual" — ignore |
-| `Fecha de inicio` | Start / booking date | `YYYY-MM-DD HH:mm:ss` | Always present |
-| `Fecha de finalización` | End / value date | `YYYY-MM-DD HH:mm:ss` | **Empty for PENDING rows** |
-| `Descripción` | Description / merchant | string | Merchant name or transfer description |
-| `Importe` | Amount | decimal (signed) | Negative = debit, positive = credit |
-| `Comisión` | Fee | decimal | Usually `0.00` — add to amount if non-zero |
-| `Divisa` | Currency | ISO 4217 | `EUR`, `CZK`, `JPY`, `SEK`, etc. |
-| `State` | Status | string | `COMPLETADO` or `PENDIENTE` |
-| `Saldo` | Running balance | decimal | **Empty for PENDING rows** |
+| Column (ES)             | Column (EN equiv.)     | Type                  | Notes                                      |
+| ----------------------- | ---------------------- | --------------------- | ------------------------------------------ |
+| `Tipo`                  | Transaction type       | string                | See §3 for semantics                       |
+| `Producto`              | Product                | string                | Always "Actual" — ignore                   |
+| `Fecha de inicio`       | Start / booking date   | `YYYY-MM-DD HH:mm:ss` | Always present                             |
+| `Fecha de finalización` | End / value date       | `YYYY-MM-DD HH:mm:ss` | **Empty for PENDING rows**                 |
+| `Descripción`           | Description / merchant | string                | Merchant name or transfer description      |
+| `Importe`               | Amount                 | decimal (signed)      | Negative = debit, positive = credit        |
+| `Comisión`              | Fee                    | decimal               | Usually `0.00` — add to amount if non-zero |
+| `Divisa`                | Currency               | ISO 4217              | `EUR`, `CZK`, `JPY`, `SEK`, etc.           |
+| `State`                 | Status                 | string                | `COMPLETADO` or `PENDIENTE`                |
+| `Saldo`                 | Running balance        | decimal               | **Empty for PENDING rows**                 |
 
 ### Key quirks
 
@@ -65,53 +65,54 @@ Revolut's personal account CSV (Spanish locale) has the following columns:
 
 ```typescript
 // src/lib/server/parsers/profiles/revolut_eu.ts
-import type { BankParserProfile } from "../types"
+import type { BankParserProfile } from '../types';
 
 export const revolut_eu: BankParserProfile = {
-  bankProfileId:     "revolut_eu",
-  displayName:       "Revolut (EU)",
-  encoding:          "utf-8",
-  delimiter:         ",",
-  skipRows:          0,
-  dateColumn:        "Fecha de inicio",
-  dateFormat:        "YYYY-MM-DD HH:mm:ss",
-  valueDateColumn:   "Fecha de finalización",
-  amountColumn:      "Importe",
-  debitColumn:       null,
-  creditColumn:      null,
-  descriptionColumn: "Descripción",
-  currencyColumn:    "Divisa",
-  localAmountColumn: null,
-  balanceColumn:     "Saldo",
-  statusColumn:      "State",
-  typeColumn:        "Tipo",
-}
+	bankProfileId: 'revolut_eu',
+	displayName: 'Revolut (EU)',
+	encoding: 'utf-8',
+	delimiter: ',',
+	skipRows: 0,
+	dateColumn: 'Fecha de inicio',
+	dateFormat: 'YYYY-MM-DD HH:mm:ss',
+	valueDateColumn: 'Fecha de finalización',
+	amountColumn: 'Importe',
+	debitColumn: null,
+	creditColumn: null,
+	descriptionColumn: 'Descripción',
+	currencyColumn: 'Divisa',
+	localAmountColumn: null,
+	balanceColumn: 'Saldo',
+	statusColumn: 'State',
+	typeColumn: 'Tipo'
+};
 ```
 
 ### Status mapping
 
 | CSV `State` value | `NormalizedTransaction.status` |
-|---|---|
-| `COMPLETADO` | `"posted"` |
-| `PENDIENTE` | `"pending"` |
-| anything else | `"pending"` (safe default) |
+| ----------------- | ------------------------------ |
+| `COMPLETADO`      | `"posted"`                     |
+| `PENDIENTE`       | `"pending"`                    |
+| anything else     | `"pending"` (safe default)     |
 
 ---
 
 ## 3. Transaction type semantics (`Tipo` column)
 
-| Revolut `Tipo` | Clair interpretation | `isTransfer` candidate? |
-|---|---|---|
-| `Pago con tarjeta` | Regular card payment | No |
-| `Recargas` | Top-up / incoming transfer | No (income) |
-| `Transferir` | P2P or bank transfer | **Yes** — flag for transfer detection |
-| `Cambio` | In-app currency exchange | No — see §3.1 |
-| `Efectivo` | ATM withdrawal | No |
-| `Devolución` | Refund | No |
+| Revolut `Tipo`     | Clair interpretation       | `isTransfer` candidate?               |
+| ------------------ | -------------------------- | ------------------------------------- |
+| `Pago con tarjeta` | Regular card payment       | No                                    |
+| `Recargas`         | Top-up / incoming transfer | No (income)                           |
+| `Transferir`       | P2P or bank transfer       | **Yes** — flag for transfer detection |
+| `Cambio`           | In-app currency exchange   | No — see §3.1                         |
+| `Efectivo`         | ATM withdrawal             | No                                    |
+| `Devolución`       | Refund                     | No                                    |
 
 ### 3.1 Currency exchange (`Cambio`) handling
 
 A `Cambio` creates two rows in the CSV. Example: converting €200 to CZK:
+
 ```
 Cambio  ...  Conversión a CZK   -200.00  EUR  COMPLETADO
 Cambio  ...  Conversión a EUR   +3.08    EUR  COMPLETADO   ← leftover cents back
@@ -140,21 +141,21 @@ These are not flagged as transfers (they're credits, not round-trips).
 // The generic normalizer handles most of this, but Revolut needs extra steps:
 
 export function postNormalize(
-  row: NormalizedTransaction,
-  raw: Record<string, string>,
+	row: NormalizedTransaction,
+	raw: Record<string, string>
 ): NormalizedTransaction {
-  // 1. Add fee to amount if non-zero
-  const fee = parseFloat(raw["Comisión"] || "0") || 0
-  if (fee !== 0) {
-    row.amount = row.amount + fee  // fee is already negative in Revolut
-  }
+	// 1. Add fee to amount if non-zero
+	const fee = parseFloat(raw['Comisión'] || '0') || 0;
+	if (fee !== 0) {
+		row.amount = row.amount + fee; // fee is already negative in Revolut
+	}
 
-  // 2. Mark Transferir rows as transfer candidates
-  if (raw["Tipo"] === "Transferir") {
-    row.rawType = "Transferir"
-  }
+	// 2. Mark Transferir rows as transfer candidates
+	if (raw['Tipo'] === 'Transferir') {
+		row.rawType = 'Transferir';
+	}
 
-  return row
+	return row;
 }
 ```
 
@@ -199,6 +200,7 @@ case (Priority 3, multiple matches). Both are flagged; the user resolves manuall
 Request: `multipart/form-data` — `file` (the CSV) + `bankProfileId: "revolut_eu"`
 
 Response:
+
 ```typescript
 {
   profile:       "revolut_eu",
@@ -219,6 +221,7 @@ Response:
 Request: `multipart/form-data` — same file + `bankAccountId` + optional `currentBalance`
 
 Pipeline:
+
 1. Parse + normalise all rows
 2. For each row, run `classifyRow()` → collect actions
 3. Execute actions:
@@ -232,6 +235,7 @@ Pipeline:
 6. Run transfer auto-detection on newly inserted `Transferir` rows
 
 Response:
+
 ```typescript
 {
   imported:             number,  // net-new transactions inserted
@@ -330,24 +334,25 @@ exported in the CSV. An optional OCR flow could capture them:
 phone and uploads it to Clair alongside (or instead of) a manual category selection.
 
 **Implementation approach:**
+
 1. Add a "Scan from Revolut app" button in the Transaction Detail panel (mobile only)
 2. User selects or photographs the Revolut transaction detail screen
 3. Send image to Claude Vision (same Anthropic SDK used in Phase 5)
 4. Prompt: extract merchant name, amount, date, and category icon label
 5. Map Revolut's category icon names to Clair category slugs:
 
-| Revolut category | Clair category |
-|---|---|
-| Restaurants | `restaurants` |
-| Coffee shops | `coffee` |
-| Bars & nightclubs | `drinks` |
-| Groceries | `groceries` |
-| Transport | `transport` |
-| Travel | `travel` |
-| Health & beauty | `health` |
-| Shopping | `shopping` |
-| Entertainment | `other` |
-| General | `other` |
+| Revolut category  | Clair category |
+| ----------------- | -------------- |
+| Restaurants       | `restaurants`  |
+| Coffee shops      | `coffee`       |
+| Bars & nightclubs | `drinks`       |
+| Groceries         | `groceries`    |
+| Transport         | `transport`    |
+| Travel            | `travel`       |
+| Health & beauty   | `health`       |
+| Shopping          | `shopping`     |
+| Entertainment     | `other`        |
+| General           | `other`        |
 
 6. Pre-fill the category picker with the matched category — user confirms or overrides
 7. Store the source as `"ocr_revolut"` in an audit log (future History section)

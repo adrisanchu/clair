@@ -4,18 +4,18 @@ Personal finance aggregator for couples. Upload bank CSVs, let AI tag your trans
 
 ## Stack
 
-| Layer | Choice |
-|---|---|
-| Framework | SvelteKit 2.x + Svelte 5 runes |
-| Language | TypeScript (strict) |
-| Styling | Tailwind CSS v4 |
-| Components | shadcn-svelte |
-| Auth | Better Auth ~1.4 (email + password) |
-| ORM | Drizzle ORM + `postgres` driver |
-| Database | PostgreSQL — Docker Compose (local) / Neon (prod) |
-| AI | Anthropic Claude Haiku (Phase 5) |
-| Email | Resend (invite flow) |
-| Deploy | Vercel |
+| Layer      | Choice                                            |
+| ---------- | ------------------------------------------------- |
+| Framework  | SvelteKit 2.x + Svelte 5 runes                    |
+| Language   | TypeScript (strict)                               |
+| Styling    | Tailwind CSS v4                                   |
+| Components | shadcn-svelte                                     |
+| Auth       | Better Auth ~1.4 (email + password)               |
+| ORM        | Drizzle ORM + `postgres` driver                   |
+| Database   | PostgreSQL — Docker Compose (local) / Neon (prod) |
+| AI         | Anthropic Claude Haiku (Phase 5)                  |
+| Email      | Resend (invite flow)                              |
+| Deploy     | Vercel                                            |
 
 ## Quickstart
 
@@ -57,16 +57,16 @@ npm run dev
 
 ## Useful commands
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Start dev server at `localhost:5173` |
-| `npm run build` | Build for production |
-| `npm run preview` | Preview the production build |
-| `npm run auth:schema` | Regenerate `auth.schema.ts` after editing `auth.ts` |
-| `npm run db:generate` | Generate a new Drizzle migration after schema changes |
-| `npm run db:migrate` | Apply pending migrations to the database |
-| `npm run db:studio` | Open Drizzle Studio (DB GUI) at `localhost:4983` |
-| `docker compose down -v` | Destroy the local DB and all data (full reset) |
+| Command                  | Description                                           |
+| ------------------------ | ----------------------------------------------------- |
+| `npm run dev`            | Start dev server at `localhost:5173`                  |
+| `npm run build`          | Build for production                                  |
+| `npm run preview`        | Preview the production build                          |
+| `npm run auth:schema`    | Regenerate `auth.schema.ts` after editing `auth.ts`   |
+| `npm run db:generate`    | Generate a new Drizzle migration after schema changes |
+| `npm run db:migrate`     | Apply pending migrations to the database              |
+| `npm run db:studio`      | Open Drizzle Studio (DB GUI) at `localhost:4983`      |
+| `docker compose down -v` | Destroy the local DB and all data (full reset)        |
 
 ## Environment variables
 

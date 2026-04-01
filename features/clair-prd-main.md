@@ -1,5 +1,7 @@
 # Clair — Product Requirements Document
+
 ## File 1 of 3: Project Overview
+
 **Version:** 1.0  
 **Status:** Ready for build
 
@@ -9,12 +11,12 @@
 
 There are three PRD files. Feed them in this order when starting a task:
 
-| Task | Files to include |
-|---|---|
-| Scaffold the full project | All three files |
-| Any backend task (DB, API routes, auth) | This file + `clair-prd-backend.md` |
+| Task                                       | Files to include                    |
+| ------------------------------------------ | ----------------------------------- |
+| Scaffold the full project                  | All three files                     |
+| Any backend task (DB, API routes, auth)    | This file + `clair-prd-backend.md`  |
 | Any frontend task (UI, components, design) | This file + `clair-prd-frontend.md` |
-| A full feature (e.g. CSV upload) | All three files |
+| A full feature (e.g. CSV upload)           | All three files                     |
 
 Never feed all three files when doing a narrowly scoped task — it wastes context and
 produces worse output.
@@ -29,6 +31,7 @@ into spreadsheets, tagging every transaction by hand — with a single web app w
 upload a CSV, get everything parsed and AI-tagged, and export a clean file.
 
 **The core loop:**
+
 1. Download a CSV from your bank's app
 2. Upload it to Clair (takes ~30 seconds)
 3. Transactions are parsed, deduplicated, and auto-categorised by AI
@@ -43,32 +46,32 @@ changes.
 
 ## 2. Supported banks (v1)
 
-| Bank | Profile ID | Country |
-|---|---|---|
-| Revolut | `revolut_eu` | EU |
-| CaixaBank | `caixabank_es` | Spain |
-| Bankinter | `bankinter_es` | Spain |
-| MyInvestor | `myinvestor_es` | Spain |
-| BBVA | `bbva_es` | Spain |
+| Bank       | Profile ID      | Country |
+| ---------- | --------------- | ------- |
+| Revolut    | `revolut_eu`    | EU      |
+| CaixaBank  | `caixabank_es`  | Spain   |
+| Bankinter  | `bankinter_es`  | Spain   |
+| MyInvestor | `myinvestor_es` | Spain   |
+| BBVA       | `bbva_es`       | Spain   |
 
 ---
 
 ## 3. Stack
 
-| Layer | Choice |
-|---|---|
-| **Framework** | SvelteKit (latest) with Svelte 5 runes |
-| **Language** | TypeScript throughout — strict mode |
-| **Styling** | Tailwind CSS v4 (CSS `@theme` config — no `tailwind.config.ts`) |
-| **Components** | shadcn-svelte |
-| **Auth** | Better Auth (`better-auth`) — email/password via `emailAndPassword` plugin |
-| **Database** | PostgreSQL via Docker (local) / Vercel Postgres - Neon (production) |
-| **ORM** | Drizzle ORM (`drizzle-orm` + `postgres` driver) |
-| **CSV parsing** | PapaParse |
-| **Encoding detection** | chardet (for CaixaBank's ISO-8859-1 exports) |
-| **AI tagging** | Anthropic SDK `@anthropic-ai/sdk` — added in Phase 5 |
-| **Email** | Resend (invites + magic-link password recovery) |
-| **Deploy** | Vercel (SvelteKit adapter) |
+| Layer                  | Choice                                                                     |
+| ---------------------- | -------------------------------------------------------------------------- |
+| **Framework**          | SvelteKit (latest) with Svelte 5 runes                                     |
+| **Language**           | TypeScript throughout — strict mode                                        |
+| **Styling**            | Tailwind CSS v4 (CSS `@theme` config — no `tailwind.config.ts`)            |
+| **Components**         | shadcn-svelte                                                              |
+| **Auth**               | Better Auth (`better-auth`) — email/password via `emailAndPassword` plugin |
+| **Database**           | PostgreSQL via Docker (local) / Vercel Postgres - Neon (production)        |
+| **ORM**                | Drizzle ORM (`drizzle-orm` + `postgres` driver)                            |
+| **CSV parsing**        | PapaParse                                                                  |
+| **Encoding detection** | chardet (for CaixaBank's ISO-8859-1 exports)                               |
+| **AI tagging**         | Anthropic SDK `@anthropic-ai/sdk` — added in Phase 5                       |
+| **Email**              | Resend (invites + magic-link password recovery)                            |
+| **Deploy**             | Vercel (SvelteKit adapter)                                                 |
 
 ### Why SvelteKit + Svelte 5
 
@@ -217,11 +220,11 @@ services:
       POSTGRES_PASSWORD: clair
       POSTGRES_DB: clair
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - clair_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U clair"]
+      test: ['CMD-SHELL', 'pg_isready -U clair']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -264,34 +267,34 @@ ANTHROPIC_API_KEY="sk-ant-..."
 ### drizzle.config.ts
 
 ```typescript
-import type { Config } from "drizzle-kit"
+import type { Config } from 'drizzle-kit';
 
 export default {
-  schema: "./src/lib/server/db/schema.ts",
-  out: "./drizzle/migrations",
-  dialect: "postgresql",
-  dbCredentials: {
-    url: process.env.DATABASE_URL!,
-  },
-} satisfies Config
+	schema: './src/lib/server/db/schema.ts',
+	out: './drizzle/migrations',
+	dialect: 'postgresql',
+	dbCredentials: {
+		url: process.env.DATABASE_URL!
+	}
+} satisfies Config;
 ```
 
 ### Drizzle client
 
 ```typescript
 // src/lib/server/db/index.ts
-import { drizzle } from "drizzle-orm/postgres-js"
-import postgres from "postgres"
-import * as schema from "./schema"
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import * as schema from './schema';
 
 // Prevent multiple connections in dev (HMR creates new modules)
-const globalForDb = globalThis as unknown as { _db?: ReturnType<typeof drizzle> }
+const globalForDb = globalThis as unknown as { _db?: ReturnType<typeof drizzle> };
 
-const client = postgres(process.env.DATABASE_URL!)
-export const db = globalForDb._db ?? drizzle(client, { schema })
-if (process.env.NODE_ENV !== "production") globalForDb._db = db
+const client = postgres(process.env.DATABASE_URL!);
+export const db = globalForDb._db ?? drizzle(client, { schema });
+if (process.env.NODE_ENV !== 'production') globalForDb._db = db;
 
-export type DB = typeof db
+export type DB = typeof db;
 ```
 
 ### Seed script
@@ -311,73 +314,73 @@ the handler is injected at the hook level.
 
 ```typescript
 // src/lib/server/auth.ts
-import { betterAuth } from 'better-auth/minimal'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { sveltekitCookies } from 'better-auth/svelte-kit'
-import { env } from '$env/dynamic/private'
-import { getRequestEvent } from '$app/server'
-import { db } from '$lib/server/db'
+import { betterAuth } from 'better-auth/minimal';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { sveltekitCookies } from 'better-auth/svelte-kit';
+import { env } from '$env/dynamic/private';
+import { getRequestEvent } from '$app/server';
+import { db } from '$lib/server/db';
 
 export const auth = betterAuth({
-  baseURL: env.ORIGIN,
-  secret: env.BETTER_AUTH_SECRET,
-  database: drizzleAdapter(db, { provider: 'pg' }),
-  emailAndPassword: { enabled: true },
-  // Custom user fields (regenerate auth.schema.ts after changes here)
-  user: {
-    additionalFields: {
-      workspaceId: { type: 'string', required: false },
-      role: { type: 'string', defaultValue: 'member' },
-    },
-  },
-  plugins: [
-    sveltekitCookies(getRequestEvent), // must be last
-  ],
-})
+	baseURL: env.ORIGIN,
+	secret: env.BETTER_AUTH_SECRET,
+	database: drizzleAdapter(db, { provider: 'pg' }),
+	emailAndPassword: { enabled: true },
+	// Custom user fields (regenerate auth.schema.ts after changes here)
+	user: {
+		additionalFields: {
+			workspaceId: { type: 'string', required: false },
+			role: { type: 'string', defaultValue: 'member' }
+		}
+	},
+	plugins: [
+		sveltekitCookies(getRequestEvent) // must be last
+	]
+});
 ```
 
 ```typescript
 // src/hooks.server.ts
-import type { Handle } from '@sveltejs/kit'
-import { building } from '$app/environment'
-import { auth } from '$lib/server/auth'
-import { svelteKitHandler } from 'better-auth/svelte-kit'
+import type { Handle } from '@sveltejs/kit';
+import { building } from '$app/environment';
+import { auth } from '$lib/server/auth';
+import { svelteKitHandler } from 'better-auth/svelte-kit';
 
 export const handle: Handle = async ({ event, resolve }) => {
-  const session = await auth.api.getSession({ headers: event.request.headers })
-  if (session) {
-    event.locals.session = session.session
-    event.locals.user = session.user
-  }
-  return svelteKitHandler({ event, resolve, auth, building })
-}
+	const session = await auth.api.getSession({ headers: event.request.headers });
+	if (session) {
+		event.locals.session = session.session;
+		event.locals.user = session.user;
+	}
+	return svelteKitHandler({ event, resolve, auth, building });
+};
 ```
 
 ```typescript
 // src/routes/(app)/+layout.server.ts — session guard
-import { redirect } from '@sveltejs/kit'
-import type { LayoutServerLoad } from './$types'
+import { redirect } from '@sveltejs/kit';
+import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
-  if (!locals.user) throw redirect(303, '/login')
-  return { user: locals.user }
-}
+	if (!locals.user) throw redirect(303, '/login');
+	return { user: locals.user };
+};
 ```
 
 ### Auth API (server-side form actions)
 
 ```typescript
-import { auth } from '$lib/server/auth'
-import { APIError } from 'better-auth/api'
+import { auth } from '$lib/server/auth';
+import { APIError } from 'better-auth/api';
 
 // Sign in (in a form action)
-await auth.api.signInEmail({ body: { email, password } })
+await auth.api.signInEmail({ body: { email, password } });
 
 // Sign up (in a form action)
-await auth.api.signUpEmail({ body: { email, password, name } })
+await auth.api.signUpEmail({ body: { email, password, name } });
 
 // Sign out (in a form action)
-await auth.api.signOut({ headers: event.request.headers })
+await auth.api.signOut({ headers: event.request.headers });
 ```
 
 ### Regenerating the auth schema
@@ -401,20 +404,19 @@ method. Every route validates the session and scopes DB queries to `workspace_id
 
 ```typescript
 // Example: src/routes/api/accounts/+server.ts
-import { json, error } from "@sveltejs/kit"
-import type { RequestHandler } from "./$types"
-import { db } from "$lib/server/db"
+import { json, error } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+import { db } from '$lib/server/db';
 
 export const GET: RequestHandler = async ({ locals }) => {
-  if (!locals.user) throw error(401, "Unauthorized")
+	if (!locals.user) throw error(401, 'Unauthorized');
 
-  const accounts = await db.query.bankAccounts.findMany({
-    where: (a, { eq, isNull }) =>
-      eq(a.ownerUserId, locals.user.id) && isNull(a.deletedAt),
-  })
+	const accounts = await db.query.bankAccounts.findMany({
+		where: (a, { eq, isNull }) => eq(a.ownerUserId, locals.user.id) && isNull(a.deletedAt)
+	});
 
-  return json(accounts)
-}
+	return json(accounts);
+};
 ```
 
 ---
@@ -424,35 +426,35 @@ export const GET: RequestHandler = async ({ locals }) => {
 Full specification for each feature lives in the backend and frontend PRD files.
 Use this table as a quick reference:
 
-| Feature | Backend file section | Frontend file section |
-|---|---|---|
-| Auth + invite flow | §3 | §4 (Screens 1–2) |
-| Bank account CRUD | §4 | §4 (Screens 4–5) |
-| Account sharing (2-sided) | §5 | §4 (Screen 4) |
-| CSV upload + parsing | §6 | §4 (Screen 6) |
-| Balance initialisation | §6.4 | §4 (Screen 6, Step 3) |
-| Deduplication | §6.5 | — |
-| AI auto-tagging | §8 | §4 (Screen 7) |
-| Transfer detection + linking | §7 | §4 (Screen 8, 9) |
-| CSV export | §9 | §4 (Screen 10) |
-| Settings | §10 | §4 (Screen 11) |
+| Feature                      | Backend file section | Frontend file section |
+| ---------------------------- | -------------------- | --------------------- |
+| Auth + invite flow           | §3                   | §4 (Screens 1–2)      |
+| Bank account CRUD            | §4                   | §4 (Screens 4–5)      |
+| Account sharing (2-sided)    | §5                   | §4 (Screen 4)         |
+| CSV upload + parsing         | §6                   | §4 (Screen 6)         |
+| Balance initialisation       | §6.4                 | §4 (Screen 6, Step 3) |
+| Deduplication                | §6.5                 | —                     |
+| AI auto-tagging              | §8                   | §4 (Screen 7)         |
+| Transfer detection + linking | §7                   | §4 (Screen 8, 9)      |
+| CSV export                   | §9                   | §4 (Screen 10)        |
+| Settings                     | §10                  | §4 (Screen 11)        |
 
 ---
 
 ## 9. Build phases
 
-| Phase | Description | Primary tool |
-|---|---|---|
-| **1** | Scaffold: project init, Docker, Drizzle schema, Better Auth, login, invite, seed | Claude Code |
-| **2** | Bank account CRUD + sharing model | Claude Code |
-| **3a** | CSV parser: `revolut_es` profile + normaliser + preview endpoint | Claude Code |
-| **3b** | Remaining 4 bank profiles (one at a time, tested per profile) | Claude Code |
-| **3c** | Full upload: dedup + balance init + DB write + transfer scan | Claude Code |
-| **3d** | Upload Sheet UI wired to API | Claude Code |
-| **4** | Transaction list + detail panel + transfer linking dialog | Claude Code |
-| **5** | AI tagging via Claude Haiku + confidence thresholds + few-shot | Claude Code |
-| **6** | CSV export streaming endpoint + export screen | Claude Code |
-| **7** | Settings, upload history, mobile polish, empty states | Claude Code |
+| Phase  | Description                                                                      | Primary tool |
+| ------ | -------------------------------------------------------------------------------- | ------------ |
+| **1**  | Scaffold: project init, Docker, Drizzle schema, Better Auth, login, invite, seed | Claude Code  |
+| **2**  | Bank account CRUD + sharing model                                                | Claude Code  |
+| **3a** | CSV parser: `revolut_es` profile + normaliser + preview endpoint                 | Claude Code  |
+| **3b** | Remaining 4 bank profiles (one at a time, tested per profile)                    | Claude Code  |
+| **3c** | Full upload: dedup + balance init + DB write + transfer scan                     | Claude Code  |
+| **3d** | Upload Sheet UI wired to API                                                     | Claude Code  |
+| **4**  | Transaction list + detail panel + transfer linking dialog                        | Claude Code  |
+| **5**  | AI tagging via Claude Haiku + confidence thresholds + few-shot                   | Claude Code  |
+| **6**  | CSV export streaming endpoint + export screen                                    | Claude Code  |
+| **7**  | Settings, upload history, mobile polish, empty states                            | Claude Code  |
 
 ---
 

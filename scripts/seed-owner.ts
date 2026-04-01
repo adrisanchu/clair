@@ -48,9 +48,8 @@ if (!email || !name || !password) {
 
 // Set up DB client
 const client = postgres(DATABASE_URL);
-const { authUser, authSession, authAccount, authVerification, workspaces } = await import(
-	'../src/lib/server/db/schema.js'
-);
+const { authUser, authSession, authAccount, authVerification, workspaces } =
+	await import('../src/lib/server/db/schema.js');
 const db = drizzle(client, { schema: { authUser, workspaces } });
 
 // Minimal auth instance for the seed script — must match auth.ts schema mapping
@@ -108,7 +107,10 @@ if (!workspaceId) {
 }
 
 // Set role=owner and workspaceId on the user
-await db.update(authUser).set({ role: 'owner', workspaceId }).where(eq(authUser.id, createdUser.id));
+await db
+	.update(authUser)
+	.set({ role: 'owner', workspaceId })
+	.where(eq(authUser.id, createdUser.id));
 
 console.log(`\nOwner account created successfully!`);
 console.log(`  Name:        ${name}`);

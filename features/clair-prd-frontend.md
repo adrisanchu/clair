@@ -1,5 +1,7 @@
 # Clair — Product Requirements Document
+
 ## File 3 of 3: Frontend & Design System
+
 **Version:** 1.0
 
 > Read `clair-prd-main.md` first for stack decisions, Svelte 5 runes syntax rules, and
@@ -33,48 +35,48 @@ are defined using the `@theme` directive in `src/routes/layout.css`.
 @plugin '@tailwindcss/typography';
 
 @theme {
-  /* Primary — pink */
-  --color-primary-50:  #fdf2f8;
-  --color-primary-100: #fce7f3;
-  --color-primary-200: #fbcfe8;
-  --color-primary-300: #f9a8d4;
-  --color-primary-400: #f472b6;
-  --color-primary-500: #ec4899;   /* main brand */
-  --color-primary-600: #db2777;
-  --color-primary-700: #be185d;
-  --color-primary-800: #9d174d;
-  --color-primary-900: #831843;
+	/* Primary — pink */
+	--color-primary-50: #fdf2f8;
+	--color-primary-100: #fce7f3;
+	--color-primary-200: #fbcfe8;
+	--color-primary-300: #f9a8d4;
+	--color-primary-400: #f472b6;
+	--color-primary-500: #ec4899; /* main brand */
+	--color-primary-600: #db2777;
+	--color-primary-700: #be185d;
+	--color-primary-800: #9d174d;
+	--color-primary-900: #831843;
 
-  /* Success — positive amounts */
-  --color-success-50:  #ecfdf5;
-  --color-success-500: #10b981;
-  --color-success-600: #059669;
-  --color-success-700: #047857;
+	/* Success — positive amounts */
+	--color-success-50: #ecfdf5;
+	--color-success-500: #10b981;
+	--color-success-600: #059669;
+	--color-success-700: #047857;
 
-  /* Danger — negative amounts */
-  --color-danger-50:  #fff1f2;
-  --color-danger-500: #f43f5e;
-  --color-danger-600: #e11d48;
-  --color-danger-700: #be123c;
+	/* Danger — negative amounts */
+	--color-danger-50: #fff1f2;
+	--color-danger-500: #f43f5e;
+	--color-danger-600: #e11d48;
+	--color-danger-700: #be123c;
 
-  /* Surfaces & borders */
-  --color-surface:         #ffffff;
-  --color-surface-raised:  #f9fafb;
-  --color-surface-sunken:  #f3f4f6;
-  --color-border:          #e5e7eb;
-  --color-border-strong:   #d1d5db;
-  --color-text-primary:    #111827;
-  --color-text-secondary:  #6b7280;
-  --color-text-tertiary:   #9ca3af;
+	/* Surfaces & borders */
+	--color-surface: #ffffff;
+	--color-surface-raised: #f9fafb;
+	--color-surface-sunken: #f3f4f6;
+	--color-border: #e5e7eb;
+	--color-border-strong: #d1d5db;
+	--color-text-primary: #111827;
+	--color-text-secondary: #6b7280;
+	--color-text-tertiary: #9ca3af;
 
-  /* Fonts */
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+	/* Fonts */
+	--font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
 body {
-  @apply bg-surface text-text-primary font-sans;
-  -webkit-font-smoothing: antialiased;
+	@apply bg-surface font-sans text-text-primary;
+	-webkit-font-smoothing: antialiased;
 }
 ```
 
@@ -88,6 +90,7 @@ npx shadcn-svelte@latest init
 ```
 
 When prompted, choose:
+
 - Style: Default
 - Base colour: Zinc
 - CSS variables: Yes
@@ -97,16 +100,16 @@ Then add the shadcn CSS variables into `src/routes/layout.css` (after the `@them
 ```css
 /* Add to src/routes/layout.css — shadcn-svelte CSS variable overrides */
 :root {
-  --background:           0 0% 100%;
-  --foreground:           222 47% 7%;
-  --primary:              330 81% 60%;     /* pink-500 */
-  --primary-foreground:   0 0% 100%;
-  --muted:                220 14% 96%;
-  --muted-foreground:     220 9% 46%;
-  --border:               220 13% 91%;
-  --input:                220 13% 91%;
-  --ring:                 330 81% 60%;
-  --radius:               0.625rem;
+	--background: 0 0% 100%;
+	--foreground: 222 47% 7%;
+	--primary: 330 81% 60%; /* pink-500 */
+	--primary-foreground: 0 0% 100%;
+	--muted: 220 14% 96%;
+	--muted-foreground: 220 9% 46%;
+	--border: 220 13% 91%;
+	--input: 220 13% 91%;
+	--ring: 330 81% 60%;
+	--radius: 0.625rem;
 }
 ```
 
@@ -133,35 +136,35 @@ Displays a monetary amount with correct sign, colour, and monospace font.
 ```svelte
 <!-- src/lib/components/Amount.svelte -->
 <script lang="ts">
-  interface Props {
-    value:    number
-    currency?: string
-    size?:    "sm" | "md" | "lg" | "xl"
-  }
-  let { value, currency = "EUR", size = "md" }: Props = $props()
+	interface Props {
+		value: number;
+		currency?: string;
+		size?: 'sm' | 'md' | 'lg' | 'xl';
+	}
+	let { value, currency = 'EUR', size = 'md' }: Props = $props();
 
-  const sizeMap = {
-    sm: "text-sm",
-    md: "text-base",
-    lg: "text-xl",
-    xl: "text-3xl",
-  }
+	const sizeMap = {
+		sm: 'text-sm',
+		md: 'text-base',
+		lg: 'text-xl',
+		xl: 'text-3xl'
+	};
 
-  const formatted = $derived(
-    new Intl.NumberFormat("es-ES", {
-      style:                 "currency",
-      currency,
-      minimumFractionDigits: 2,
-    }).format(Math.abs(value))
-  )
-  const sign   = $derived(value > 0 ? "+" : value < 0 ? "−" : "")
-  const colour = $derived(
-    value > 0 ? "text-success-600" : value < 0 ? "text-danger-600" : "text-text-secondary"
-  )
+	const formatted = $derived(
+		new Intl.NumberFormat('es-ES', {
+			style: 'currency',
+			currency,
+			minimumFractionDigits: 2
+		}).format(Math.abs(value))
+	);
+	const sign = $derived(value > 0 ? '+' : value < 0 ? '−' : '');
+	const colour = $derived(
+		value > 0 ? 'text-success-600' : value < 0 ? 'text-danger-600' : 'text-text-secondary'
+	);
 </script>
 
 <span class="font-mono tabular-nums {sizeMap[size]} {colour}">
-  {sign}{formatted}
+	{sign}{formatted}
 </span>
 ```
 
@@ -170,33 +173,34 @@ Displays a monetary amount with correct sign, colour, and monospace font.
 ```svelte
 <!-- src/lib/components/CategoryChip.svelte -->
 <script lang="ts">
-  interface Props { category: string; size?: "sm" | "md" }
-  let { category, size = "sm" }: Props = $props()
+	interface Props {
+		category: string;
+		size?: 'sm' | 'md';
+	}
+	let { category, size = 'sm' }: Props = $props();
 
-  const COLOURS: Record<string, string> = {
-    restaurants:   "bg-orange-100   text-orange-700",
-    coffee:        "bg-amber-100    text-amber-700",
-    groceries:     "bg-green-100    text-green-700",
-    transport:     "bg-blue-100     text-blue-700",
-    travel:        "bg-cyan-100     text-cyan-700",
-    sports:        "bg-emerald-100  text-emerald-700",
-    health:        "bg-rose-100     text-rose-700",
-    subscriptions: "bg-violet-100   text-violet-700",
-    transfers:     "bg-gray-100     text-gray-600",
-    savings:       "bg-teal-100     text-teal-700",
-    shopping:      "bg-pink-100     text-pink-700",
-    utilities:     "bg-slate-100    text-slate-700",
-    income:        "bg-lime-100     text-lime-700",
-    other:         "bg-gray-100     text-gray-500",
-  }
-  const cls = $derived(
-    COLOURS[category.toLowerCase()] ?? "bg-gray-100 text-gray-500"
-  )
-  const padCls = $derived(size === "sm" ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-sm")
+	const COLOURS: Record<string, string> = {
+		restaurants: 'bg-orange-100   text-orange-700',
+		coffee: 'bg-amber-100    text-amber-700',
+		groceries: 'bg-green-100    text-green-700',
+		transport: 'bg-blue-100     text-blue-700',
+		travel: 'bg-cyan-100     text-cyan-700',
+		sports: 'bg-emerald-100  text-emerald-700',
+		health: 'bg-rose-100     text-rose-700',
+		subscriptions: 'bg-violet-100   text-violet-700',
+		transfers: 'bg-gray-100     text-gray-600',
+		savings: 'bg-teal-100     text-teal-700',
+		shopping: 'bg-pink-100     text-pink-700',
+		utilities: 'bg-slate-100    text-slate-700',
+		income: 'bg-lime-100     text-lime-700',
+		other: 'bg-gray-100     text-gray-500'
+	};
+	const cls = $derived(COLOURS[category.toLowerCase()] ?? 'bg-gray-100 text-gray-500');
+	const padCls = $derived(size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm');
 </script>
 
 <span class="inline-flex items-center rounded-full font-medium {cls} {padCls}">
-  {category}
+	{category}
 </span>
 ```
 
@@ -205,22 +209,28 @@ Displays a monetary amount with correct sign, colour, and monospace font.
 ```svelte
 <!-- src/lib/components/BankLogo.svelte -->
 <script lang="ts">
-  interface Props { name: string; class?: string }
-  let { name, class: cls = "" }: Props = $props()
+	interface Props {
+		name: string;
+		class?: string;
+	}
+	let { name, class: cls = '' }: Props = $props();
 
-  const PALETTE = [
-    "bg-blue-500", "bg-emerald-500", "bg-violet-500",
-    "bg-orange-500", "bg-pink-500",
-  ]
-  const colour = $derived(PALETTE[name.charCodeAt(0) % PALETTE.length])
-  const letter = $derived(name[0]?.toUpperCase() ?? "?")
+	const PALETTE = [
+		'bg-blue-500',
+		'bg-emerald-500',
+		'bg-violet-500',
+		'bg-orange-500',
+		'bg-pink-500'
+	];
+	const colour = $derived(PALETTE[name.charCodeAt(0) % PALETTE.length]);
+	const letter = $derived(name[0]?.toUpperCase() ?? '?');
 </script>
 
 <div
-  class="rounded-full flex items-center justify-center
-         text-white font-semibold text-sm {colour} {cls}"
+	class="flex items-center justify-center rounded-full
+         text-sm font-semibold text-white {colour} {cls}"
 >
-  {letter}
+	{letter}
 </div>
 ```
 
@@ -229,24 +239,26 @@ Displays a monetary amount with correct sign, colour, and monospace font.
 ```svelte
 <!-- src/lib/components/EmptyState.svelte -->
 <script lang="ts">
-  import type { Snippet } from "svelte"
-  interface Props {
-    icon:        Snippet
-    title:       string
-    description: string
-    action?:     Snippet
-  }
-  let { icon, title, description, action }: Props = $props()
+	import type { Snippet } from 'svelte';
+	interface Props {
+		icon: Snippet;
+		title: string;
+		description: string;
+		action?: Snippet;
+	}
+	let { icon, title, description, action }: Props = $props();
 </script>
 
-<div class="flex flex-col items-center justify-center py-16 text-center px-4">
-  <div class="w-12 h-12 rounded-full bg-surface-sunken
-              flex items-center justify-center mb-4 text-text-tertiary">
-    {@render icon()}
-  </div>
-  <p class="text-sm font-medium text-text-primary mb-1">{title}</p>
-  <p class="text-sm text-text-secondary mb-4">{description}</p>
-  {#if action}{@render action()}{/if}
+<div class="flex flex-col items-center justify-center px-4 py-16 text-center">
+	<div
+		class="mb-4 flex h-12 w-12
+              items-center justify-center rounded-full bg-surface-sunken text-text-tertiary"
+	>
+		{@render icon()}
+	</div>
+	<p class="mb-1 text-sm font-medium text-text-primary">{title}</p>
+	<p class="mb-4 text-sm text-text-secondary">{description}</p>
+	{#if action}{@render action()}{/if}
 </div>
 ```
 
@@ -259,43 +271,47 @@ Displays a monetary amount with correct sign, colour, and monospace font.
 ```svelte
 <!-- src/lib/components/layout/Sidebar.svelte -->
 <script lang="ts">
-  import { page } from "$app/state"
+	import { page } from '$app/state';
 
-  const links = [
-    { href: "/dashboard",    label: "Dashboard",     icon: "home" },
-    { href: "/accounts",     label: "Accounts",      icon: "credit-card" },
-    { href: "/transactions", label: "Transactions",  icon: "arrow-left-right" },
-    { href: "/export",       label: "Export",        icon: "download" },
-  ]
+	const links = [
+		{ href: '/dashboard', label: 'Dashboard', icon: 'home' },
+		{ href: '/accounts', label: 'Accounts', icon: 'credit-card' },
+		{ href: '/transactions', label: 'Transactions', icon: 'arrow-left-right' },
+		{ href: '/export', label: 'Export', icon: 'download' }
+	];
 </script>
 
-<nav class="hidden md:flex flex-col w-60 min-h-screen
-            border-r border-border bg-surface px-3 py-6 gap-1">
-  <!-- Logo -->
-  <span class="text-xl font-semibold text-primary-600 px-3 mb-6">Clair</span>
+<nav
+	class="hidden min-h-screen w-60 flex-col gap-1
+            border-r border-border bg-surface px-3 py-6 md:flex"
+>
+	<!-- Logo -->
+	<span class="mb-6 px-3 text-xl font-semibold text-primary-600">Clair</span>
 
-  {#each links as link}
-    <a
-      href={link.href}
-      class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm
+	{#each links as link}
+		<a
+			href={link.href}
+			class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm
              transition-colors
              {page.url.pathname.startsWith(link.href)
-               ? 'bg-primary-50 text-primary-600 font-medium'
-               : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary'}"
-    >
-      <!-- icon slot -->
-      {link.label}
-    </a>
-  {/each}
+				? 'bg-primary-50 font-medium text-primary-600'
+				: 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary'}"
+		>
+			<!-- icon slot -->
+			{link.label}
+		</a>
+	{/each}
 
-  <div class="mt-auto border-t border-border pt-4 flex flex-col gap-1">
-    <a href="/settings"
-       class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm
-              text-text-secondary hover:bg-surface-sunken">
-      Settings
-    </a>
-    <!-- User avatar + name -->
-  </div>
+	<div class="mt-auto flex flex-col gap-1 border-t border-border pt-4">
+		<a
+			href="/settings"
+			class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm
+              text-text-secondary hover:bg-surface-sunken"
+		>
+			Settings
+		</a>
+		<!-- User avatar + name -->
+	</div>
 </nav>
 ```
 
@@ -304,27 +320,29 @@ Displays a monetary amount with correct sign, colour, and monospace font.
 ```svelte
 <!-- src/lib/components/layout/BottomNav.svelte -->
 <script lang="ts">
-  import { page } from "$app/state"
-  const tabs = [
-    { href: "/dashboard",    label: "Home",         icon: "home" },
-    { href: "/accounts",     label: "Accounts",     icon: "credit-card" },
-    { href: "/transactions", label: "Transactions", icon: "arrow-left-right" },
-    { href: "/export",       label: "Export",       icon: "download" },
-  ]
+	import { page } from '$app/state';
+	const tabs = [
+		{ href: '/dashboard', label: 'Home', icon: 'home' },
+		{ href: '/accounts', label: 'Accounts', icon: 'credit-card' },
+		{ href: '/transactions', label: 'Transactions', icon: 'arrow-left-right' },
+		{ href: '/export', label: 'Export', icon: 'download' }
+	];
 </script>
 
-<nav class="md:hidden fixed bottom-0 inset-x-0 bg-surface border-t border-border
-            flex h-16 z-50">
-  {#each tabs as tab}
-    <a href={tab.href}
-       class="flex-1 flex flex-col items-center justify-center gap-1
-              {page.url.pathname.startsWith(tab.href)
-                ? 'text-primary-500'
-                : 'text-text-tertiary'}">
-      <!-- icon -->
-      <span class="text-[10px] font-medium">{tab.label}</span>
-    </a>
-  {/each}
+<nav
+	class="fixed inset-x-0 bottom-0 z-50 flex h-16 border-t
+            border-border bg-surface md:hidden"
+>
+	{#each tabs as tab}
+		<a
+			href={tab.href}
+			class="flex flex-1 flex-col items-center justify-center gap-1
+              {page.url.pathname.startsWith(tab.href) ? 'text-primary-500' : 'text-text-tertiary'}"
+		>
+			<!-- icon -->
+			<span class="text-[10px] font-medium">{tab.label}</span>
+		</a>
+	{/each}
 </nav>
 ```
 
@@ -333,18 +351,18 @@ Displays a monetary amount with correct sign, colour, and monospace font.
 ```svelte
 <!-- src/routes/(app)/+layout.svelte -->
 <script lang="ts">
-  import Sidebar    from "$lib/components/layout/Sidebar.svelte"
-  import BottomNav  from "$lib/components/layout/BottomNav.svelte"
-  import type { LayoutData } from "./$types"
-  let { data, children }: { data: LayoutData; children: any } = $props()
+	import Sidebar from '$lib/components/layout/Sidebar.svelte';
+	import BottomNav from '$lib/components/layout/BottomNav.svelte';
+	import type { LayoutData } from './$types';
+	let { data, children }: { data: LayoutData; children: any } = $props();
 </script>
 
 <div class="flex min-h-screen bg-surface-raised">
-  <Sidebar />
-  <main class="flex-1 pb-20 md:pb-0">
-    {@render children()}
-  </main>
-  <BottomNav />
+	<Sidebar />
+	<main class="flex-1 pb-20 md:pb-0">
+		{@render children()}
+	</main>
+	<BottomNav />
 </div>
 ```
 
@@ -352,24 +370,24 @@ Displays a monetary amount with correct sign, colour, and monospace font.
 
 ## 6. Design rules
 
-| Rule | Spec |
-|---|---|
-| Page padding mobile | `px-4 py-6` |
-| Page padding desktop | `px-8 py-8` |
-| Card gap | `gap-3` mobile, `gap-4` desktop |
-| Section spacing | `mt-8` between major sections |
-| Touch target min height | `h-11` (44px) |
-| Card style | `bg-surface rounded-xl border border-border p-4 shadow-sm` |
-| Heading style | `text-base font-semibold text-text-primary` — never all-caps |
-| Label style | `text-sm text-text-secondary` |
-| Amounts | Always `font-mono tabular-nums` — use `<Amount>` component |
-| Dates in lists | `Mar 24` short form |
-| Dates in detail | `Monday, 24 March 2025` full form |
-| Number format | `€1,234.56` — `es-ES` locale via `Intl.NumberFormat` |
-| Animation | shadcn Sheet/Dialog built-in only — no custom animations |
-| Loading state | shadcn `Skeleton` component |
-| Errors | shadcn `Toast` (top-right) + inline field validation |
-| Destructive actions | Always via shadcn `AlertDialog` first |
+| Rule                    | Spec                                                         |
+| ----------------------- | ------------------------------------------------------------ |
+| Page padding mobile     | `px-4 py-6`                                                  |
+| Page padding desktop    | `px-8 py-8`                                                  |
+| Card gap                | `gap-3` mobile, `gap-4` desktop                              |
+| Section spacing         | `mt-8` between major sections                                |
+| Touch target min height | `h-11` (44px)                                                |
+| Card style              | `bg-surface rounded-xl border border-border p-4 shadow-sm`   |
+| Heading style           | `text-base font-semibold text-text-primary` — never all-caps |
+| Label style             | `text-sm text-text-secondary`                                |
+| Amounts                 | Always `font-mono tabular-nums` — use `<Amount>` component   |
+| Dates in lists          | `Mar 24` short form                                          |
+| Dates in detail         | `Monday, 24 March 2025` full form                            |
+| Number format           | `€1,234.56` — `es-ES` locale via `Intl.NumberFormat`         |
+| Animation               | shadcn Sheet/Dialog built-in only — no custom animations     |
+| Loading state           | shadcn `Skeleton` component                                  |
+| Errors                  | shadcn `Toast` (top-right) + inline field validation         |
+| Destructive actions     | Always via shadcn `AlertDialog` first                        |
 
 ---
 
@@ -427,6 +445,7 @@ and a "Back to login" link.
 **Balance strip** — horizontal scroll on mobile, 3-column grid on desktop.
 
 Each account card (compact):
+
 ```
 ┌────────────────────────────────────┐
 │ [●] BBVA Main           Active  ● │  ← logo 32px, status dot
@@ -439,6 +458,7 @@ Each account card (compact):
 ```
 
 Show these 5 accounts:
+
 ```
 BBVA Main      ···1234   €4,832.50    Active
 CaixaBank      ···5678   €1,204.00    Active
@@ -448,6 +468,7 @@ MyInvestor     ···7890   €8,920.00    Active
 ```
 
 **Alert banners** (only shown when relevant, below the strip):
+
 ```
 ⚠  3 transactions need review.        [Review →]    ← amber-50 bg, amber-600 text
 ⚠  2 unmatched transfers.             [Link them →] ← orange-50 bg, orange-600 text
@@ -456,12 +477,14 @@ MyInvestor     ···7890   €8,920.00    Active
 **Recent transactions** ("Recent transactions" heading + "View all →" top-right):
 
 On mobile, each row is 2 lines:
+
 ```
 Line 1: [CategoryChip]  Description text
 Line 2: [AccountChip]   Date (muted)     Amount (right-aligned, coloured)
 ```
 
 Use this data:
+
 ```
 ● Groceries    Mercadona 0234 Madrid       BBVA      Mar 24   −€47.30
 ● Subs         Netflix.com                 Revolut   Mar 24   −€15.99
@@ -482,6 +505,7 @@ Use this data:
 Header: "Accounts" + "Add account" button (primary, small, top-right).
 
 **Account card** (full width mobile, 2-col desktop):
+
 ```
 ┌──────────────────────────────────────────────────────┐
 │  [●] BBVA Main                            Active  ●  │
@@ -500,6 +524,7 @@ The "Coming soon" strip: `bg-surface-sunken border-t border-border text-xs
 text-text-tertiary px-4 py-2 rounded-b-xl`.
 
 **Empty state:**
+
 ```
 [credit-card icon, 24px, text-tertiary]
 No bank accounts yet
@@ -544,6 +569,7 @@ DANGER ZONE
 Step indicator at top: `Step 1 of 4` with a thin progress bar.
 
 **Step 1 — Select file:**
+
 ```
 Upload transactions
 BBVA Main
@@ -562,6 +588,7 @@ Detected format: BBVA Spain  ✓
 ```
 
 **Step 2 — Preview:**
+
 ```
 Looks good — here's what we found
 
@@ -577,6 +604,7 @@ Date          Description                Amount    Currency
 ```
 
 **Step 3 — Current balance** (skip if profile has a balance column):
+
 ```
 What is your current balance?
 
@@ -590,6 +618,7 @@ balances across all your history.
 ```
 
 **Step 4 — Confirm:**
+
 ```
 Ready to import
 
@@ -609,6 +638,7 @@ Ready to import
 `"5 transactions moved from Pending to Completed. Your notes and categories are preserved."`
 
 **Result state (replace modal content after import):**
+
 ```
 ✓  312 transactions imported
 
@@ -624,24 +654,29 @@ Ready to import
 **Filter bar** (sticky, `top-0 z-10 bg-surface border-b border-border`):
 
 Mobile — search input full width + "Filters" button that opens a bottom drawer:
+
 ```
 [🔍 Search descriptions...]    [Filters ▾]
 ```
 
 Desktop — inline filters:
+
 ```
 [🔍 Search...]  [Account ▾]  [Category ▾]  [Date range]  [More ▾]  [Clear]
 ```
 
 **Tabs** (below filter bar):
+
 ```
 All (324)    Expenses (298)    Transfers (18)    Review (4)
 ```
+
 Active tab: `border-b-2 border-primary-500 text-primary-600 font-medium`
 
 **Transaction list:**
 
 Mobile — 2-line rows:
+
 ```
 ● Groceries  Mercadona 0234 Madrid                    −€47.30
              BBVA  ·  Mar 24                         [tap row]
@@ -650,6 +685,7 @@ Mobile — 2-line rows:
 Desktop — table with columns: Date | Description | Account | Category | Amount | Actions
 
 Show these rows (use exactly this data):
+
 ```
 ● Groceries    Mercadona 0234 Madrid        BBVA      Mar 24   −€47.30
 ● Subs         Netflix.com                  Revolut   Mar 24   −€15.99
@@ -726,6 +762,7 @@ TRANSFER
 ```
 
 **When `isTransfer = true` and linked:**
+
 ```
 LINKED TRANSFER
 ┌──────────────────────────────────┐
@@ -737,6 +774,7 @@ LINKED TRANSFER
 ```
 
 **When `isTransfer = true`, no counterpart:**
+
 ```
 LINKED TRANSFER
 ⚠  Counterpart not uploaded yet
@@ -822,6 +860,7 @@ Date         Description            Amount  Category
 **Tabs:** Categories | CSV Columns | Members | Account
 
 **Categories tab:**
+
 ```
 [●] Restaurants    ████   [rename]  [🗑]
 [●] Coffee         ████   [rename]  [🗑]
@@ -838,6 +877,7 @@ Date         Description            Amount  Category
 Colour dot is a `<button>` that opens a small colour-picker popover.
 
 **CSV Columns tab:**
+
 ```
 [✓]  Date          booking_date    ☰
 [✓]  Description   description     ☰
@@ -854,6 +894,7 @@ Colour dot is a `<button>` that opens a small colour-picker popover.
 ```
 
 **Members tab (owner only):**
+
 ```
 Pablo García    Owner    pablo@example.com
 María García    Member   maria@example.com    Joined Jan 2025    [Remove]
@@ -867,6 +908,7 @@ Pending invites:
 ```
 
 **Account tab:**
+
 ```
 Change password
 [Current password]
@@ -885,13 +927,13 @@ Notifications
 
 Every list needs an empty state. Use `<EmptyState>` component (Section 4).
 
-| Screen | Title | Description | CTA |
-|---|---|---|---|
-| Accounts | No bank accounts yet | Add your first account to get started. | Add bank account |
-| Transactions | No transactions yet | Upload a CSV file to import your first transactions. | Upload CSV |
-| Transactions (filtered) | No matching transactions | Try adjusting your filters. | Clear filters |
-| Export | No accounts selected | Select at least one account to export. | — |
-| Members | Only you so far | Invite someone to share accounts with them. | Invite someone |
+| Screen                  | Title                    | Description                                          | CTA              |
+| ----------------------- | ------------------------ | ---------------------------------------------------- | ---------------- |
+| Accounts                | No bank accounts yet     | Add your first account to get started.               | Add bank account |
+| Transactions            | No transactions yet      | Upload a CSV file to import your first transactions. | Upload CSV       |
+| Transactions (filtered) | No matching transactions | Try adjusting your filters.                          | Clear filters    |
+| Export                  | No accounts selected     | Select at least one account to export.               | —                |
+| Members                 | Only you so far          | Invite someone to share accounts with them.          | Invite someone   |
 
 ---
 
@@ -901,23 +943,26 @@ Use shadcn-svelte `Skeleton` for all loading states:
 
 ```svelte
 <!-- Account card skeleton -->
-<div class="bg-surface rounded-xl border border-border p-4 space-y-3">
-  <div class="flex items-center gap-3">
-    <Skeleton class="w-8 h-8 rounded-full" />
-    <Skeleton class="h-4 w-32" />
-  </div>
-  <Skeleton class="h-7 w-24" />
-  <Skeleton class="h-3 w-40" />
-  <div class="flex gap-2 mt-2">
-    <Skeleton class="h-9 w-28" />
-    <Skeleton class="h-9 w-20" />
-  </div>
+<div class="space-y-3 rounded-xl border border-border bg-surface p-4">
+	<div class="flex items-center gap-3">
+		<Skeleton class="h-8 w-8 rounded-full" />
+		<Skeleton class="h-4 w-32" />
+	</div>
+	<Skeleton class="h-7 w-24" />
+	<Skeleton class="h-3 w-40" />
+	<div class="mt-2 flex gap-2">
+		<Skeleton class="h-9 w-28" />
+		<Skeleton class="h-9 w-20" />
+	</div>
 </div>
 
 <!-- Transaction row skeleton -->
-<div class="flex items-center gap-3 py-3 border-b border-border">
-  <Skeleton class="h-5 w-16 rounded-full" />  <!-- category chip -->
-  <Skeleton class="h-4 flex-1" />              <!-- description -->
-  <Skeleton class="h-4 w-16" />               <!-- amount -->
+<div class="flex items-center gap-3 border-b border-border py-3">
+	<Skeleton class="h-5 w-16 rounded-full" />
+	<!-- category chip -->
+	<Skeleton class="h-4 flex-1" />
+	<!-- description -->
+	<Skeleton class="h-4 w-16" />
+	<!-- amount -->
 </div>
 ```

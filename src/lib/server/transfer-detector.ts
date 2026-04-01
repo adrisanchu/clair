@@ -1,21 +1,21 @@
-import { and, ne, eq, isNull, gte, lte, sql, inArray } from 'drizzle-orm'
-import { addDays, subDays } from 'date-fns'
-import { db } from './db/index.js'
-import { transactions } from './db/schema.js'
+import { and, ne, eq, isNull, gte, lte, sql, inArray } from 'drizzle-orm';
+import { addDays, subDays } from 'date-fns';
+import { db } from './db/index.js';
+import { transactions } from './db/schema.js';
 
 export interface TransferCandidate {
-	id: string
-	accountingDate: Date
-	amount: number
-	description: string
-	bankAccountId: string
-	daysDiff: number
+	id: string;
+	accountingDate: Date;
+	amount: number;
+	description: string;
+	bankAccountId: string;
+	daysDiff: number;
 }
 
 export interface TransferMatch {
-	sourceId: string
-	candidateId: string | null // null = no auto-link found
-	candidates: TransferCandidate[] // empty when auto-linked
+	sourceId: string;
+	candidateId: string | null; // null = no auto-link found
+	candidates: TransferCandidate[]; // empty when auto-linked
 }
 
 /**
@@ -36,7 +36,7 @@ export async function detectAndLinkTransfers(
 	accessibleAccountIds: string[],
 	linkedById: string
 ): Promise<TransferMatch[]> {
-	if (newTransactionIds.length === 0 || accessibleAccountIds.length === 0) return []
+	if (newTransactionIds.length === 0 || accessibleAccountIds.length === 0) return [];
 
 	const sources = await db
 		.select()
@@ -48,12 +48,12 @@ export async function detectAndLinkTransfers(
 				isNull(transactions.transferCounterpartId),
 				eq(transactions.isOpeningBalance, false)
 			)
-		)
+		);
 
-	const results: TransferMatch[] = []
+	const results: TransferMatch[] = [];
 
 	for (const source of sources) {
-		const sourceDate = source.accountingDate as unknown as Date
+		const sourceDate = source.accountingDate as unknown as Date;
 
 		const candidates = await db
 			.select({
@@ -82,11 +82,11 @@ export async function detectAndLinkTransfers(
 			.orderBy(
 				sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${source.accountingDate}::date)))`
 			)
-			.limit(5)
+			.limit(5);
 
 		if (candidates.length === 1) {
-			await linkPair(source.id, candidates[0].id, linkedById)
-			results.push({ sourceId: source.id, candidateId: candidates[0].id, candidates: [] })
+			await linkPair(source.id, candidates[0].id, linkedById);
+			results.push({ sourceId: source.id, candidateId: candidates[0].id, candidates: [] });
 		} else {
 			results.push({
 				sourceId: source.id,
@@ -99,15 +99,15 @@ export async function detectAndLinkTransfers(
 					bankAccountId: c.bankAccountId,
 					daysDiff: c.daysDiff
 				}))
-			})
+			});
 		}
 	}
 
-	return results
+	return results;
 }
 
 export async function linkPair(idA: string, idB: string, linkedById: string): Promise<void> {
-	const now = new Date()
+	const now = new Date();
 	await Promise.all([
 		db
 			.update(transactions)
@@ -127,15 +127,15 @@ export async function linkPair(idA: string, idB: string, linkedById: string): Pr
 				transferLinkedAt: now
 			})
 			.where(eq(transactions.id, idB))
-	])
+	]);
 }
 
 export async function unlinkPair(idA: string): Promise<void> {
 	const tx = await db.query.transactions.findFirst({
 		where: eq(transactions.id, idA),
 		columns: { transferCounterpartId: true }
-	})
-	if (!tx?.transferCounterpartId) return
+	});
+	if (!tx?.transferCounterpartId) return;
 
 	await Promise.all([
 		db
@@ -156,5 +156,5 @@ export async function unlinkPair(idA: string): Promise<void> {
 				transferLinkedAt: null
 			})
 			.where(eq(transactions.id, tx.transferCounterpartId))
-	])
+	]);
 }

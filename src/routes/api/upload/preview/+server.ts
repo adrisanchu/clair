@@ -1,49 +1,51 @@
-import { error, json } from '@sveltejs/kit'
-import type { RequestHandler } from './$types'
-import { getProfile, detectProfile, parseCSV, fileToText } from '$lib/server/parsers/index.js'
+import { error, json } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+import { getProfile, detectProfile, parseCSV, fileToText } from '$lib/server/parsers/index.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.user) throw error(401, 'Unauthorized')
+	if (!locals.user) throw error(401, 'Unauthorized');
 
-	const form = await request.formData()
-	const file = form.get('file')
-	const profileIdParam = form.get('bankProfileId')
+	const form = await request.formData();
+	const file = form.get('file');
+	const profileIdParam = form.get('bankProfileId');
 
-	if (!(file instanceof File)) throw error(400, 'Missing file')
-	if (file.size > 10 * 1024 * 1024) throw error(400, 'File too large (max 10 MB)')
+	if (!(file instanceof File)) throw error(400, 'Missing file');
+	if (file.size > 10 * 1024 * 1024) throw error(400, 'File too large (max 10 MB)');
 
-	const csvText = await fileToText(file)
+	const csvText = await fileToText(file);
 
 	// Resolve profile: use provided ID or auto-detect from header
 	const profileId =
-		typeof profileIdParam === 'string' && profileIdParam
-			? profileIdParam
-			: detectProfile(csvText)
+		typeof profileIdParam === 'string' && profileIdParam ? profileIdParam : detectProfile(csvText);
 
-	if (!profileId) throw error(400, 'Could not detect bank profile. Please select one manually.')
+	if (!profileId) throw error(400, 'Could not detect bank profile. Please select one manually.');
 
-	const profile = getProfile(profileId)
-	if (!profile) throw error(400, `Unknown bank profile: ${profileId}`)
+	const profile = getProfile(profileId);
+	if (!profile) throw error(400, `Unknown bank profile: ${profileId}`);
 
-	const { rows, skippedCount, errors } = parseCSV(csvText, profile)
+	const { rows, skippedCount, errors } = parseCSV(csvText, profile);
 
 	if (rows.length === 0 && errors.length > 0) {
-		throw error(422, `Could not parse CSV: ${errors[0]}`)
+		throw error(422, `Could not parse CSV: ${errors[0]}`);
 	}
 
 	// Date range from parsed rows
-	const dates = rows.map((r) => r.accountingDate.getTime())
-	const dateRangeFrom = dates.length ? new Date(Math.min(...dates)).toISOString().split('T')[0] : null
-	const dateRangeTo = dates.length ? new Date(Math.max(...dates)).toISOString().split('T')[0] : null
+	const dates = rows.map((r) => r.accountingDate.getTime());
+	const dateRangeFrom = dates.length
+		? new Date(Math.min(...dates)).toISOString().split('T')[0]
+		: null;
+	const dateRangeTo = dates.length
+		? new Date(Math.max(...dates)).toISOString().split('T')[0]
+		: null;
 
 	// Split by status
-	const postedCount = rows.filter((r) => r.status === 'posted').length
-	const pendingCount = rows.filter((r) => r.status === 'pending').length
+	const postedCount = rows.filter((r) => r.status === 'posted').length;
+	const pendingCount = rows.filter((r) => r.status === 'pending').length;
 
 	// Latest balance from the most recent completed row (Revolut provides this)
 	const latestCompletedRow = rows
 		.filter((r) => r.status === 'posted' && r.runningBalance !== null)
-		.sort((a, b) => b.accountingDate.getTime() - a.accountingDate.getTime())[0]
+		.sort((a, b) => b.accountingDate.getTime() - a.accountingDate.getTime())[0];
 
 	return json({
 		detectedProfile: profileId,
@@ -65,5 +67,5 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			status: r.status
 		})),
 		errors: errors.slice(0, 10)
-	})
-}
+	});
+};

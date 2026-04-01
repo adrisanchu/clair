@@ -9,18 +9,18 @@ Two users max (invite-only couple). Designed to scale to more users in v2 with n
 
 ## Stack
 
-| Layer | Choice |
-|---|---|
-| Framework | SvelteKit 2.x + **Svelte 5 runes** (strict — no legacy syntax) |
-| Language | TypeScript strict mode throughout |
-| Styling | Tailwind CSS v4 (CSS `@theme` config — no `tailwind.config.ts`) |
-| Components | shadcn-svelte (already initialised — `src/lib/components/ui/`) |
-| Auth | **Better Auth** (`better-auth ~1.4`) — `emailAndPassword` plugin |
-| Database | PostgreSQL via Docker Compose (local) / Neon (prod) |
-| ORM | Drizzle ORM (`drizzle-orm` + `postgres` driver) |
-| AI | Anthropic Claude Haiku — Phase 5 only |
-| Email | Resend — invites |
-| Deploy | Vercel (SvelteKit adapter) |
+| Layer      | Choice                                                           |
+| ---------- | ---------------------------------------------------------------- |
+| Framework  | SvelteKit 2.x + **Svelte 5 runes** (strict — no legacy syntax)   |
+| Language   | TypeScript strict mode throughout                                |
+| Styling    | Tailwind CSS v4 (CSS `@theme` config — no `tailwind.config.ts`)  |
+| Components | shadcn-svelte (already initialised — `src/lib/components/ui/`)   |
+| Auth       | **Better Auth** (`better-auth ~1.4`) — `emailAndPassword` plugin |
+| Database   | PostgreSQL via Docker Compose (local) / Neon (prod)              |
+| ORM        | Drizzle ORM (`drizzle-orm` + `postgres` driver)                  |
+| AI         | Anthropic Claude Haiku — Phase 5 only                            |
+| Email      | Resend — invites                                                 |
+| Deploy     | Vercel (SvelteKit adapter)                                       |
 
 ## Critical: Svelte 5 / SvelteKit Patterns
 
@@ -30,19 +30,19 @@ PRD code samples use `import { page } from '$app/stores'` (Svelte 4). Always use
 
 ```typescript
 // ✅ Svelte 5 — reactive state object, no $ prefix needed in template
-import { page } from '$app/state'
-page.url.pathname  // access directly
+import { page } from '$app/state';
+page.url.pathname; // access directly
 
 // ❌ Wrong — Svelte 4 store syntax
-import { page } from '$app/stores'
-$page.url.pathname
+import { page } from '$app/stores';
+$page.url.pathname;
 ```
 
 ### Auth client (client-side)
 
 ```typescript
-import { authClient } from '$lib/auth-client'
-const { data: session } = authClient.useSession()
+import { authClient } from '$lib/auth-client';
+const { data: session } = authClient.useSession();
 ```
 
 ## Critical: Svelte 5 Runes Only
@@ -50,10 +50,12 @@ const { data: session } = authClient.useSession()
 ```svelte
 <!-- ✅ Correct — Svelte 5 runes -->
 <script lang="ts">
-  let count = $state(0)
-  let doubled = $derived(count * 2)
-  interface Props { label: string }
-  let { label }: Props = $props()
+	let count = $state(0);
+	let doubled = $derived(count * 2);
+	interface Props {
+		label: string;
+	}
+	let { label }: Props = $props();
 </script>
 
 <!-- ❌ Wrong — never use Svelte 4 legacy syntax -->
@@ -62,17 +64,17 @@ const { data: session } = authClient.useSession()
 
 ## Key Files
 
-| File | Purpose |
-|---|---|
-| `src/lib/server/auth.ts` | Better Auth config (plugins, user additional fields) |
+| File                               | Purpose                                                           |
+| ---------------------------------- | ----------------------------------------------------------------- |
+| `src/lib/server/auth.ts`           | Better Auth config (plugins, user additional fields)              |
 | `src/lib/server/db/auth.schema.ts` | **Auto-generated** by `npm run auth:schema` — never edit manually |
-| `src/lib/server/db/schema.ts` | Business schema (imports + re-exports auth schema) |
-| `src/lib/server/db/index.ts` | Drizzle client singleton |
-| `src/hooks.server.ts` | Sets `locals.user` + `locals.session` via `svelteKitHandler` |
-| `src/app.d.ts` | TypeScript types for `App.Locals` |
-| `src/routes/layout.css` | Global CSS + Tailwind v4 `@theme` design tokens |
-| `compose.yaml` | Docker Compose for local Postgres |
-| `scripts/seed-owner.ts` | Creates first owner account (run once after first migration) |
+| `src/lib/server/db/schema.ts`      | Business schema (imports + re-exports auth schema)                |
+| `src/lib/server/db/index.ts`       | Drizzle client singleton                                          |
+| `src/hooks.server.ts`              | Sets `locals.user` + `locals.session` via `svelteKitHandler`      |
+| `src/app.d.ts`                     | TypeScript types for `App.Locals`                                 |
+| `src/routes/layout.css`            | Global CSS + Tailwind v4 `@theme` design tokens                   |
+| `compose.yaml`                     | Docker Compose for local Postgres                                 |
+| `scripts/seed-owner.ts`            | Creates first owner account (run once after first migration)      |
 
 ## Better Auth Patterns
 
@@ -81,25 +83,25 @@ const { data: session } = authClient.useSession()
 ```typescript
 // +page.server.ts / +layout.server.ts / +server.ts
 export const load = async ({ locals }) => {
-  if (!locals.user) redirect(303, '/login')
-  return { user: locals.user }
-}
+	if (!locals.user) redirect(303, '/login');
+	return { user: locals.user };
+};
 ```
 
 ### Auth API calls (form actions)
 
 ```typescript
-import { auth } from '$lib/server/auth'
-import { APIError } from 'better-auth/api'
+import { auth } from '$lib/server/auth';
+import { APIError } from 'better-auth/api';
 
 // Sign in
-await auth.api.signInEmail({ body: { email, password } })
+await auth.api.signInEmail({ body: { email, password } });
 
 // Sign up
-await auth.api.signUpEmail({ body: { email, password, name } })
+await auth.api.signUpEmail({ body: { email, password, name } });
 
 // Sign out
-await auth.api.signOut({ headers: event.request.headers })
+await auth.api.signOut({ headers: event.request.headers });
 ```
 
 ### No separate /api/auth route needed
@@ -198,15 +200,15 @@ src/routes/
 
 ## Build Phases
 
-| Phase | Description | Status |
-|---|---|---|
-| 1 | Scaffold, Docker, schema, Better Auth, login, invite, seed | **Complete** |
-| 2 | Bank account CRUD + sharing model | Pending |
-| 3a–d | CSV parsers + full upload pipeline | Pending |
-| 4 | Transaction list + detail panel + transfer linking | Pending |
-| 5 | AI tagging via Claude Haiku | Pending |
-| 6 | CSV export streaming | Pending |
-| 7 | Settings, upload history, mobile polish, empty states | Pending |
+| Phase | Description                                                | Status       |
+| ----- | ---------------------------------------------------------- | ------------ |
+| 1     | Scaffold, Docker, schema, Better Auth, login, invite, seed | **Complete** |
+| 2     | Bank account CRUD + sharing model                          | Pending      |
+| 3a–d  | CSV parsers + full upload pipeline                         | Pending      |
+| 4     | Transaction list + detail panel + transfer linking         | Pending      |
+| 5     | AI tagging via Claude Haiku                                | Pending      |
+| 6     | CSV export streaming                                       | Pending      |
+| 7     | Settings, upload history, mobile polish, empty states      | Pending      |
 
 ## Coding Rules
 

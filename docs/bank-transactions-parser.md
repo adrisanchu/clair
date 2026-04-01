@@ -125,14 +125,14 @@ upload button appears directly on the account card.
 
 ## Revolut CSV quirks
 
-| Quirk | Handling |
-|---|---|
-| No unique transaction ID | Dedup via date + amount + description |
-| PENDING rows have no `Fecha de finalización` or `Saldo` | `valueDate = null`, `runningBalance = null` |
+| Quirk                                                      | Handling                                                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------------- |
+| No unique transaction ID                                   | Dedup via date + amount + description                               |
+| PENDING rows have no `Fecha de finalización` or `Saldo`    | `valueDate = null`, `runningBalance = null`                         |
 | `Cambio` (exchange) creates 2 rows (−EUR + +EUR remainder) | Both imported as regular transactions; **not** flagged as transfers |
-| `Transferir` rows are inter-account transfers | `isTransfer = true`; transfer detector runs on these |
-| Fee column (`Comisión`) usually 0 | Added to amount when non-zero (postNormalize step) |
-| UTF-8, comma-delimited | Detected automatically from header fingerprint |
+| `Transferir` rows are inter-account transfers              | `isTransfer = true`; transfer detector runs on these                |
+| Fee column (`Comisión`) usually 0                          | Added to amount when non-zero (postNormalize step)                  |
+| UTF-8, comma-delimited                                     | Detected automatically from header fingerprint                      |
 
 ---
 
@@ -161,25 +161,25 @@ tags               (array)
 
 ## Required UI (current status)
 
-| Component | Route / File | Status |
-|---|---|---|
-| Bank account CRUD | `/accounts` | ✅ Phase 2 |
-| Add account sheet | `AddAccountSheet.svelte` | ✅ Phase 2 |
-| Upload sheet (multi-step) | `UploadSheet.svelte` | ⬜ Phase 3d |
-| Transaction list | `/transactions` | ⬜ Phase 4 |
+| Component                 | Route / File             | Status      |
+| ------------------------- | ------------------------ | ----------- |
+| Bank account CRUD         | `/accounts`              | ✅ Phase 2  |
+| Add account sheet         | `AddAccountSheet.svelte` | ✅ Phase 2  |
+| Upload sheet (multi-step) | `UploadSheet.svelte`     | ⬜ Phase 3d |
+| Transaction list          | `/transactions`          | ⬜ Phase 4  |
 
 ---
 
 ## Parser files
 
-| File | Role |
-|---|---|
-| `src/lib/server/parsers/types.ts` | `BankParserProfile`, `NormalizedTransaction` interfaces |
-| `src/lib/server/parsers/normalizer.ts` | Generic row normalizer (dates, amounts, status) |
-| `src/lib/server/parsers/profiles/revolut_eu.ts` | Revolut EU profile + fee post-normalisation |
-| `src/lib/server/parsers/index.ts` | Profile registry, `detectProfile()`, `parseCSV()` |
-| `src/lib/server/dedup.ts` | `classifyRow()`, `applyStatusUpdate()`, `applyDescUpdate()` |
-| `src/lib/server/balance.ts` | Opening balance + current balance helpers |
-| `src/lib/server/transfer-detector.ts` | `detectAndLinkTransfers()`, `linkPair()`, `unlinkPair()` |
-| `src/routes/api/upload/preview/+server.ts` | Parse-only endpoint |
-| `src/routes/api/upload/+server.ts` | Full ingest pipeline |
+| File                                            | Role                                                        |
+| ----------------------------------------------- | ----------------------------------------------------------- |
+| `src/lib/server/parsers/types.ts`               | `BankParserProfile`, `NormalizedTransaction` interfaces     |
+| `src/lib/server/parsers/normalizer.ts`          | Generic row normalizer (dates, amounts, status)             |
+| `src/lib/server/parsers/profiles/revolut_eu.ts` | Revolut EU profile + fee post-normalisation                 |
+| `src/lib/server/parsers/index.ts`               | Profile registry, `detectProfile()`, `parseCSV()`           |
+| `src/lib/server/dedup.ts`                       | `classifyRow()`, `applyStatusUpdate()`, `applyDescUpdate()` |
+| `src/lib/server/balance.ts`                     | Opening balance + current balance helpers                   |
+| `src/lib/server/transfer-detector.ts`           | `detectAndLinkTransfers()`, `linkPair()`, `unlinkPair()`    |
+| `src/routes/api/upload/preview/+server.ts`      | Parse-only endpoint                                         |
+| `src/routes/api/upload/+server.ts`              | Full ingest pipeline                                        |

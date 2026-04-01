@@ -1,6 +1,6 @@
-import { and, eq, isNull } from 'drizzle-orm'
-import { db } from './index.js'
-import { bankAccounts, accountShares } from './schema.js'
+import { and, eq, isNull } from 'drizzle-orm';
+import { db } from './index.js';
+import { bankAccounts, accountShares } from './schema.js';
 
 /**
  * Returns all bank account IDs the given user can access:
@@ -16,10 +16,8 @@ export async function getAccessibleAccountIds(userId: string): Promise<string[]>
 		db
 			.select({ id: accountShares.bankAccountId })
 			.from(accountShares)
-			.where(
-				and(eq(accountShares.sharedWithId, userId), eq(accountShares.status, 'accepted'))
-			)
-	])
+			.where(and(eq(accountShares.sharedWithId, userId), eq(accountShares.status, 'accepted')))
+	]);
 
-	return [...owned, ...shared].map((r) => r.id)
+	return [...owned, ...shared].map((r) => r.id);
 }
