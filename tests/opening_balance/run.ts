@@ -48,8 +48,8 @@ if (rows.length === 0) {
 
 // ── Compute balances from parsed rows ────────────────────────────────────────
 
-const firstRow = rows[0];
-const lastRow = rows[rows.length - 1];
+const firstRow = rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a : b));
+const lastRow = rows.reduce((a, b) => (a.accountingDate >= b.accountingDate ? a : b));
 
 if (firstRow.runningBalance === null) {
 	console.error('\n  ERROR: first row has no running balance — CSV may not include a balance column');
