@@ -16,7 +16,7 @@
 	import Amount from '$lib/components/Amount.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import * as Popover from '$lib/components/ui/popover';
+	import NoteHint from '$lib/components/NoteHint.svelte';
 	import { cn } from '$lib/utils';
 	import type { PageData } from './$types';
 
@@ -294,16 +294,7 @@
 									<div class="flex min-w-0 items-center gap-2">
 										<span class="truncate text-xs text-text-tertiary italic">{tx.description}</span>
 										{#if tx.notes}
-											<Popover.Root>
-												<Popover.Trigger
-													class="inline-flex shrink-0 cursor-default items-center rounded-full text-text-tertiary outline-none hover:text-text-secondary"
-												>
-													<Info size={12} />
-												</Popover.Trigger>
-												<Popover.Content class="max-w-64 text-xs text-text-secondary">
-													{tx.notes}
-												</Popover.Content>
-											</Popover.Root>
+											<NoteHint note={tx.notes} />
 										{/if}
 									</div>
 									{#if tx.accountName}
@@ -354,6 +345,9 @@
 											<AlertTriangle size={13} class="shrink-0 text-amber-500" />
 										{/if}
 										<span class="truncate font-medium">{tx.description}</span>
+										{#if tx.notes}
+											<NoteHint note={tx.notes} />
+										{/if}
 									</div>
 									{#if tx.accountName}
 										<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
