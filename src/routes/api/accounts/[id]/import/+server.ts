@@ -71,7 +71,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		const dedup = await classifyRow(row, account.id)
 
 		if (dedup.action === 'insert') {
-			toInsert.push(buildTxInsert(row, account.id, upload.id, locals.user.id, 'posted'))
+			toInsert.push(buildTxInsert(row, account.id, upload.id, locals.user.id, row.status))
 			importedCount++
 		} else if (dedup.action === 'review') {
 			toInsert.push(buildTxInsert(row, account.id, upload.id, locals.user.id, 'review'))
@@ -130,7 +130,7 @@ function buildTxInsert(
 	bankAccountId: string,
 	csvUploadId: string,
 	payerUserId: string,
-	status: 'posted' | 'review'
+	status: 'pending' | 'posted' | 'review'
 ): typeof transactions.$inferInsert {
 	return {
 		bankAccountId,
