@@ -16,7 +16,7 @@
 	import Amount from '$lib/components/Amount.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import * as HoverCard from '$lib/components/ui/hover-card';
+	import * as Popover from '$lib/components/ui/popover';
 	import { cn } from '$lib/utils';
 	import type { PageData } from './$types';
 
@@ -294,16 +294,16 @@
 									<div class="flex min-w-0 items-center gap-2">
 										<span class="truncate text-xs text-text-tertiary italic">{tx.description}</span>
 										{#if tx.notes}
-											<HoverCard.Root>
-												<HoverCard.Trigger
+											<Popover.Root>
+												<Popover.Trigger
 													class="inline-flex shrink-0 cursor-default items-center rounded-full text-text-tertiary outline-none hover:text-text-secondary"
 												>
 													<Info size={12} />
-												</HoverCard.Trigger>
-												<HoverCard.Content class="max-w-64 text-xs text-text-secondary">
+												</Popover.Trigger>
+												<Popover.Content class="max-w-64 text-xs text-text-secondary">
 													{tx.notes}
-												</HoverCard.Content>
-											</HoverCard.Root>
+												</Popover.Content>
+											</Popover.Root>
 										{/if}
 									</div>
 									{#if tx.accountName}
