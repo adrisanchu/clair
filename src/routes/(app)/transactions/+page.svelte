@@ -10,7 +10,8 @@
 		ArrowLeftRight,
 		AlertTriangle,
 		ChevronLeft,
-		ChevronRight
+		ChevronRight,
+		Info
 	} from '@lucide/svelte';
 	import Amount from '$lib/components/Amount.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
@@ -278,77 +279,116 @@
 					{#each data.rows as tx (tx.id)}
 						{@const isReview = tx.status === 'review'}
 						{@const isTransfer = tx.isTransfer}
-						<tr
-							class={cn(
-								'border-b border-border transition-colors hover:bg-surface-sunken/60',
-								isReview && 'border-l-2 border-l-amber-400'
-							)}
-						>
-							<!-- Date -->
-							<td
-								class={cn(
-									'py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums',
-									isReview ? 'px-2 md:px-4' : 'px-2 md:px-4'
-								)}
-							>
-								{format(tx.accountingDate, 'd MMM yyyy')}
-							</td>
+						{@const isOpening = tx.isOpeningBalance}
 
-							<!-- Description -->
-							<td class="max-w-xs px-2 py-3 text-text-primary">
-								<div class="flex min-w-0 items-center gap-2">
-									{#if isTransfer}
-										<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
-									{:else if isReview}
-										<AlertTriangle size={13} class="shrink-0 text-amber-500" />
+						{#if isOpening}
+							<!-- Opening balance row — read-only, visually distinct -->
+							<tr class="border-b border-border bg-surface-sunken/40 opacity-70">
+								<td
+									class="px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:px-4"
+								>
+									{format(tx.accountingDate, 'd MMM yyyy')}
+								</td>
+								<td class="max-w-xs px-2 py-3">
+									<div class="flex min-w-0 items-center gap-2">
+										<Info size={13} class="shrink-0 text-text-tertiary" />
+										<span class="truncate text-xs text-text-tertiary italic">{tx.description}</span>
+									</div>
+									{#if tx.accountName}
+										<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
+											{tx.accountName}
+										</span>
 									{/if}
-									<span class="truncate font-medium">{tx.description}</span>
-								</div>
-								{#if tx.accountName}
-									<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
-										{tx.accountName}
-									</span>
-								{/if}
-							</td>
-
-							<!-- Account (desktop) -->
-							<td class="hidden px-2 py-3 md:table-cell">
-								{#if tx.accountName}
-									<span
-										class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-secondary uppercase"
-									>
-										{tx.accountName}
-									</span>
-								{/if}
-							</td>
-
-							<!-- Category (desktop) -->
-							<td class="hidden px-2 py-3 lg:table-cell">
-								{#if isReview}
-									<span class="inline-flex items-center gap-1.5 text-xs text-amber-600">
-										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"></span>
-										Review Required
-									</span>
-								{:else if isTransfer}
+								</td>
+								<td class="hidden px-2 py-3 md:table-cell">
+									{#if tx.accountName}
+										<span
+											class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+										>
+											{tx.accountName}
+										</span>
+									{/if}
+								</td>
+								<td class="hidden px-2 py-3 lg:table-cell">
 									<span class="inline-flex items-center gap-1.5 text-xs text-text-tertiary">
 										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong"></span>
-										Transfer
+										Opening balance
 									</span>
-								{:else if tx.category}
-									<span class="inline-flex items-center gap-1.5 text-xs text-text-secondary">
-										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400"></span>
-										{tx.category}
-									</span>
-								{:else}
-									<span class="text-xs text-text-tertiary">—</span>
-								{/if}
-							</td>
+								</td>
+								<td class="px-2 py-3 text-right md:px-4">
+									<Amount value={tx.amount} currency={tx.currency} size="sm" />
+								</td>
+							</tr>
+						{:else}
+							<tr
+								class={cn(
+									'border-b border-border transition-colors hover:bg-surface-sunken/60',
+									isReview && 'border-l-2 border-l-amber-400'
+								)}
+							>
+								<!-- Date -->
+								<td
+									class="px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:px-4"
+								>
+									{format(tx.accountingDate, 'd MMM yyyy')}
+								</td>
 
-							<!-- Amount -->
-							<td class="px-2 py-3 text-right md:px-4">
-								<Amount value={tx.amount} currency={tx.currency} size="sm" />
-							</td>
-						</tr>
+								<!-- Description -->
+								<td class="max-w-xs px-2 py-3 text-text-primary">
+									<div class="flex min-w-0 items-center gap-2">
+										{#if isTransfer}
+											<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
+										{:else if isReview}
+											<AlertTriangle size={13} class="shrink-0 text-amber-500" />
+										{/if}
+										<span class="truncate font-medium">{tx.description}</span>
+									</div>
+									{#if tx.accountName}
+										<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
+											{tx.accountName}
+										</span>
+									{/if}
+								</td>
+
+								<!-- Account (desktop) -->
+								<td class="hidden px-2 py-3 md:table-cell">
+									{#if tx.accountName}
+										<span
+											class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-secondary uppercase"
+										>
+											{tx.accountName}
+										</span>
+									{/if}
+								</td>
+
+								<!-- Category (desktop) -->
+								<td class="hidden px-2 py-3 lg:table-cell">
+									{#if isReview}
+										<span class="inline-flex items-center gap-1.5 text-xs text-amber-600">
+											<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"></span>
+											Review Required
+										</span>
+									{:else if isTransfer}
+										<span class="inline-flex items-center gap-1.5 text-xs text-text-tertiary">
+											<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong"></span>
+											Transfer
+										</span>
+									{:else if tx.category}
+										<span class="inline-flex items-center gap-1.5 text-xs text-text-secondary">
+											<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400"></span>
+											{tx.category}
+										</span>
+									{:else}
+										<span class="text-xs text-text-tertiary">—</span>
+									{/if}
+								</td>
+
+								<!-- Amount -->
+								<td class="px-2 py-3 text-right md:px-4">
+									<Amount value={tx.amount} currency={tx.currency} size="sm" />
+								</td>
+							</tr>
+						{/if}
 					{/each}
 				</tbody>
 			</table>
