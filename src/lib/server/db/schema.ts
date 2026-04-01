@@ -139,7 +139,7 @@ export const transactions = coreSchema.table(
 		csvUploadId: text('csv_upload_id').references(() => csvUploads.id),
 		externalId: text('external_id'),
 
-		bookingDate: timestamp('booking_date', { mode: 'date' }).notNull(),
+		accountingDate: timestamp('accounting_date', { mode: 'date' }).notNull(),
 		valueDate: timestamp('value_date', { mode: 'date' }),
 
 		amount: numeric('amount', { precision: 15, scale: 4 }).notNull(),
@@ -184,7 +184,7 @@ export const transactions = coreSchema.table(
 	},
 	(t) => [
 		uniqueIndex('transactions_dedup_idx').on(t.bankAccountId, t.externalId),
-		index('transactions_date_idx').on(t.bankAccountId, t.bookingDate),
+		index('transactions_accounting_date_idx').on(t.bankAccountId, t.accountingDate),
 		index('transactions_transfer_idx').on(t.transferCounterpartId)
 	]
 );

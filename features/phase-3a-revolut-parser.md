@@ -5,6 +5,32 @@
 
 ---
 
+## Implementation status
+
+### ✅ Backend complete (2026-03-31)
+
+All backend logic implemented and type-checking clean. Dependencies added:
+`papaparse`, `@types/papaparse`, `date-fns`.
+
+| File | Status |
+|---|---|
+| `src/lib/server/parsers/types.ts` | ✅ Done |
+| `src/lib/server/parsers/normalizer.ts` | ✅ Done |
+| `src/lib/server/parsers/profiles/revolut_eu.ts` | ✅ Done |
+| `src/lib/server/parsers/index.ts` | ✅ Done — profile registry, `detectProfile()`, `parseCSV()`, `fileToText()` |
+| `src/lib/server/db/access.ts` | ✅ Done — `getAccessibleAccountIds()` |
+| `src/lib/server/dedup.ts` | ✅ Done — `classifyRow()`, `applyStatusUpdate()`, `applyDescUpdate()` |
+| `src/lib/server/balance.ts` | ✅ Done — `computeOpeningBalance()`, `upsertOpeningBalance()`, `refreshCurrentBalance()` |
+| `src/lib/server/transfer-detector.ts` | ✅ Done — `detectAndLinkTransfers()`, `linkPair()`, `unlinkPair()` |
+| `src/routes/api/upload/preview/+server.ts` | ✅ Done |
+| `src/routes/api/upload/+server.ts` | ✅ Done |
+
+### Pending
+
+- [ ] Phase 3d — Upload Sheet UI (`src/lib/components/upload/UploadSheet.svelte`) wired to the two API endpoints
+
+---
+
 ## 1. Revolut CSV anatomy
 
 Revolut's personal account CSV (Spanish locale) has the following columns:
