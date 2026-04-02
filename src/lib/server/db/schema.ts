@@ -21,11 +21,10 @@ const coreSchema = pgSchema('core');
 
 export const accountStatusEnum = pgEnum('account_status', ['no_data', 'active']);
 
-export const shareStatusEnum = pgEnum('share_status', [
-	'pending',
-	'accepted',
-	'declined',
-	'revoked'
+export const accountVisibilityEnum = pgEnum('account_visibility', [
+	'private',
+	'stats_only',
+	'full'
 ]);
 
 export const transactionStatusEnum = pgEnum('transaction_status', ['pending', 'posted', 'review']);
@@ -80,25 +79,10 @@ export const bankAccounts = coreSchema.table('bank_accounts', {
 	currency: text('currency').default('EUR').notNull(),
 	currentBalance: numeric('current_balance', { precision: 15, scale: 4 }).default('0').notNull(),
 	status: accountStatusEnum('status').default('no_data').notNull(),
+	// Controls partner access: private = owner only, stats_only = aggregated data, full = all transactions
+	visibility: accountVisibilityEnum('visibility').default('private').notNull(),
 	deletedAt: timestamp('deleted_at'),
 	createdAt: timestamp('created_at').defaultNow().notNull()
-});
-
-// ─── Account shares ────────────────────────────────────────────────────────
-
-export const accountShares = coreSchema.table('account_shares', {
-	id: text('id')
-		.primaryKey()
-		.$defaultFn(() => crypto.randomUUID()),
-	bankAccountId: text('bank_account_id')
-		.notNull()
-		.references(() => bankAccounts.id),
-	// sharedById / sharedWithId reference auth.user.id — enforced at app layer
-	sharedById: text('shared_by_id').notNull(),
-	sharedWithId: text('shared_with_id').notNull(),
-	status: shareStatusEnum('status').default('pending').notNull(),
-	requestedAt: timestamp('requested_at').defaultNow().notNull(),
-	respondedAt: timestamp('responded_at')
 });
 
 // ─── CSV uploads ───────────────────────────────────────────────────────────
@@ -170,6 +154,10 @@ export const transactions = coreSchema.table(
 		// transferLinkedById references auth.user.id — enforced at app layer
 		transferLinkedById: text('transfer_linked_by_id'),
 		transferLinkedAt: timestamp('transfer_linked_at'),
+
+		// Expense split — null means 100% mine; 0.5 means I pay half, etc.
+		// Used for dashboard "effective expense" calculation without a full Splitwise model.
+		myPortion: numeric('my_portion', { precision: 4, scale: 3 }),
 
 		// System flags
 		isOpeningBalance: boolean('is_opening_balance').default(false).notNull(),
@@ -256,25 +244,7 @@ export const bankAccountsRelations = relations(bankAccounts, ({ one, many }) => 
 	owner: one(authUser, { fields: [bankAccounts.ownerUserId], references: [authUser.id] }),
 	workspace: one(workspaces, { fields: [bankAccounts.workspaceId], references: [workspaces.id] }),
 	transactions: many(transactions),
-	shares: many(accountShares),
 	csvUploads: many(csvUploads)
-}));
-
-export const accountSharesRelations = relations(accountShares, ({ one }) => ({
-	bankAccount: one(bankAccounts, {
-		fields: [accountShares.bankAccountId],
-		references: [bankAccounts.id]
-	}),
-	sharedBy: one(authUser, {
-		fields: [accountShares.sharedById],
-		references: [authUser.id],
-		relationName: 'SharedBy'
-	}),
-	sharedWith: one(authUser, {
-		fields: [accountShares.sharedWithId],
-		references: [authUser.id],
-		relationName: 'SharedWith'
-	})
 }));
 
 export const csvUploadsRelations = relations(csvUploads, ({ one, many }) => ({
@@ -337,7 +307,5 @@ export const userRelations = relations(authUser, ({ many }) => ({
 	csvUploads: many(csvUploads),
 	paidTransactions: many(transactions),
 	transactionOverrides: many(transactionOverrides),
-	invitesSent: many(invites),
-	sharedAccountsBy: many(accountShares, { relationName: 'SharedBy' }),
-	sharedAccountsWith: many(accountShares, { relationName: 'SharedWith' })
+	invitesSent: many(invites)
 }));
