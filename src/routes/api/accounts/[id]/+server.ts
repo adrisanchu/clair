@@ -16,22 +16,34 @@ async function getOwnedAccount(accountId: string, userId: string) {
 	return account;
 }
 
+const VALID_VISIBILITY = new Set(['private', 'stats_only', 'full']);
+
 // ─── PATCH /api/accounts/[id] ─────────────────────────────────────────────────
-// Rename an account. Owner only.
+// Update display name and/or visibility. Owner only.
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Unauthorized');
 
 	await getOwnedAccount(params.id, locals.user.id);
 
-	const { displayName } = await request.json();
-	if (!displayName?.trim()) throw error(400, 'displayName is required');
+	const body = await request.json();
+	const { displayName, visibility } = body;
+
+	if (!displayName && !visibility) throw error(400, 'Nothing to update');
+	if (displayName !== undefined && !displayName?.trim())
+		throw error(400, 'displayName cannot be empty');
+	if (visibility !== undefined && !VALID_VISIBILITY.has(visibility))
+		throw error(400, 'visibility must be private | stats_only | full');
+
+	const patch: Record<string, unknown> = {};
+	if (displayName) patch.displayName = displayName.trim();
+	if (visibility) patch.visibility = visibility;
 
 	const [updated] = await db
 		.update(bankAccounts)
-		.set({ displayName: displayName.trim() })
+		.set(patch)
 		.where(eq(bankAccounts.id, params.id))
-		.returning({ id: bankAccounts.id, displayName: bankAccounts.displayName });
+		.returning({ id: bankAccounts.id, displayName: bankAccounts.displayName, visibility: bankAccounts.visibility });
 
 	return json(updated);
 };

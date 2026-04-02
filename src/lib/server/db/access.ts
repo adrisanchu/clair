@@ -29,6 +29,32 @@ export async function getAccessibleAccountIds(userId: string): Promise<string[]>
 }
 
 /**
+ * Returns account IDs where the user can view individual transactions:
+ * - All accounts they own (any visibility)
+ * - Workspace accounts with visibility = 'full' (stats_only excluded)
+ */
+export async function getFullAccessAccountIds(userId: string): Promise<string[]> {
+	const user = await db.query.authUser.findFirst({
+		where: eq(authUser.id, userId),
+		columns: { workspaceId: true }
+	});
+	if (!user?.workspaceId) return [];
+
+	const rows = await db
+		.select({ id: bankAccounts.id })
+		.from(bankAccounts)
+		.where(
+			and(
+				eq(bankAccounts.workspaceId, user.workspaceId),
+				isNull(bankAccounts.deletedAt),
+				or(eq(bankAccounts.ownerUserId, userId), eq(bankAccounts.visibility, 'full'))
+			)
+		);
+
+	return rows.map((r) => r.id);
+}
+
+/**
  * Returns true if the user can upload CSVs to the given account:
  * - They own the account, OR
  * - They are a workspace member and the account has 'full' visibility
