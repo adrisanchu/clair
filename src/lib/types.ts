@@ -1,3 +1,5 @@
+export type AccountVisibility = 'private' | 'stats_only' | 'full';
+
 export interface Account {
 	id: string;
 	displayName: string;
@@ -5,6 +7,7 @@ export interface Account {
 	ibanLast4: string | null;
 	currency: string;
 	status: string | null;
+	visibility: AccountVisibility;
 	isOwner: boolean;
 	currentBalance: number;
 	txCount: number;

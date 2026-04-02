@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getAccessibleAccountIds } from '$lib/server/db/access.js';
+import { getFullAccessAccountIds } from '$lib/server/db/access.js';
 import { queryTransactions, type TxFilter } from '$lib/server/db/queries.js';
 
 // ─── GET /api/transactions ────────────────────────────────────────────────────
@@ -15,7 +15,8 @@ import { queryTransactions, type TxFilter } from '$lib/server/db/queries.js';
 export const GET: RequestHandler = async ({ locals, url }) => {
 	if (!locals.user) throw error(401, 'Unauthorized');
 
-	const accessibleIds = await getAccessibleAccountIds(locals.user.id);
+	// Use full-access IDs only — stats_only accounts are excluded from transaction listing
+	const accessibleIds = await getFullAccessAccountIds(locals.user.id);
 
 	const q = url.searchParams.get('q') ?? '';
 	const accountId = url.searchParams.get('accountId') ?? '';

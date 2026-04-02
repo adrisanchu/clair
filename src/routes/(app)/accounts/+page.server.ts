@@ -24,6 +24,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 						currency: bankAccounts.currency,
 						currentBalance: bankAccounts.currentBalance,
 						status: bankAccounts.status,
+						visibility: bankAccounts.visibility,
 						ownerUserId: bankAccounts.ownerUserId,
 						createdAt: bankAccounts.createdAt,
 						txCount: count(transactions.id),

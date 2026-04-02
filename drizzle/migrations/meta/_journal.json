@@ -15,6 +15,20 @@
       "when": 1775036138266,
       "tag": "0001_mature_the_fallen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775131907429,
+      "tag": "0002_outstanding_supreme_intelligence",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775158253998,
+      "tag": "0003_luxuriant_titania",
+      "breakpoints": true
     }
   ]
 }

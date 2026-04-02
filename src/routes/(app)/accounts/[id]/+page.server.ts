@@ -1,8 +1,8 @@
 import { error } from '@sveltejs/kit';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { bankAccounts, csvUploads } from '$lib/server/db/schema.js';
+import { authUser, bankAccounts, csvUploads } from '$lib/server/db/schema.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -16,16 +16,31 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	});
 	if (!account) error(404, 'Account not found');
 
-	const uploads = await db
-		.select()
-		.from(csvUploads)
-		.where(eq(csvUploads.bankAccountId, params.id))
-		.orderBy(desc(csvUploads.uploadedAt))
-		.limit(20);
+	const isOwner = account.ownerUserId === locals.user.id;
+
+	const [uploads, partner] = await Promise.all([
+		db
+			.select()
+			.from(csvUploads)
+			.where(eq(csvUploads.bankAccountId, params.id))
+			.orderBy(desc(csvUploads.uploadedAt))
+			.limit(20),
+
+		locals.user.workspaceId
+			? db.query.authUser.findFirst({
+					where: and(
+						eq(authUser.workspaceId, locals.user.workspaceId),
+						ne(authUser.id, locals.user.id)
+					),
+					columns: { id: true, name: true }
+				})
+			: Promise.resolve(null)
+	]);
 
 	return {
 		account: { ...account, currentBalance: parseFloat(account.currentBalance) },
 		uploads,
-		isOwner: account.ownerUserId === locals.user.id
+		isOwner,
+		partner: partner ?? null
 	};
 };
