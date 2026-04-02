@@ -53,17 +53,16 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 };
 
 // ─── DELETE /api/accounts/[id] ────────────────────────────────────────────────
-// Soft-delete an account. Owner only.
+// Hard-delete an account and all its data. Owner only.
+// Postgres ON DELETE CASCADE handles the rest:
+//   bankAccounts → csvUploads, transactions → transactionOverrides
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	if (!locals.user) throw error(401, 'Unauthorized');
 
 	await getOwnedAccount(params.id, locals.user.id);
 
-	await db
-		.update(bankAccounts)
-		.set({ deletedAt: new Date() })
-		.where(eq(bankAccounts.id, params.id));
+	await db.delete(bankAccounts).where(eq(bankAccounts.id, params.id));
 
 	return new Response(null, { status: 204 });
 };

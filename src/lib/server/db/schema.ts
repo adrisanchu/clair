@@ -93,7 +93,7 @@ export const csvUploads = coreSchema.table('csv_uploads', {
 		.$defaultFn(() => crypto.randomUUID()),
 	bankAccountId: text('bank_account_id')
 		.notNull()
-		.references(() => bankAccounts.id),
+		.references(() => bankAccounts.id, { onDelete: 'cascade' }),
 	// userId references auth.user.id — enforced at app layer
 	userId: text('user_id').notNull(),
 	filename: text('filename').notNull(),
@@ -119,8 +119,8 @@ export const transactions = coreSchema.table(
 			.$defaultFn(() => crypto.randomUUID()),
 		bankAccountId: text('bank_account_id')
 			.notNull()
-			.references(() => bankAccounts.id),
-		csvUploadId: text('csv_upload_id').references(() => csvUploads.id),
+			.references(() => bankAccounts.id, { onDelete: 'cascade' }),
+		csvUploadId: text('csv_upload_id').references(() => csvUploads.id, { onDelete: 'set null' }),
 		externalId: text('external_id'),
 
 		accountingDate: timestamp('accounting_date', { mode: 'date' }).notNull(),
@@ -187,7 +187,7 @@ export const transactionOverrides = coreSchema.table(
 			.$defaultFn(() => crypto.randomUUID()),
 		transactionId: text('transaction_id')
 			.notNull()
-			.references(() => transactions.id),
+			.references(() => transactions.id, { onDelete: 'cascade' }),
 		// userId references auth.user.id — enforced at app layer
 		userId: text('user_id').notNull(),
 		category: text('category').notNull(),
