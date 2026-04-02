@@ -10,12 +10,12 @@
 </svelte:head>
 
 <div
-	class="bg-surface text-text-primary flex min-h-screen flex-col items-center justify-center gap-4 p-8 font-sans"
+	class="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface p-8 font-sans text-text-primary"
 >
 	{#if is404}
-		<SearchX class="text-text-tertiary h-10 w-10" />
+		<SearchX class="h-10 w-10 text-text-tertiary" />
 	{:else}
-		<AlertTriangle class="text-danger-600 h-10 w-10" />
+		<AlertTriangle class="h-10 w-10 text-danger-600" />
 	{/if}
 
 	<div class="flex flex-col items-center gap-1 text-center">
@@ -26,7 +26,7 @@
 				Something went wrong
 			{/if}
 		</h1>
-		<p class="text-text-secondary text-sm">
+		<p class="text-sm text-text-secondary">
 			{#if is404}
 				The page you're looking for doesn't exist.
 			{:else}
@@ -35,7 +35,7 @@
 		</p>
 	</div>
 
-	<a href="/dashboard" class="text-primary-500 text-sm underline underline-offset-4">
+	<a href="/dashboard" class="text-sm text-primary-500 underline underline-offset-4">
 		Go to dashboard
 	</a>
 </div>
