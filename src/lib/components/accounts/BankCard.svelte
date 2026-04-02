@@ -54,7 +54,9 @@
 	role="link"
 	tabindex="0"
 	onclick={handleCardClick}
-	onkeydown={(e) => { if (e.key === 'Enter') onnavigate(); }}
+	onkeydown={(e) => {
+		if (e.key === 'Enter') onnavigate();
+	}}
 >
 	<Card.Root
 		class="flex h-full flex-col gap-0 border-border bg-surface py-0 shadow-sm transition group-hover:shadow-md {isDeleting
@@ -75,13 +77,13 @@
 								onblur={submitRename}
 								onkeydown={(e) => {
 									if (e.key === 'Enter') submitRename();
-									if (e.key === 'Escape') (isRenaming = false);
+									if (e.key === 'Escape') isRenaming = false;
 								}}
 								class="w-full rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-sm font-medium text-text-primary outline-none focus:ring-2 focus:ring-primary-500/30"
 								autofocus
 							/>
 						{:else}
-							<p class="truncate text-sm font-medium leading-tight text-text-primary">
+							<p class="truncate text-sm leading-tight font-medium text-text-primary">
 								{account.displayName}
 							</p>
 						{/if}
