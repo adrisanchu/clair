@@ -247,9 +247,7 @@
 							onclick={() => setVisibility(option.value)}
 							disabled={visibilityUpdating}
 							class="flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors
-							{active
-								? 'border-primary-300 bg-primary-50'
-								: 'border-border bg-surface hover:bg-surface-raised'}
+							{active ? 'border-primary-300 bg-primary-50' : 'border-border bg-surface hover:bg-surface-raised'}
 							{visibilityUpdating ? 'opacity-50' : ''}"
 						>
 							<div

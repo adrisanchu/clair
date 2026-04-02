@@ -43,7 +43,11 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		.update(bankAccounts)
 		.set(patch)
 		.where(eq(bankAccounts.id, params.id))
-		.returning({ id: bankAccounts.id, displayName: bankAccounts.displayName, visibility: bankAccounts.visibility });
+		.returning({
+			id: bankAccounts.id,
+			displayName: bankAccounts.displayName,
+			visibility: bankAccounts.visibility
+		});
 
 	return json(updated);
 };

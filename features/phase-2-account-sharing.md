@@ -17,11 +17,11 @@ Workspaces are **not** the sharing mechanism. They answer "who can potentially s
 
 Each `bankAccount` has a `visibility` field (enum) that controls what the workspace partner can see:
 
-| Value | Owner | Partner |
-|---|---|---|
-| `private` | Full access | Cannot see the account at all |
+| Value        | Owner       | Partner                                                                                         |
+| ------------ | ----------- | ----------------------------------------------------------------------------------------------- |
+| `private`    | Full access | Cannot see the account at all                                                                   |
 | `stats_only` | Full access | Sees aggregated data on dashboard (totals, category breakdown) — individual transactions hidden |
-| `full` | Full access | Sees everything, including individual transactions, and can upload CSVs |
+| `full`       | Full access | Sees everything, including individual transactions, and can upload CSVs                         |
 
 Default: `private` on creation.
 
@@ -55,7 +55,7 @@ Groups (linking transactions to other people and tracking debts/settlements) are
 
 ```typescript
 // Added
-visibility: accountVisibilityEnum('visibility').default('private').notNull()
+visibility: accountVisibilityEnum('visibility').default('private').notNull();
 // 'private' | 'stats_only' | 'full'
 ```
 
@@ -63,7 +63,7 @@ visibility: accountVisibilityEnum('visibility').default('private').notNull()
 
 ```typescript
 // Added — null means 100% mine
-myPortion: numeric('my_portion', { precision: 4, scale: 3 })
+myPortion: numeric('my_portion', { precision: 4, scale: 3 });
 ```
 
 ### Removed
@@ -80,6 +80,7 @@ myPortion: numeric('my_portion', { precision: 4, scale: 3 })
 ### `getAccessibleAccountIds(userId)`
 
 Returns account IDs the user can access:
+
 - All accounts they own (any visibility, including private)
 - Workspace accounts owned by others where `visibility IN ('stats_only', 'full')`
 
@@ -88,6 +89,7 @@ Queries by `workspaceId` — no join to `accountShares` needed.
 ### `canUploadToAccount(userId, accountId)` — new
 
 Returns `true` if:
+
 - User owns the account, OR
 - User is in the same workspace AND account has `visibility = 'full'`
 
@@ -106,6 +108,7 @@ npm run db:generate && npm run db:migrate
 ```
 
 This will:
+
 - Drop the `account_shares` table and `share_status` enum
 - Add `visibility` column to `bank_accounts`
 - Add `my_portion` column to `transactions`
@@ -124,8 +127,8 @@ Load the workspace partner's name (to display in the sharing UI):
 
 ```typescript
 const partner = await db.query.authUser.findFirst({
-    where: and(eq(authUser.workspaceId, user.workspaceId), ne(authUser.id, userId)),
-    columns: { id: true, name: true }
+	where: and(eq(authUser.workspaceId, user.workspaceId), ne(authUser.id, userId)),
+	columns: { id: true, name: true }
 });
 ```
 
