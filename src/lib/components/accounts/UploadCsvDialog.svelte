@@ -36,6 +36,8 @@
 		totalParsed: number;
 		skippedCount: number;
 		preview: Array<{ date: string; description: string; amount: number; currency: string }>;
+		openingBalance: number | null;
+		closingBalance: number | null;
 	};
 
 	type ImportResult = {
@@ -113,6 +115,9 @@
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.message ?? 'Failed to parse CSV');
 			preview = data;
+			if (data.openingBalance !== null) {
+				balanceInput = data.openingBalance.toFixed(2);
+			}
 			step = 'preview';
 		} catch (e) {
 			err = e instanceof Error ? e.message : 'Could not parse the file';
@@ -128,7 +133,7 @@
 		const formData = new FormData();
 		formData.append('file', file);
 		if (balanceInput.trim()) {
-			formData.append('currentBalance', balanceInput.replace(',', '.'));
+			formData.append('openingBalance', balanceInput.replace(',', '.'));
 		}
 		try {
 			const res = await fetch(`/api/accounts/${accountId}/import`, {
@@ -267,7 +272,7 @@
 						{#each preview.preview as row}
 							<tr class="border-b border-border last:border-0">
 								<td class="px-3 py-2 text-xs whitespace-nowrap text-text-secondary">{row.date}</td>
-								<td class="max-w-[180px] px-3 py-2 text-text-primary">
+								<td class="max-w-45 px-3 py-2 text-text-primary">
 									<span class="block truncate text-xs">{row.description}</span>
 								</td>
 								<td class="px-3 py-2 text-right">
@@ -290,7 +295,7 @@
 			{#if isFirstUpload}
 				<div class="mb-2">
 					<p class="mb-2 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">
-						Confirm current balance
+						Opening balance
 					</p>
 					<div class="flex items-baseline gap-2 border-b-2 border-border pb-1.5">
 						<span class="text-2xl text-text-tertiary">{currency === 'EUR' ? '€' : currency}</span>
@@ -303,7 +308,7 @@
 						/>
 					</div>
 					<p class="mt-1.5 text-xs text-text-tertiary">
-						Used to reconcile your ledger with bank statements.
+						Balance before the first transaction in this file. Used to reconcile your ledger.
 					</p>
 				</div>
 			{/if}

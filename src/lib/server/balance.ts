@@ -51,7 +51,9 @@ export async function upsertOpeningBalance(
 			accountingDate: openingDate,
 			amount: openingAmount.toFixed(4),
 			currency: 'EUR',
-			description: 'Opening balance (system)',
+			description: 'Opening balance',
+			notes:
+				'This represents the opening status of the bank account in order to reconcile the balance with the ledger.',
 			category: 'balance_adjustment',
 			isOpeningBalance: true,
 			payerUserId: userId,

@@ -22,6 +22,8 @@ export interface TxRow {
 	currency: string;
 	status: 'pending' | 'posted' | 'review';
 	isTransfer: boolean;
+	isOpeningBalance: boolean;
+	notes: string | null;
 	category: string | null;
 	bankAccountId: string;
 	accountName: string | null;
@@ -51,14 +53,18 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 		};
 	}
 
-	const baseWhere = and(
-		inArray(transactions.bankAccountId, accessibleIds),
-		eq(transactions.isOpeningBalance, false)
-	);
+	const baseWhere = and(inArray(transactions.bankAccountId, accessibleIds));
 
+	// Opening balance is only visible in the 'all' tab.
+	// For 'expenses' we must explicitly exclude it (it could have a negative amount).
+	// For 'transfers' and 'review' it is naturally excluded by those conditions.
 	const filterCondition =
 		filter === 'expenses'
-			? and(sql`${transactions.amount}::numeric < 0`, eq(transactions.isTransfer, false))
+			? and(
+					sql`${transactions.amount}::numeric < 0`,
+					eq(transactions.isTransfer, false),
+					eq(transactions.isOpeningBalance, false)
+				)
 			: filter === 'transfers'
 				? eq(transactions.isTransfer, true)
 				: filter === 'review'
@@ -81,6 +87,8 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				currency: transactions.currency,
 				status: transactions.status,
 				isTransfer: transactions.isTransfer,
+				isOpeningBalance: transactions.isOpeningBalance,
+				notes: transactions.notes,
 				category: transactions.category,
 				bankAccountId: transactions.bankAccountId,
 				accountName: bankAccounts.displayName,
@@ -95,8 +103,10 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 
 		db
 			.select({
-				all: sql<number>`COUNT(*)::int`,
-				expenses: sql<number>`COUNT(*) FILTER (WHERE ${transactions.amount}::numeric < 0 AND NOT ${transactions.isTransfer})::int`,
+				// Tab badge counts never include the opening balance row
+				all: sql<number>`COUNT(*) FILTER (WHERE NOT ${transactions.isOpeningBalance})::int`,
+				allWithOpening: sql<number>`COUNT(*)::int`,
+				expenses: sql<number>`COUNT(*) FILTER (WHERE ${transactions.amount}::numeric < 0 AND NOT ${transactions.isTransfer} AND NOT ${transactions.isOpeningBalance})::int`,
 				transfers: sql<number>`COUNT(*) FILTER (WHERE ${transactions.isTransfer})::int`,
 				review: sql<number>`COUNT(*) FILTER (WHERE ${transactions.status} = 'review')::int`
 			})
@@ -111,9 +121,11 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 		review: countsResult[0]?.review ?? 0
 	};
 
+	// For 'all', use allWithOpening so pagination math is accurate when the
+	// opening balance row is visible in the table.
 	const total =
 		filter === 'all'
-			? counts.all
+			? (countsResult[0]?.allWithOpening ?? 0)
 			: filter === 'expenses'
 				? counts.expenses
 				: filter === 'transfers'
@@ -124,7 +136,8 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 		rows: rows.map((r) => ({
 			...r,
 			amount: parseFloat(r.amount),
-			status: r.status as 'pending' | 'posted' | 'review'
+			status: r.status as 'pending' | 'posted' | 'review',
+			isOpeningBalance: r.isOpeningBalance ?? false
 		})),
 		total,
 		counts,

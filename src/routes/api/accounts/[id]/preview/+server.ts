@@ -40,11 +40,27 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		currency: r.currency
 	}));
 
+	// Derive balance metrics from the running balance column (if the profile provides one)
+	let openingBalance: number | null = null;
+	let closingBalance: number | null = null;
+	if (rows.length > 0) {
+		const earliest = rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a : b));
+		const latest = rows.reduce((a, b) => (a.accountingDate >= b.accountingDate ? a : b));
+		if (earliest.runningBalance !== null) {
+			openingBalance = earliest.runningBalance - earliest.amount;
+		}
+		if (latest.runningBalance !== null) {
+			closingBalance = latest.runningBalance;
+		}
+	}
+
 	return json({
 		filename: file.name,
 		profile: profile.bankProfileId,
 		totalParsed: rows.length,
 		skippedCount,
-		preview
+		preview,
+		openingBalance,
+		closingBalance
 	});
 };
