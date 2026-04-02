@@ -3,13 +3,13 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts } from '$lib/server/db/schema.js';
-import { getAccessibleAccountIds } from '$lib/server/db/access.js';
+import { getFullAccessAccountIds } from '$lib/server/db/access.js';
 import { queryTransactions, type TxFilter } from '$lib/server/db/queries.js';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) error(401);
 
-	const accessibleIds = await getAccessibleAccountIds(locals.user.id);
+	const accessibleIds = await getFullAccessAccountIds(locals.user.id);
 
 	const q = url.searchParams.get('q') ?? '';
 	const accountId = url.searchParams.get('accountId') ?? '';
