@@ -83,9 +83,18 @@
 								autofocus
 							/>
 						{:else}
-							<p class="truncate text-sm leading-tight font-medium text-text-primary">
-								{account.displayName}
-							</p>
+							<div class="flex items-center gap-1.5">
+								<p class="truncate text-sm leading-tight font-medium text-text-primary">
+									{account.displayName}
+								</p>
+								{#if !account.isOwner}
+									<span
+										class="shrink-0 rounded-sm bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700"
+									>
+										Shared
+									</span>
+								{/if}
+							</div>
 						{/if}
 						<p class="mt-0.5 text-xs text-text-tertiary">
 							···{account.ibanLast4} · {account.currency}
