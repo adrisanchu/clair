@@ -20,6 +20,9 @@ export interface TxRow {
 	description: string;
 	amount: number;
 	currency: string;
+	amountEur: number | null;
+	exchangeRate: number | null;
+	conversionId: string | null;
 	status: 'pending' | 'posted' | 'review';
 	isTransfer: boolean;
 	isOpeningBalance: boolean;
@@ -85,6 +88,9 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				description: transactions.description,
 				amount: transactions.amount,
 				currency: transactions.currency,
+				amountEur: transactions.amountEur,
+				exchangeRate: transactions.exchangeRate,
+				conversionId: transactions.conversionId,
 				status: transactions.status,
 				isTransfer: transactions.isTransfer,
 				isOpeningBalance: transactions.isOpeningBalance,
@@ -135,7 +141,9 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 	return {
 		rows: rows.map((r) => ({
 			...r,
-			amount: parseFloat(r.amount),
+			amount: parseFloat(r.amount as string),
+			amountEur: r.amountEur != null ? parseFloat(r.amountEur as string) : null,
+			exchangeRate: r.exchangeRate != null ? parseFloat(r.exchangeRate as string) : null,
 			status: r.status as 'pending' | 'posted' | 'review',
 			isOpeningBalance: r.isOpeningBalance ?? false
 		})),
