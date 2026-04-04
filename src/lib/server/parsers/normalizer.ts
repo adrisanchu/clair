@@ -40,7 +40,8 @@ export function normalizeRow(
 		runningBalance,
 		status,
 		rawType,
-		isTransferCandidate: rawType !== null && profile.transferTypes.includes(rawType)
+		isTransferCandidate: rawType !== null && profile.transferTypes.includes(rawType),
+		isFxCandidate: rawType !== null && profile.fxCandidateTypes.includes(rawType)
 	};
 }
 
