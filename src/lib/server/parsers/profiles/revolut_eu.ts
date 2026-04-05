@@ -21,9 +21,10 @@ export const revolut_eu: BankParserProfile = {
 	balanceColumn: 'Saldo',
 	statusColumn: 'State',
 	typeColumn: 'Tipo',
-	// Only 'Transferir' rows are inter-account transfer candidates.
-	// 'Cambio' (currency exchange) is intentionally excluded from same-currency transfer matching.
-	transferTypes: ['Transferir'],
+	// 'Transferir' = outgoing/incoming peer transfers.
+	// 'Recargas' = bank top-ups (e.g. funding Revolut from a personal bank account) — also
+	// treated as transfer candidates so the counterpart in the source bank gets auto-linked.
+	transferTypes: ['Transferir', 'Recargas'],
 	// 'Cambio' marks a cross-currency exchange (e.g. EUR → SEK top-up).
 	fxCandidateTypes: ['Cambio']
 };

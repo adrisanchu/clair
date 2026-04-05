@@ -2,6 +2,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type { BankParserProfile, NormalizedTransaction } from './types.js';
 import { normalizeRow } from './normalizer.js';
+import { preCategorize } from './pre-categorize.js';
 import {
 	revolut_eu,
 	postNormalize as revolut_eu_postNormalize,
@@ -143,6 +144,7 @@ export function parseCSV(csvText: string, profile: BankParserProfile): ParseResu
 			normalized = postNorm(normalized, raw);
 		}
 
+		normalized = preCategorize(normalized);
 		rows.push({ ...normalized, sourceIndex: i });
 	}
 
@@ -202,6 +204,7 @@ export function parseXLSX(buffer: Buffer, profile: BankParserProfile): ParseResu
 			normalized = postNorm(normalized, raw);
 		}
 
+		normalized = preCategorize(normalized);
 		rows.push({ ...normalized, sourceIndex: i });
 	}
 

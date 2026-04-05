@@ -1,7 +1,7 @@
 import { and, ne, eq, isNull, sql, inArray } from 'drizzle-orm';
 import { addDays, subDays } from 'date-fns';
 import { db } from './db/index.js';
-import { transactions } from './db/schema.js';
+import { bankAccounts, transactions } from './db/schema.js';
 
 function toDateStr(d: unknown): string {
 	const date = d instanceof Date ? d : new Date(d as string);
@@ -14,13 +14,18 @@ export interface TransferCandidate {
 	amount: number;
 	description: string;
 	bankAccountId: string;
+	accountName: string;
 	daysDiff: number;
 }
 
 export interface TransferMatch {
 	sourceId: string;
+	sourceDescription: string;
+	sourceAmount: number;
+	sourceDate: Date;
+	sourceAccountName: string;
 	candidateId: string | null; // null = no auto-link found
-	candidates: TransferCandidate[]; // empty when auto-linked
+	candidates: TransferCandidate[]; // populated for auto-linked (1 item) and unresolved (1+ items)
 }
 
 /**
@@ -44,8 +49,16 @@ export async function detectAndLinkTransfers(
 	if (newTransactionIds.length === 0 || accessibleAccountIds.length === 0) return [];
 
 	const sources = await db
-		.select()
+		.select({
+			id: transactions.id,
+			accountingDate: transactions.accountingDate,
+			amount: transactions.amount,
+			description: transactions.description,
+			bankAccountId: transactions.bankAccountId,
+			accountName: bankAccounts.displayName
+		})
 		.from(transactions)
+		.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
 		.where(
 			and(
 				inArray(transactions.id, newTransactionIds),
@@ -74,11 +87,13 @@ export async function detectAndLinkTransfers(
 				amount: transactions.amount,
 				description: transactions.description,
 				bankAccountId: transactions.bankAccountId,
+				accountName: bankAccounts.displayName,
 				daysDiff: sql<number>`ABS(EXTRACT(DAY FROM (
 					${transactions.accountingDate} - ${sourceDateStr}::date
 				)))`
 			})
 			.from(transactions)
+			.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
 			.where(
 				and(
 					ne(transactions.bankAccountId, source.bankAccountId),
@@ -96,22 +111,29 @@ export async function detectAndLinkTransfers(
 			)
 			.limit(5);
 
+		const mappedCandidates = candidates.map((c) => ({
+			id: c.id,
+			accountingDate: c.accountingDate as unknown as Date,
+			amount: parseFloat(c.amount as unknown as string),
+			description: c.description,
+			bankAccountId: c.bankAccountId,
+			accountName: c.accountName,
+			daysDiff: c.daysDiff
+		}));
+
+		const baseMatch = {
+			sourceId: source.id,
+			sourceDescription: source.description,
+			sourceAmount: parseFloat(source.amount as unknown as string),
+			sourceDate: sourceDate,
+			sourceAccountName: source.accountName
+		};
+
 		if (candidates.length === 1) {
 			await linkPair(source.id, candidates[0].id, linkedById);
-			results.push({ sourceId: source.id, candidateId: candidates[0].id, candidates: [] });
+			results.push({ ...baseMatch, candidateId: candidates[0].id, candidates: mappedCandidates });
 		} else {
-			results.push({
-				sourceId: source.id,
-				candidateId: null,
-				candidates: candidates.map((c) => ({
-					id: c.id,
-					accountingDate: c.accountingDate as unknown as Date,
-					amount: parseFloat(c.amount as unknown as string),
-					description: c.description,
-					bankAccountId: c.bankAccountId,
-					daysDiff: c.daysDiff
-				}))
-			});
+			results.push({ ...baseMatch, candidateId: null, candidates: mappedCandidates });
 		}
 	}
 
