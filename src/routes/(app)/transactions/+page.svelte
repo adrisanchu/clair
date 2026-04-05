@@ -85,14 +85,6 @@
 
 	const totalBalance = $derived(data.rows.reduce((sum, a) => a.amountEur ? sum + a.amountEur : sum + 0, 0));
 
-	const formattedTotal = $derived(
-		new Intl.NumberFormat('es-ES', {
-			style: 'currency',
-			currency: 'EUR',
-			minimumFractionDigits: 2
-		}).format(totalBalance)
-	);
-
 	// ── Pagination ─────────────────────────────────────────────────────────────
 
 	function getPaginationPages(cur: number, total: number): (number | '…')[] {
@@ -165,11 +157,7 @@
 
 		<!-- Main KPIs -->
 	<div class="pt-4 flex items-start gap-4">
-		<span
-				class="font-mono text-lg leading-none font-medium text-text-primary tabular-nums md:text-xl"
-			>
-				{formattedTotal}
-			</span>
+		<Amount value={totalBalance} currency={'EUR'} size="lg" />
 	</div>
 	</div>
 
