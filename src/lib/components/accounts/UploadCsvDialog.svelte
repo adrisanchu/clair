@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { CheckCircle2, AlertCircle, Upload, ArrowRight } from '@lucide/svelte';
+	import { CheckCircle2, AlertCircle, Upload, ArrowRight, ArrowLeftRight } from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import Amount from '$lib/components/Amount.svelte';
@@ -40,11 +40,22 @@
 		closingBalance: number | null;
 	};
 
+	type DetectedConversion = {
+		conversionId: string;
+		fromAmount: number;
+		toAmount: number;
+		exchangeRate: number;
+		effectiveFrom: string;
+		affectedTxCount: number;
+		confidence: 'auto';
+	};
+
 	type ImportResult = {
 		imported: number;
 		flagged: number;
 		statusUpdates: number;
 		duplicates: number;
+		detectedConversions: DetectedConversion[];
 	};
 
 	let preview = $state<PreviewData | null>(null);
@@ -356,6 +367,33 @@
 						</div>
 					{/if}
 				</div>
+
+				<!-- Conversion confirmation cards -->
+				{#if importResult.detectedConversions?.length > 0}
+					<div class="mt-4 w-full space-y-2">
+						{#each importResult.detectedConversions as conv (conv.conversionId)}
+							<div class="rounded-lg border border-primary-200 bg-primary-50 p-4 text-left">
+								<div class="mb-3 flex items-center gap-2">
+									<ArrowLeftRight size={14} class="text-primary-500" />
+									<span class="text-xs font-semibold text-primary-700">Conversion detected — {accountName}</span>
+								</div>
+								<div class="mb-2 text-sm text-text-secondary">
+									<Amount value={-conv.fromAmount} currency="EUR" size="sm" />
+									<span class="mx-1.5 text-text-tertiary">→</span>
+									<Amount value={conv.toAmount} currency={currency} size="sm" />
+								</div>
+								<div class="flex items-center justify-between text-xs text-text-secondary">
+									<span>
+										Rate: <span class="font-mono font-semibold text-text-primary">
+											{conv.exchangeRate.toFixed(4)} {currency} / EUR
+										</span>
+									</span>
+									<span class="text-text-tertiary">Applies to {conv.affectedTxCount} transactions</span>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		{/if}
 

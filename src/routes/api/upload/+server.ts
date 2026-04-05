@@ -9,8 +9,9 @@ import {
 	refreshCurrentBalance
 } from '$lib/server/balance.js';
 import { detectAndLinkTransfers } from '$lib/server/transfer-detector.js';
+import { detectAndCreateConversions } from '$lib/server/currency-converter.js';
 import { db } from '$lib/server/db/index.js';
-import { transactions, csvUploads, bankAccounts } from '$lib/server/db/schema.js';
+import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -72,6 +73,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 						currencyOriginal: row.currencyOriginal,
 						description: row.description,
 						isTransfer: row.isTransferCandidate,
+						isFxCandidate: row.isFxCandidate,
 						payerUserId: locals.user.id,
 						status: row.status,
 						syncSource: 'csv_upload'
@@ -113,6 +115,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 						currencyOriginal: row.currencyOriginal,
 						description: row.description,
 						isTransfer: row.isTransferCandidate,
+						isFxCandidate: row.isFxCandidate,
 						payerUserId: locals.user.id,
 						status: 'review',
 						syncSource: 'csv_upload'
@@ -187,14 +190,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			.where(inArray(transactions.id, insertedIds));
 	}
 
-	// 5. Transfer auto-detection on newly inserted transfer candidates
-	const unresolvedTransfers = await detectAndLinkTransfers(insertedIds, accessible, locals.user.id);
+	// 5. Transfer auto-detection + cross-currency conversion detection
+	const account = await db.query.bankAccounts.findFirst({
+		where: eq(bankAccounts.id, bankAccountId),
+		columns: { workspaceId: true, currency: true }
+	});
+
+	const [unresolvedTransfers, detectedConversions] = await Promise.all([
+		detectAndLinkTransfers(insertedIds, accessible, locals.user.id),
+		account
+			? detectAndCreateConversions(insertedIds, account.workspaceId, account.currency)
+			: Promise.resolve([])
+	]);
 
 	return json({
 		imported: importedCount,
 		statusUpdates: statusUpdateCount,
 		duplicates: duplicateCount,
 		flagged: flaggedCount,
-		unresolvedTransfers
+		unresolvedTransfers,
+		detectedConversions
 	});
 };
