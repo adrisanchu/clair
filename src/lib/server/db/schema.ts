@@ -173,6 +173,10 @@ export const transactions = coreSchema.table(
 		// Used for dashboard "effective expense" calculation without a full Splitwise model.
 		myPortion: numeric('my_portion', { precision: 4, scale: 3 }),
 
+		// Original file row position (0-based, set on CSV import; null for manual/cron entries).
+		// Use for round-trip export ordering: ORDER BY accountingDate DESC, originalOrder ASC.
+		originalOrder: integer('original_order'),
+
 		// System flags
 		isOpeningBalance: boolean('is_opening_balance').default(false).notNull(),
 		// payerUserId references auth.user.id — enforced at app layer

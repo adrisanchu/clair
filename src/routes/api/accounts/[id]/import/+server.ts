@@ -3,7 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
-import { uploadAndParse } from '$lib/server/parsers/index.js';
+import { uploadAndParse, detectFileDirection } from '$lib/server/parsers/index.js';
 import { classifyRow, applyStatusUpdate, applyDescUpdate } from '$lib/server/dedup.js';
 import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
@@ -101,7 +101,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	// Persist the opening balance transaction if one was provided (or auto-computed from CSV)
 	if (openingBalance !== null && !isNaN(openingBalance) && rows.length > 0) {
-		const earliest = rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a : b));
+		const direction = detectFileDirection(rows);
+		const earliest =
+			direction === 'desc'
+				? rows[rows.length - 1] // last file row = chronologically first
+				: rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a : b));
 		await upsertOpeningBalance(account.id, openingBalance, earliest.accountingDate, locals.user.id);
 	}
 
@@ -146,6 +150,7 @@ function buildTxInsert(
 		description: row.description,
 		isTransfer: row.isTransferCandidate,
 		isFxCandidate: row.isFxCandidate,
+		originalOrder: row.sourceIndex,
 		status,
 		payerUserId,
 		syncSource: 'csv_upload'

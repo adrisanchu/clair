@@ -65,6 +65,24 @@ export function detectXLSXProfile(buffer: Buffer): string | null {
 	return null;
 }
 
+// ─── File direction detection ──────────────────────────────────────────────
+
+/**
+ * Detect whether the rows in a parsed file are in ascending or descending date order.
+ * Compares the first row's date against the last row's date.
+ * Returns 'unknown' when the file has fewer than 2 rows or all rows share the same date.
+ */
+export function detectFileDirection(
+	rows: import('./types.js').NormalizedTransaction[]
+): 'asc' | 'desc' | 'unknown' {
+	if (rows.length < 2) return 'unknown';
+	const first = rows[0].accountingDate;
+	const last = rows[rows.length - 1].accountingDate;
+	if (first < last) return 'asc';
+	if (first > last) return 'desc';
+	return 'unknown';
+}
+
 // ─── Per-profile post-normalise hooks ─────────────────────────────────────
 
 const POST_NORMALIZE: Partial<
@@ -125,7 +143,7 @@ export function parseCSV(csvText: string, profile: BankParserProfile): ParseResu
 			normalized = postNorm(normalized, raw);
 		}
 
-		rows.push(normalized);
+		rows.push({ ...normalized, sourceIndex: i });
 	}
 
 	// PapaParse parse-level errors
@@ -184,7 +202,7 @@ export function parseXLSX(buffer: Buffer, profile: BankParserProfile): ParseResu
 			normalized = postNorm(normalized, raw);
 		}
 
-		rows.push(normalized);
+		rows.push({ ...normalized, sourceIndex: i });
 	}
 
 	return { rows, skippedCount, errors };
