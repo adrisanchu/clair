@@ -34,7 +34,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	let skippedCount: number;
 
 	try {
-		({ result: { rows, skippedCount } } = await uploadAndParse(file, account.bankProfileId));
+		({
+			result: { rows, skippedCount }
+		} = await uploadAndParse(file, account.bankProfileId));
 	} catch (e) {
 		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
 	}
@@ -84,7 +86,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	const insertedIds: string[] = [];
 	if (toInsert.length > 0) {
-		const inserted = await db.insert(transactions).values(toInsert).returning({ id: transactions.id });
+		const inserted = await db
+			.insert(transactions)
+			.values(toInsert)
+			.returning({ id: transactions.id });
 		insertedIds.push(...inserted.map((r) => r.id));
 	}
 

@@ -25,7 +25,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	let skippedCount: number;
 
 	try {
-		({ result: { rows, skippedCount } } = await uploadAndParse(file, account.bankProfileId));
+		({
+			result: { rows, skippedCount }
+		} = await uploadAndParse(file, account.bankProfileId));
 	} catch (e) {
 		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
 	}

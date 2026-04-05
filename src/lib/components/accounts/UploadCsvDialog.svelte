@@ -384,8 +384,14 @@
 								<!-- From row -->
 								<div class="flex items-center justify-between gap-2">
 									<div class="min-w-0">
-										<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">{conv.fromAccountName}</p>
-										<p class="truncate text-xs text-text-secondary">{conv.fromTransactionDescription}</p>
+										<p
+											class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+										>
+											{conv.fromAccountName}
+										</p>
+										<p class="truncate text-xs text-text-secondary">
+											{conv.fromTransactionDescription}
+										</p>
 									</div>
 									<Amount value={-conv.fromAmount} currency="EUR" size="sm" />
 								</div>
@@ -398,19 +404,30 @@
 								<!-- To row -->
 								<div class="flex items-center justify-between gap-2">
 									<div class="min-w-0">
-										<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">{conv.toAccountName}</p>
-										<p class="truncate text-xs text-text-secondary">{conv.toTransactionDescription}</p>
+										<p
+											class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+										>
+											{conv.toAccountName}
+										</p>
+										<p class="truncate text-xs text-text-secondary">
+											{conv.toTransactionDescription}
+										</p>
 									</div>
-									<Amount value={conv.toAmount} currency={currency} size="sm" />
+									<Amount value={conv.toAmount} {currency} size="sm" />
 								</div>
 								<!-- Rate footer -->
-								<div class="mt-3 flex items-center justify-between border-t border-primary-200 pt-2.5 text-xs text-text-secondary">
+								<div
+									class="mt-3 flex items-center justify-between border-t border-primary-200 pt-2.5 text-xs text-text-secondary"
+								>
 									<span>
 										Rate: <span class="font-mono font-semibold text-text-primary">
-											{conv.exchangeRate.toFixed(4)} {currency} / EUR
+											{conv.exchangeRate.toFixed(4)}
+											{currency} / EUR
 										</span>
 									</span>
-									<span class="text-text-tertiary">Applies to {conv.affectedTxCount} transactions</span>
+									<span class="text-text-tertiary"
+										>Applies to {conv.affectedTxCount} transactions</span
+									>
 								</div>
 							</div>
 						{/each}

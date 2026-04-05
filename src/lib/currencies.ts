@@ -28,7 +28,7 @@ export const CURRENCIES: { code: string; label: string }[] = [
 	{ code: 'ISK', label: 'ISK — Icelandic Króna' },
 	{ code: 'THB', label: 'THB — Thai Baht' },
 	{ code: 'MYR', label: 'MYR — Malaysian Ringgit' },
-	{ code: 'IDR', label: 'IDR — Indonesian Rupiah' },
+	{ code: 'IDR', label: 'IDR — Indonesian Rupiah' }
 ];
 
 export const CURRENCY_CODES = CURRENCIES.map((c) => c.code);

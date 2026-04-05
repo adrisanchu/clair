@@ -12,9 +12,8 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, 'data');
 
-const { parseXLSX, getProfile, detectFileDirection } = await import(
-	'../../src/lib/server/parsers/index.js'
-);
+const { parseXLSX, getProfile, detectFileDirection } =
+	await import('../../src/lib/server/parsers/index.js');
 
 const profile = getProfile('bankinter_es');
 if (!profile) throw new Error('bankinter_es profile not found');
@@ -29,7 +28,8 @@ console.log('══════════════════════�
 for (const r of rows) {
 	const date = r.accountingDate.toISOString().split('T')[0];
 	const amount = r.amount.toFixed(2).padStart(10);
-	const balance = r.runningBalance != null ? r.runningBalance.toFixed(2).padStart(10) : '          ';
+	const balance =
+		r.runningBalance != null ? r.runningBalance.toFixed(2).padStart(10) : '          ';
 	const transfer = r.isTransferCandidate ? ' [transfer]' : '';
 	const fx = r.isFxCandidate ? ' [fx]' : '';
 	console.log(`  ${date}  ${amount}  bal: ${balance}  ${r.description}${transfer}${fx}`);
@@ -63,6 +63,8 @@ console.log(` Closing balance: ${closingBalance?.toFixed(2) ?? 'n/a'}`);
 if (openingBalance !== null && closingBalance !== null) {
 	const check = openingBalance + periodBalance;
 	const ok = Math.abs(check - closingBalance) < 0.01;
-	console.log(` Reconciliation : ${check.toFixed(2)} (should equal closing) ${ok ? '✓' : '✗ MISMATCH'}`);
+	console.log(
+		` Reconciliation : ${check.toFixed(2)} (should equal closing) ${ok ? '✓' : '✗ MISMATCH'}`
+	);
 }
 console.log();

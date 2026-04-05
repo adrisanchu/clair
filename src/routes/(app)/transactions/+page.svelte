@@ -83,7 +83,9 @@
 	const showingFrom = $derived((currentPage - 1) * data.limit + 1);
 	const showingTo = $derived(Math.min(currentPage * data.limit, data.total));
 
-	const totalBalance = $derived(data.rows.reduce((sum, a) => a.amountEur ? sum + a.amountEur : sum + 0, 0));
+	const totalBalance = $derived(
+		data.rows.reduce((sum, a) => (a.amountEur ? sum + a.amountEur : sum + 0), 0)
+	);
 
 	// ── Pagination ─────────────────────────────────────────────────────────────
 
@@ -156,9 +158,9 @@
 		</div>
 
 		<!-- Main KPIs -->
-	<div class="pt-4 flex items-start gap-4">
-		<Amount value={totalBalance} currency={'EUR'} size="lg" />
-	</div>
+		<div class="flex items-start gap-4 pt-4">
+			<Amount value={totalBalance} currency={'EUR'} size="lg" />
+		</div>
 	</div>
 
 	<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
@@ -402,11 +404,13 @@
 									<Amount value={tx.amount} currency={tx.currency} size="sm" />
 									{#if tx.currency !== 'EUR'}
 										{#if tx.amountEur != null}
-											<div class="mt-0.5 font-mono text-[11px] tabular-nums text-text-tertiary">
+											<div class="mt-0.5 font-mono text-[11px] text-text-tertiary tabular-nums">
 												<Amount value={tx.amountEur} currency="EUR" size="sm" colorize={false} />
 											</div>
 										{:else}
-											<div class="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-amber-500">
+											<div
+												class="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-amber-500"
+											>
 												<CircleAlert size={10} />
 												<span class="font-mono">— EUR</span>
 											</div>

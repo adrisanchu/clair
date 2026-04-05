@@ -48,9 +48,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 					.groupBy(bankAccounts.id)
 					.orderBy(bankAccounts.createdAt);
 
-	const unresolvedFx = user?.workspaceId
-		? await getUnresolvedFxAccounts(user.workspaceId)
-		: [];
+	const unresolvedFx = user?.workspaceId ? await getUnresolvedFxAccounts(user.workspaceId) : [];
 
 	return {
 		accounts: accounts.map((a) => ({

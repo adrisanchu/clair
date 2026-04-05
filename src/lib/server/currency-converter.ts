@@ -101,9 +101,7 @@ export async function detectAndCreateConversions(
 						isNull(transactions.conversionId)
 					)
 				)
-				.orderBy(
-					sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDateStr}::date)))`
-				)
+				.orderBy(sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDateStr}::date)))`)
 				.limit(5);
 
 			if (eurCandidates.length === 0) continue;
@@ -200,9 +198,7 @@ export async function detectAndCreateConversions(
 						sql`${transactions.accountingDate} <= ${toDateStr(addDays(txDate, 3))}::date`
 					)
 				)
-				.orderBy(
-					sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDateStr}::date)))`
-				)
+				.orderBy(sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDateStr}::date)))`)
 				.limit(5);
 
 			if (fxCandidates.length === 0) continue;
@@ -301,7 +297,11 @@ export async function propagateRateToAccount(accountId: string): Promise<number>
 				amountEur: sql`ROUND((${transactions.amount}::numeric / ${rate}::numeric), 4)`
 			})
 			.where(
-				and(eq(transactions.bankAccountId, accountId), eq(transactions.isOpeningBalance, false), dateRange)
+				and(
+					eq(transactions.bankAccountId, accountId),
+					eq(transactions.isOpeningBalance, false),
+					dateRange
+				)
 			)
 			.returning({ id: transactions.id });
 

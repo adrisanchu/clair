@@ -45,7 +45,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	// Find a EUR account in this workspace to use as the nominal source
 	const eurAccount = await db.query.bankAccounts.findFirst({
-		where: and(eq(bankAccounts.workspaceId, account.workspaceId), eq(bankAccounts.currency, 'EUR'), isNull(bankAccounts.deletedAt)),
+		where: and(
+			eq(bankAccounts.workspaceId, account.workspaceId),
+			eq(bankAccounts.currency, 'EUR'),
+			isNull(bankAccounts.deletedAt)
+		),
 		columns: { id: true }
 	});
 	const fromAccountId = eurAccount?.id ?? params.id;

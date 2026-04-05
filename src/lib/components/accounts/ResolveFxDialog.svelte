@@ -84,7 +84,8 @@
 				<div>
 					<p class="text-sm font-semibold text-text-primary">Rate applied</p>
 					<p class="mt-0.5 text-sm text-text-secondary">
-						{affectedCount} {affectedCount === 1 ? 'transaction' : 'transactions'} updated.
+						{affectedCount}
+						{affectedCount === 1 ? 'transaction' : 'transactions'} updated.
 					</p>
 				</div>
 			</div>
@@ -96,8 +97,8 @@
 		{:else}
 			<div class="space-y-4 py-2">
 				<p class="text-sm text-text-secondary">
-					We couldn't find a matching EUR → {currency} transfer. Enter the exchange rate to apply to
-					these transactions:
+					We couldn't find a matching EUR → {currency} transfer. Enter the exchange rate to apply to these
+					transactions:
 				</p>
 
 				<div class="grid grid-cols-2 gap-3 rounded-lg border border-border bg-surface-sunken p-3">
@@ -140,9 +141,8 @@
 						<span class="shrink-0 text-sm text-text-tertiary">{currency} / EUR</span>
 					</div>
 					<p class="mt-1 text-xs text-text-tertiary">
-						How many {currency} equal 1 EUR? (e.g. if 1 EUR = {currency === 'SEK'
-							? '10.91'
-							: '1.0'} {currency}, enter that value)
+						How many {currency} equal 1 EUR? (e.g. if 1 EUR = {currency === 'SEK' ? '10.91' : '1.0'}
+						{currency}, enter that value)
 					</p>
 				</div>
 			</div>

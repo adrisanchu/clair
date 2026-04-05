@@ -29,7 +29,10 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	// Verify the user owns at least one of the two linked accounts
 	const ownedAccount = await db.query.bankAccounts.findFirst({
 		where: and(
-			or(eq(bankAccounts.id, conversion.fromAccountId), eq(bankAccounts.id, conversion.toAccountId)),
+			or(
+				eq(bankAccounts.id, conversion.fromAccountId),
+				eq(bankAccounts.id, conversion.toAccountId)
+			),
 			eq(bankAccounts.ownerUserId, locals.user.id)
 		),
 		columns: { id: true }
