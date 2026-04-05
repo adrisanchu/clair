@@ -3,7 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
-import { getProfile, parseCSV, fileToText } from '$lib/server/parsers/index.js';
+import { uploadAndParse, detectFileDirection } from '$lib/server/parsers/index.js';
 import { classifyRow, applyStatusUpdate, applyDescUpdate } from '$lib/server/dedup.js';
 import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
@@ -30,17 +30,14 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const openingBalanceRaw = formData.get('openingBalance') as string | null;
 	const openingBalance = openingBalanceRaw ? parseFloat(openingBalanceRaw.replace(',', '.')) : null;
 
-	const profile = getProfile(account.bankProfileId);
-	if (!profile) throw error(400, `No parser for bank profile: ${account.bankProfileId}`);
+	let rows: Awaited<ReturnType<typeof uploadAndParse>>['result']['rows'];
+	let skippedCount: number;
 
-	let csvText: string;
 	try {
-		csvText = await fileToText(file);
-	} catch {
-		throw error(400, 'Could not read file');
+		({ result: { rows, skippedCount } } = await uploadAndParse(file, account.bankProfileId));
+	} catch (e) {
+		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
 	}
-
-	const { rows, skippedCount } = parseCSV(csvText, profile);
 
 	// Create the upload record first (transactions reference it)
 	const [upload] = await db
@@ -49,7 +46,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			bankAccountId: account.id,
 			userId: locals.user.id,
 			filename: file.name,
-			bankProfileId: profile.bankProfileId,
+			bankProfileId: account.bankProfileId,
 			rowCount: rows.length + skippedCount,
 			importedCount: 0,
 			duplicateCount: 0,
@@ -104,7 +101,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	// Persist the opening balance transaction if one was provided (or auto-computed from CSV)
 	if (openingBalance !== null && !isNaN(openingBalance) && rows.length > 0) {
-		const earliest = rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a : b));
+		const direction = detectFileDirection(rows);
+		const earliest =
+			direction === 'desc'
+				? rows[rows.length - 1] // last file row = chronologically first
+				: rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a : b));
 		await upsertOpeningBalance(account.id, openingBalance, earliest.accountingDate, locals.user.id);
 	}
 
@@ -149,6 +150,7 @@ function buildTxInsert(
 		description: row.description,
 		isTransfer: row.isTransferCandidate,
 		isFxCandidate: row.isFxCandidate,
+		originalOrder: row.sourceIndex,
 		status,
 		payerUserId,
 		syncSource: 'csv_upload'

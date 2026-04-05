@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getProfile, detectProfile, parseCSV, fileToText } from '$lib/server/parsers/index.js';
+import { uploadAndParse } from '$lib/server/parsers/index.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { classifyRow, applyStatusUpdate, applyDescUpdate } from '$lib/server/dedup.js';
 import {
@@ -32,18 +32,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const accessible = await getAccessibleAccountIds(locals.user.id);
 	if (!accessible.includes(bankAccountId)) throw error(403, 'Access denied to this account');
 
-	const csvText = await fileToText(file);
+	let profileId: string;
+	let rows: Awaited<ReturnType<typeof uploadAndParse>>['result']['rows'];
+	let skippedCount: number;
+	let errors: string[];
 
-	const profileId =
-		typeof profileIdParam === 'string' && profileIdParam ? profileIdParam : detectProfile(csvText);
+	try {
+		const parsed = await uploadAndParse(
+			file,
+			typeof profileIdParam === 'string' && profileIdParam ? profileIdParam : null
+		);
+		profileId = parsed.profileId;
+		({ rows, skippedCount, errors } = parsed.result);
+	} catch (e) {
+		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
+	}
 
-	if (!profileId) throw error(400, 'Could not detect bank profile. Please select one manually.');
-
-	const profile = getProfile(profileId);
-	if (!profile) throw error(400, `Unknown bank profile: ${profileId}`);
-
-	// 1. Parse + normalise all rows
-	const { rows, skippedCount, errors } = parseCSV(csvText, profile);
+	// 1. Parse + normalise all rows (done above)
 	if (rows.length === 0) {
 		throw error(422, `No rows could be parsed. ${errors[0] ?? ''}`.trim());
 	}
