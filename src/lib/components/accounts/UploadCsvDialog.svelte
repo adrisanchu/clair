@@ -218,7 +218,7 @@
 </script>
 
 <Dialog.Root bind:open onOpenChange={handleOpenChange}>
-	<Dialog.Content>
+	<Dialog.Content class="overflow-y-hidden">
 		<Dialog.Header>
 			<Dialog.Title>Import Transactions</Dialog.Title>
 		</Dialog.Header>
@@ -385,7 +385,7 @@
 
 			<!-- ── Step: Done ── -->
 		{:else if step === 'done' && importResult}
-			<div class="flex flex-col items-center gap-4 py-8 text-center">
+			<div class="flex flex-col items-center gap-4 text-center">
 				<div class="bg-success-100 flex h-14 w-14 items-center justify-center rounded-full">
 					<CheckCircle2 size={28} class="text-success-600" />
 				</div>
@@ -482,7 +482,7 @@
 
 			<!-- Transfer linking section -->
 			{#if importResult.unresolvedTransfers?.length > 0}
-				<div class="mt-4 w-full space-y-2">
+				<div class="my-4 w-full space-y-2 overflow-y-auto" style:max-height="min(40vh, 400px)">
 					{#each importResult.unresolvedTransfers as match (match.sourceId)}
 						{@const decision = transferDecisions[match.sourceId] ?? null}
 						{@const isLinking = transferLinking[match.sourceId] ?? false}
@@ -514,8 +514,17 @@
 						{:else if match.candidates.length === 0}
 							<!-- No counterpart found -->
 							<div class="rounded-lg border border-border bg-surface-sunken p-3 text-left">
-								<p class="text-xs font-medium text-text-primary">{match.sourceAccountName} · {match.sourceDescription}</p>
-								<p class="mt-0.5 text-[11px] text-text-tertiary">No matching transfer found — link manually from the transactions page if needed</p>
+								<div class="flex items-center justify-between gap-2">
+									<p class="truncate text-xs font-medium text-text-primary">{match.sourceAccountName} · {match.sourceDescription}</p>
+									<Amount value={match.sourceAmount} currency="EUR" size="sm" />
+								</div>
+								<div class="mt-1.5 flex items-center justify-between gap-2">
+									<p class="text-[11px] text-text-tertiary">No matching transfer found</p>
+									<button
+										class="text-[11px] text-text-tertiary underline underline-offset-2 hover:text-text-secondary"
+										onclick={() => (transferDecisions[match.sourceId] = 'skipped')}
+									>Skip</button>
+								</div>
 							</div>
 						{:else}
 							<!-- Multiple candidates — needs user choice -->
@@ -574,7 +583,7 @@
 		{/if}
 
 		<!-- Footer -->
-		<Dialog.Footer>
+		<Dialog.Footer class="sticky bottom-0 bg-surface pt-2">
 			{#if step === 'upload'}
 				<div></div>
 				<Button variant="outline" onclick={() => (open = false)}>Cancel</Button>
