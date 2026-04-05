@@ -6,6 +6,9 @@ import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js
 import { getProfile, parseCSV, fileToText } from '$lib/server/parsers/index.js';
 import { classifyRow, applyStatusUpdate, applyDescUpdate } from '$lib/server/dedup.js';
 import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
+import { getAccessibleAccountIds } from '$lib/server/db/access.js';
+import { detectAndLinkTransfers } from '$lib/server/transfer-detector.js';
+import { detectAndCreateConversions } from '$lib/server/currency-converter.js';
 import type { NormalizedTransaction } from '$lib/server/parsers/types.js';
 
 // ─── POST /api/accounts/[id]/import ───────────────────────────────────────────
@@ -82,8 +85,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		}
 	}
 
+	const insertedIds: string[] = [];
 	if (toInsert.length > 0) {
-		await db.insert(transactions).values(toInsert);
+		const inserted = await db.insert(transactions).values(toInsert).returning({ id: transactions.id });
+		insertedIds.push(...inserted.map((r) => r.id));
 	}
 
 	// Update upload with actual counts
@@ -108,11 +113,20 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	await refreshCurrentBalance(account.id);
 
+	// Transfer auto-detection and cross-currency conversion detection
+	const accessibleIds = await getAccessibleAccountIds(locals.user.id);
+	const [unresolvedTransfers, detectedConversions] = await Promise.all([
+		detectAndLinkTransfers(insertedIds, accessibleIds, locals.user.id),
+		detectAndCreateConversions(insertedIds, account.workspaceId, account.currency)
+	]);
+
 	return json({
 		imported: importedCount,
 		flagged: flaggedCount,
 		statusUpdates: statusUpdatesCount,
-		duplicates: duplicateCount
+		duplicates: duplicateCount,
+		unresolvedTransfers,
+		detectedConversions
 	});
 };
 
@@ -133,6 +147,8 @@ function buildTxInsert(
 		amountOriginal: row.amountOriginal.toFixed(4),
 		currencyOriginal: row.currencyOriginal,
 		description: row.description,
+		isTransfer: row.isTransferCandidate,
+		isFxCandidate: row.isFxCandidate,
 		status,
 		payerUserId,
 		syncSource: 'csv_upload'
