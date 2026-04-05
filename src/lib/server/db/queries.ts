@@ -142,7 +142,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 		rows: rows.map((r) => ({
 			...r,
 			amount: parseFloat(r.amount as string),
-			amountEur: r.amountEur != null ? parseFloat(r.amountEur as string) : null,
+			amountEur: r.currency === 'EUR' ? parseFloat(r.amount as string) : (r.amountEur != null ? parseFloat(r.amountEur as string) : null),
 			exchangeRate: r.exchangeRate != null ? parseFloat(r.exchangeRate as string) : null,
 			status: r.status as 'pending' | 'posted' | 'review',
 			isOpeningBalance: r.isOpeningBalance ?? false
