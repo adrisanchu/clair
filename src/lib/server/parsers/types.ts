@@ -1,4 +1,5 @@
 export interface BankParserProfile {
+	fileType: 'csv' | 'xlsx';
 	bankProfileId: string;
 	displayName: string;
 	encoding: string; // 'utf-8' | 'iso-8859-1'
