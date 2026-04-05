@@ -48,6 +48,10 @@
 		effectiveFrom: string;
 		affectedTxCount: number;
 		confidence: 'auto';
+		fromAccountName: string;
+		fromTransactionDescription: string;
+		toAccountName: string;
+		toTransactionDescription: string;
 	};
 
 	type ImportResult = {
@@ -375,14 +379,32 @@
 							<div class="rounded-lg border border-primary-200 bg-primary-50 p-4 text-left">
 								<div class="mb-3 flex items-center gap-2">
 									<ArrowLeftRight size={14} class="text-primary-500" />
-									<span class="text-xs font-semibold text-primary-700">Conversion detected — {accountName}</span>
+									<span class="text-xs font-semibold text-primary-700">Conversion detected</span>
 								</div>
-								<div class="mb-2 text-sm text-text-secondary">
+								<!-- From row -->
+								<div class="flex items-center justify-between gap-2">
+									<div class="min-w-0">
+										<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">{conv.fromAccountName}</p>
+										<p class="truncate text-xs text-text-secondary">{conv.fromTransactionDescription}</p>
+									</div>
 									<Amount value={-conv.fromAmount} currency="EUR" size="sm" />
-									<span class="mx-1.5 text-text-tertiary">→</span>
+								</div>
+								<!-- Arrow -->
+								<div class="my-1.5 flex items-center gap-1.5 text-text-tertiary">
+									<div class="h-px flex-1 bg-primary-200"></div>
+									<ArrowRight size={12} class="text-primary-400" />
+									<div class="h-px flex-1 bg-primary-200"></div>
+								</div>
+								<!-- To row -->
+								<div class="flex items-center justify-between gap-2">
+									<div class="min-w-0">
+										<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">{conv.toAccountName}</p>
+										<p class="truncate text-xs text-text-secondary">{conv.toTransactionDescription}</p>
+									</div>
 									<Amount value={conv.toAmount} currency={currency} size="sm" />
 								</div>
-								<div class="flex items-center justify-between text-xs text-text-secondary">
+								<!-- Rate footer -->
+								<div class="mt-3 flex items-center justify-between border-t border-primary-200 pt-2.5 text-xs text-text-secondary">
 									<span>
 										Rate: <span class="font-mono font-semibold text-text-primary">
 											{conv.exchangeRate.toFixed(4)} {currency} / EUR

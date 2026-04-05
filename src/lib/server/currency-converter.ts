@@ -26,6 +26,10 @@ export interface CurrencyConversionResult {
 	effectiveFrom: Date;
 	affectedTxCount: number;
 	confidence: 'auto';
+	fromAccountName: string;
+	fromTransactionDescription: string;
+	toAccountName: string;
+	toTransactionDescription: string;
 }
 
 /**
@@ -54,9 +58,12 @@ export async function detectAndCreateConversions(
 				id: transactions.id,
 				amount: transactions.amount,
 				accountingDate: transactions.accountingDate,
-				bankAccountId: transactions.bankAccountId
+				bankAccountId: transactions.bankAccountId,
+				description: transactions.description,
+				accountName: bankAccounts.displayName
 			})
 			.from(transactions)
+			.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
 			.where(
 				and(
 					inArray(transactions.id, insertedIds),
@@ -76,7 +83,9 @@ export async function detectAndCreateConversions(
 					id: transactions.id,
 					amount: transactions.amount,
 					accountingDate: transactions.accountingDate,
-					bankAccountId: transactions.bankAccountId
+					bankAccountId: transactions.bankAccountId,
+					description: transactions.description,
+					accountName: bankAccounts.displayName
 				})
 				.from(transactions)
 				.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
@@ -134,7 +143,11 @@ export async function detectAndCreateConversions(
 				exchangeRate: rate,
 				effectiveFrom,
 				affectedTxCount: count,
-				confidence: 'auto'
+				confidence: 'auto',
+				fromAccountName: best.accountName,
+				fromTransactionDescription: best.description,
+				toAccountName: fxTx.accountName,
+				toTransactionDescription: fxTx.description
 			});
 		}
 	} else {
@@ -144,9 +157,12 @@ export async function detectAndCreateConversions(
 				id: transactions.id,
 				amount: transactions.amount,
 				accountingDate: transactions.accountingDate,
-				bankAccountId: transactions.bankAccountId
+				bankAccountId: transactions.bankAccountId,
+				description: transactions.description,
+				accountName: bankAccounts.displayName
 			})
 			.from(transactions)
+			.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
 			.where(
 				and(
 					inArray(transactions.id, insertedIds),
@@ -167,7 +183,9 @@ export async function detectAndCreateConversions(
 					id: transactions.id,
 					amount: transactions.amount,
 					accountingDate: transactions.accountingDate,
-					bankAccountId: transactions.bankAccountId
+					bankAccountId: transactions.bankAccountId,
+					description: transactions.description,
+					accountName: bankAccounts.displayName
 				})
 				.from(transactions)
 				.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
@@ -223,7 +241,11 @@ export async function detectAndCreateConversions(
 				exchangeRate: rate,
 				effectiveFrom,
 				affectedTxCount: count,
-				confidence: 'auto'
+				confidence: 'auto',
+				fromAccountName: eurTx.accountName,
+				fromTransactionDescription: eurTx.description,
+				toAccountName: best.accountName,
+				toTransactionDescription: best.description
 			});
 		}
 	}
