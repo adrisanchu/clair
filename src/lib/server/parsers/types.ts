@@ -1,4 +1,5 @@
 export interface BankParserProfile {
+	fileType: 'csv' | 'xlsx';
 	bankProfileId: string;
 	displayName: string;
 	encoding: string; // 'utf-8' | 'iso-8859-1'
@@ -33,6 +34,7 @@ export interface NormalizedTransaction {
 	rawType: string | null; // original type string from CSV
 	isTransferCandidate: boolean; // derived from rawType + profile.transferTypes
 	isFxCandidate: boolean; // derived from rawType + profile.fxCandidateTypes
+	sourceIndex: number; // 0-based position in original file (after skipRows); used for ordering
 }
 
 export type DedupAction = 'insert' | 'update_status' | 'update_desc' | 'skip' | 'review';

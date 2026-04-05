@@ -2,6 +2,7 @@ import type { BankParserProfile, NormalizedTransaction } from '../types.js';
 import { parseAmount } from '../normalizer.js';
 
 export const revolut_eu: BankParserProfile = {
+	fileType: 'csv',
 	bankProfileId: 'revolut_eu',
 	displayName: 'Revolut (EU)',
 	encoding: 'utf-8',

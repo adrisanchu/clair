@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getProfile, detectProfile, parseCSV, fileToText } from '$lib/server/parsers/index.js';
+import { uploadAndParse, getProfile } from '$lib/server/parsers/index.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user) throw error(401, 'Unauthorized');
@@ -13,18 +13,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!(file instanceof File)) throw error(400, 'Missing file');
 	if (file.size > 10 * 1024 * 1024) throw error(400, 'File too large (max 10 MB)');
 
-	const csvText = await fileToText(file);
+	let profileId: string;
+	let rows: Awaited<ReturnType<typeof uploadAndParse>>['result']['rows'];
+	let skippedCount: number;
+	let errors: string[];
 
-	// Resolve profile: use provided ID or auto-detect from header
-	const profileId =
-		typeof profileIdParam === 'string' && profileIdParam ? profileIdParam : detectProfile(csvText);
+	try {
+		const parsed = await uploadAndParse(
+			file,
+			typeof profileIdParam === 'string' && profileIdParam ? profileIdParam : null
+		);
+		profileId = parsed.profileId;
+		({ rows, skippedCount, errors } = parsed.result);
+	} catch (e) {
+		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
+	}
 
-	if (!profileId) throw error(400, 'Could not detect bank profile. Please select one manually.');
-
-	const profile = getProfile(profileId);
-	if (!profile) throw error(400, `Unknown bank profile: ${profileId}`);
-
-	const { rows, skippedCount, errors } = parseCSV(csvText, profile);
+	const profile = getProfile(profileId)!;
 
 	if (rows.length === 0 && errors.length > 0) {
 		throw error(422, `Could not parse CSV: ${errors[0]}`);

@@ -3,7 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts } from '$lib/server/db/schema.js';
-import { getProfile, parseCSV, fileToText } from '$lib/server/parsers/index.js';
+import { uploadAndParse, detectFileDirection } from '$lib/server/parsers/index.js';
 
 // ─── POST /api/accounts/[id]/preview ──────────────────────────────────────────
 // Parse a CSV for the given bank account and return a preview — no DB writes.
@@ -21,17 +21,14 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const file = formData.get('file') as File | null;
 	if (!file) throw error(400, 'No file provided');
 
-	const profile = getProfile(account.bankProfileId);
-	if (!profile) throw error(400, `No parser for bank profile: ${account.bankProfileId}`);
+	let rows: Awaited<ReturnType<typeof uploadAndParse>>['result']['rows'];
+	let skippedCount: number;
 
-	let csvText: string;
 	try {
-		csvText = await fileToText(file);
-	} catch {
-		throw error(400, 'Could not read file');
+		({ result: { rows, skippedCount } } = await uploadAndParse(file, account.bankProfileId));
+	} catch (e) {
+		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
 	}
-
-	const { rows, skippedCount } = parseCSV(csvText, profile);
 
 	const preview = rows.slice(0, 5).map((r) => ({
 		date: r.accountingDate.toISOString().split('T')[0],
@@ -40,23 +37,26 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		currency: r.currency
 	}));
 
-	// Derive balance metrics from the running balance column (if the profile provides one)
+	// Derive balance metrics from the running balance column (if the profile provides one).
+	// Use file direction (first vs last date) to identify the chronologically first/last row
+	// without relying on within-day ordering, which date sorting cannot resolve.
 	let openingBalance: number | null = null;
 	let closingBalance: number | null = null;
 	if (rows.length > 0) {
-		const earliest = rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a : b));
-		const latest = rows.reduce((a, b) => (a.accountingDate >= b.accountingDate ? a : b));
-		if (earliest.runningBalance !== null) {
-			openingBalance = earliest.runningBalance - earliest.amount;
+		const direction = detectFileDirection(rows);
+		const firstRow = direction === 'desc' ? rows[rows.length - 1] : rows[0];
+		const lastRow = direction === 'desc' ? rows[0] : rows[rows.length - 1];
+		if (firstRow.runningBalance !== null) {
+			openingBalance = firstRow.runningBalance - firstRow.amount;
 		}
-		if (latest.runningBalance !== null) {
-			closingBalance = latest.runningBalance;
+		if (lastRow.runningBalance !== null) {
+			closingBalance = lastRow.runningBalance;
 		}
 	}
 
 	return json({
 		filename: file.name,
-		profile: profile.bankProfileId,
+		profile: account.bankProfileId,
 		totalParsed: rows.length,
 		skippedCount,
 		preview,

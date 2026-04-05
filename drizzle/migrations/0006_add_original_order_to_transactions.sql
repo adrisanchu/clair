@@ -1,0 +1,1 @@
+ALTER TABLE "core"."transactions" ADD COLUMN "original_order" integer;
