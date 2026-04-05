@@ -230,10 +230,10 @@ export const currencyConversions = coreSchema.table(
 			.references(() => workspaces.id),
 		fromAccountId: text('from_account_id')
 			.notNull()
-			.references(() => bankAccounts.id),
+			.references(() => bankAccounts.id, { onDelete: 'cascade' }),
 		toAccountId: text('to_account_id')
 			.notNull()
-			.references(() => bankAccounts.id),
+			.references(() => bankAccounts.id, { onDelete: 'cascade' }),
 		fromAmount: numeric('from_amount', { precision: 18, scale: 4 }).notNull(),
 		toAmount: numeric('to_amount', { precision: 18, scale: 4 }).notNull(),
 		exchangeRate: numeric('exchange_rate', { precision: 14, scale: 6 }).notNull(),

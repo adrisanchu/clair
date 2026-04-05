@@ -85,6 +85,7 @@ export async function detectAndCreateConversions(
 						eq(bankAccounts.workspaceId, workspaceId),
 						eq(bankAccounts.currency, 'EUR'),
 						sql`${transactions.amount}::numeric < 0`,
+						eq(transactions.isFxCandidate, true),
 						// EUR outgoing must be ≤ FX settlement date, within 3 days
 						sql`${transactions.accountingDate} >= ${toDateStr(subDays(txDate, 3))}::date`,
 						sql`${transactions.accountingDate} <= ${txDateStr}::date`,
@@ -147,7 +148,11 @@ export async function detectAndCreateConversions(
 			})
 			.from(transactions)
 			.where(
-				and(inArray(transactions.id, insertedIds), sql`${transactions.amount}::numeric < 0`)
+				and(
+					inArray(transactions.id, insertedIds),
+					sql`${transactions.amount}::numeric < 0`,
+					eq(transactions.isFxCandidate, true)
+				)
 			);
 
 		for (const eurTx of eurTxs) {
