@@ -3,6 +3,17 @@ import { addDays, subDays } from 'date-fns';
 import { db } from './db/index.js';
 import { bankAccounts, currencyConversions, transactions } from './db/schema.js';
 
+/**
+ * Converts a Date (or Drizzle date result) to a plain `YYYY-MM-DD` string.
+ * When embedded in a `sql` template literal, Drizzle parameterises the value
+ * and the pg driver serialises a JS Date via `.toString()` — which PostgreSQL
+ * cannot cast to `::date`. Passing an ISO date string instead is always safe.
+ */
+function toDateStr(d: unknown): string {
+	const date = d instanceof Date ? d : new Date(d as string);
+	return date.toISOString().split('T')[0];
+}
+
 export interface CurrencyConversionResult {
 	conversionId: string;
 	fromAccountId: string; // EUR source account
@@ -57,6 +68,7 @@ export async function detectAndCreateConversions(
 
 		for (const fxTx of fxTxs) {
 			const txDate = fxTx.accountingDate as unknown as Date;
+			const txDateStr = toDateStr(txDate);
 
 			// Find matching negative EUR transactions in the same workspace (date window: C ≤ T ≤ C+3)
 			const eurCandidates = await db
@@ -80,7 +92,7 @@ export async function detectAndCreateConversions(
 					)
 				)
 				.orderBy(
-					sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDate}::date)))`
+					sql`ABS(EXTRACT(DAY FROM (\${transactions.accountingDate} - \${txDateStr}::date)))`
 				)
 				.limit(5);
 
@@ -140,6 +152,7 @@ export async function detectAndCreateConversions(
 
 		for (const eurTx of eurTxs) {
 			const txDate = eurTx.accountingDate as unknown as Date;
+			const txDateStr = toDateStr(txDate);
 			const eurAbsAmount = Math.abs(parseFloat(eurTx.amount as unknown as string));
 
 			// Find existing unresolved positive FX-candidate transactions on non-EUR accounts
@@ -165,7 +178,7 @@ export async function detectAndCreateConversions(
 					)
 				)
 				.orderBy(
-					sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDate}::date)))`
+					sql`ABS(EXTRACT(DAY FROM (\${transactions.accountingDate} - \${txDateStr}::date)))`
 				)
 				.limit(5);
 

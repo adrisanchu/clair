@@ -54,6 +54,11 @@ export async function detectAndLinkTransfers(
 
 	for (const source of sources) {
 		const sourceDate = source.accountingDate as unknown as Date;
+		// Convert to ISO date string — passing a Date directly into a `sql` template
+		// causes the pg driver to serialise via .toString() which PostgreSQL cannot cast as ::date.
+		const sourceDateStr = (sourceDate instanceof Date ? sourceDate : new Date(sourceDate as unknown as string))
+			.toISOString()
+			.split('T')[0];
 
 		const candidates = await db
 			.select({
@@ -63,7 +68,7 @@ export async function detectAndLinkTransfers(
 				description: transactions.description,
 				bankAccountId: transactions.bankAccountId,
 				daysDiff: sql<number>`ABS(EXTRACT(DAY FROM (
-					${transactions.accountingDate} - ${source.accountingDate}::date
+					${transactions.accountingDate} - ${sourceDateStr}::date
 				)))`
 			})
 			.from(transactions)
@@ -80,7 +85,7 @@ export async function detectAndLinkTransfers(
 				)
 			)
 			.orderBy(
-				sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${source.accountingDate}::date)))`
+				sql`ABS(EXTRACT(DAY FROM (\${transactions.accountingDate} - \${sourceDateStr}::date)))`
 			)
 			.limit(5);
 
