@@ -92,7 +92,7 @@ export async function detectAndCreateConversions(
 					)
 				)
 				.orderBy(
-					sql`ABS(EXTRACT(DAY FROM (\${transactions.accountingDate} - \${txDateStr}::date)))`
+					sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDateStr}::date)))`
 				)
 				.limit(5);
 
@@ -178,7 +178,7 @@ export async function detectAndCreateConversions(
 					)
 				)
 				.orderBy(
-					sql`ABS(EXTRACT(DAY FROM (\${transactions.accountingDate} - \${txDateStr}::date)))`
+					sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDateStr}::date)))`
 				)
 				.limit(5);
 

@@ -90,7 +90,7 @@ export async function detectAndLinkTransfers(
 				)
 			)
 			.orderBy(
-				sql`ABS(EXTRACT(DAY FROM (\${transactions.accountingDate} - \${sourceDateStr}::date)))`
+				sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${sourceDateStr}::date)))`
 			)
 			.limit(5);
 
