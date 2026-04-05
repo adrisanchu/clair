@@ -1,7 +1,12 @@
-import { and, ne, eq, isNull, gte, lte, sql, inArray } from 'drizzle-orm';
+import { and, ne, eq, isNull, sql, inArray } from 'drizzle-orm';
 import { addDays, subDays } from 'date-fns';
 import { db } from './db/index.js';
 import { transactions } from './db/schema.js';
+
+function toDateStr(d: unknown): string {
+	const date = d instanceof Date ? d : new Date(d as string);
+	return date.toISOString().split('T')[0];
+}
 
 export interface TransferCandidate {
 	id: string;
@@ -78,8 +83,8 @@ export async function detectAndLinkTransfers(
 					inArray(transactions.bankAccountId, accessibleAccountIds),
 					sql`ABS(${transactions.amount}::numeric) = ABS(${source.amount}::numeric)`,
 					sql`SIGN(${transactions.amount}::numeric) != SIGN(${source.amount}::numeric)`,
-					gte(transactions.accountingDate, subDays(sourceDate, 3)),
-					lte(transactions.accountingDate, addDays(sourceDate, 3)),
+					sql`${transactions.accountingDate} >= ${toDateStr(subDays(sourceDate, 3))}::date`,
+					sql`${transactions.accountingDate} <= ${toDateStr(addDays(sourceDate, 3))}::date`,
 					isNull(transactions.transferCounterpartId),
 					eq(transactions.isOpeningBalance, false)
 				)

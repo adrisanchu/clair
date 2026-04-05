@@ -1,8 +1,8 @@
 import { error, json } from '@sveltejs/kit';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { authUser, currencyConversions } from '$lib/server/db/schema.js';
+import { authUser, bankAccounts, currencyConversions } from '$lib/server/db/schema.js';
 import { propagateRateToAccount } from '$lib/server/currency-converter.js';
 
 // ─── PATCH /api/conversions/[id] ────────────────────────────────────────────
@@ -25,6 +25,16 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		)
 	});
 	if (!conversion) throw error(404, 'Conversion not found');
+
+	// Verify the user owns at least one of the two linked accounts
+	const ownedAccount = await db.query.bankAccounts.findFirst({
+		where: and(
+			or(eq(bankAccounts.id, conversion.fromAccountId), eq(bankAccounts.id, conversion.toAccountId)),
+			eq(bankAccounts.ownerUserId, locals.user.id)
+		),
+		columns: { id: true }
+	});
+	if (!ownedAccount) throw error(403, 'Forbidden');
 
 	const body = await request.json();
 

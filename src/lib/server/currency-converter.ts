@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNull, lt, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { addDays, subDays } from 'date-fns';
 import { db } from './db/index.js';
 import { bankAccounts, currencyConversions, transactions } from './db/schema.js';
@@ -86,8 +86,8 @@ export async function detectAndCreateConversions(
 						eq(bankAccounts.currency, 'EUR'),
 						sql`${transactions.amount}::numeric < 0`,
 						// EUR outgoing must be ≤ FX settlement date, within 3 days
-						gte(transactions.accountingDate, subDays(txDate, 3)),
-						lte(transactions.accountingDate, txDate),
+						sql`${transactions.accountingDate} >= ${toDateStr(subDays(txDate, 3))}::date`,
+						sql`${transactions.accountingDate} <= ${txDateStr}::date`,
 						isNull(transactions.conversionId)
 					)
 				)
@@ -173,8 +173,8 @@ export async function detectAndCreateConversions(
 						sql`${transactions.amount}::numeric > 0`,
 						eq(transactions.isFxCandidate, true),
 						isNull(transactions.conversionId),
-						gte(transactions.accountingDate, txDate),
-						lte(transactions.accountingDate, addDays(txDate, 3))
+						sql`${transactions.accountingDate} >= ${txDateStr}::date`,
+						sql`${transactions.accountingDate} <= ${toDateStr(addDays(txDate, 3))}::date`
 					)
 				)
 				.orderBy(
@@ -257,13 +257,14 @@ export async function propagateRateToAccount(accountId: string): Promise<number>
 		const rate = parseFloat(conv.exchangeRate as unknown as string);
 		const effectiveFrom = conv.effectiveFrom as unknown as Date;
 
+		const effectiveFromStr = toDateStr(effectiveFrom);
 		const dateRange =
 			nextConv !== undefined
 				? and(
-						gte(transactions.accountingDate, effectiveFrom),
-						lt(transactions.accountingDate, nextConv.effectiveFrom as unknown as Date)
+						sql`${transactions.accountingDate} >= ${effectiveFromStr}::date`,
+						sql`${transactions.accountingDate} < ${toDateStr(nextConv.effectiveFrom as unknown as Date)}::date`
 					)
-				: gte(transactions.accountingDate, effectiveFrom);
+				: sql`${transactions.accountingDate} >= ${effectiveFromStr}::date`;
 
 		const updated = await db
 			.update(transactions)
