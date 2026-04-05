@@ -83,6 +83,8 @@
 	const showingFrom = $derived((currentPage - 1) * data.limit + 1);
 	const showingTo = $derived(Math.min(currentPage * data.limit, data.total));
 
+	const totalBalance = $derived(data.rows.reduce((sum, a) => a.amountEur ? sum + a.amountEur : sum + 0, 0));
+
 	// ── Pagination ─────────────────────────────────────────────────────────────
 
 	function getPaginationPages(cur: number, total: number): (number | '…')[] {
@@ -152,6 +154,11 @@
 				{/each}
 			</div>
 		</div>
+
+		<!-- Main KPIs -->
+	<div class="pt-4 flex items-start gap-4">
+		<Amount value={totalBalance} currency={'EUR'} size="lg" />
+	</div>
 	</div>
 
 	<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
