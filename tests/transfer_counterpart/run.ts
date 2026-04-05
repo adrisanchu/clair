@@ -19,9 +19,7 @@ import type { NormalizedTransaction } from '../../src/lib/server/parsers/types.j
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, 'data');
 
-const { parseXLSX, parseCSV, getProfile } = await import(
-	'../../src/lib/server/parsers/index.js'
-);
+const { parseXLSX, parseCSV, getProfile } = await import('../../src/lib/server/parsers/index.js');
 
 // ── Parse both files ──────────────────────────────────────────────────────────
 
@@ -148,7 +146,9 @@ if (revolutRecargas.length > 0) {
 		const flagged = r.isTransferCandidate ? '✓' : '✗';
 
 		if (counterparts.length > 0) {
-			console.log(`  ${flagged}  ${date}  ${fmt(r.amount).padStart(10)}  ${r.description}  (has bankinter match)`);
+			console.log(
+				`  ${flagged}  ${date}  ${fmt(r.amount).padStart(10)}  ${r.description}  (has bankinter match)`
+			);
 			for (const cp of counterparts) {
 				const cpDate = cp.accountingDate.toISOString().split('T')[0];
 				const diff = daysDiff(r.accountingDate, cp.accountingDate);
@@ -157,7 +157,9 @@ if (revolutRecargas.length > 0) {
 				);
 			}
 		} else {
-			console.log(`  ${flagged}  ${date}  ${fmt(r.amount).padStart(10)}  ${r.description}  (no bankinter match)`);
+			console.log(
+				`  ${flagged}  ${date}  ${fmt(r.amount).padStart(10)}  ${r.description}  (no bankinter match)`
+			);
 		}
 	}
 }
@@ -167,14 +169,20 @@ if (revolutRecargas.length > 0) {
 console.log('\n══════════════════════════════════════════════════════════════════════════════');
 console.log(' SUMMARY');
 console.log('──────────────────────────────────────────────────────────────────────────────');
-console.log(`  Bankinter → Revolut : ${bankinterMatched} matched / ${bankinterUnmatched} unmatched`);
+console.log(
+	`  Bankinter → Revolut : ${bankinterMatched} matched / ${bankinterUnmatched} unmatched`
+);
 console.log(`  Revolut → Bankinter : ${revolutMatched} matched / ${revolutUnmatched} unmatched`);
 if (revolutRecargas.length > 0) {
 	const recargasWithMatch = revolutRecargas.filter(
 		(r) => findCounterparts(r, bankinterRows).length > 0
 	).length;
-	console.log(`  Recargas (matches) : ${recargasWithMatch}/${revolutRecargas.length} have a bankinter counterpart`);
+	console.log(
+		`  Recargas (matches) : ${recargasWithMatch}/${revolutRecargas.length} have a bankinter counterpart`
+	);
 	const recargasFlagged = revolutRecargas.filter((r) => r.isTransferCandidate).length;
-	console.log(`  Recargas flagged   : ${recargasFlagged}/${revolutRecargas.length} are isTransferCandidate`);
+	console.log(
+		`  Recargas flagged   : ${recargasFlagged}/${revolutRecargas.length} are isTransferCandidate`
+	);
 }
 console.log();

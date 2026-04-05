@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { CheckCircle2, AlertCircle, Upload, ArrowRight, ArrowLeftRight, Link } from '@lucide/svelte';
+	import {
+		CheckCircle2,
+		AlertCircle,
+		Upload,
+		ArrowRight,
+		ArrowLeftRight,
+		Link
+	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import Amount from '$lib/components/Amount.svelte';
@@ -418,157 +425,185 @@
 					{/if}
 				</div>
 
-				<!-- Conversion confirmation cards -->
-				{#if importResult.detectedConversions?.length > 0}
-					<div class="mt-4 w-full space-y-2">
-						{#each importResult.detectedConversions as conv (conv.conversionId)}
-							<div class="rounded-lg border border-primary-200 bg-primary-50 p-4 text-left">
-								<div class="mb-3 flex items-center gap-2">
-									<ArrowLeftRight size={14} class="text-primary-500" />
-									<span class="text-xs font-semibold text-primary-700">Conversion detected</span>
-								</div>
-								<!-- From row -->
-								<div class="flex items-center justify-between gap-2">
-									<div class="min-w-0">
-										<p
-											class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
-										>
-											{conv.fromAccountName}
-										</p>
-										<p class="truncate text-xs text-text-secondary">
-											{conv.fromTransactionDescription}
-										</p>
+				<div class="max-h-[45vh] w-full overflow-y-auto">
+					<!-- Conversion confirmation cards -->
+					{#if importResult.detectedConversions?.length > 0}
+						<div class="mt-2 w-full space-y-2">
+							{#each importResult.detectedConversions as conv (conv.conversionId)}
+								<div class="rounded-lg border border-primary-200 bg-primary-50 p-4 text-left">
+									<div class="mb-3 flex items-center gap-2">
+										<ArrowLeftRight size={14} class="text-primary-500" />
+										<span class="text-xs font-semibold text-primary-700">Conversion detected</span>
 									</div>
-									<Amount value={-conv.fromAmount} currency="EUR" size="sm" />
-								</div>
-								<!-- Arrow -->
-								<div class="my-1.5 flex items-center gap-1.5 text-text-tertiary">
-									<div class="h-px flex-1 bg-primary-200"></div>
-									<ArrowRight size={12} class="text-primary-400" />
-									<div class="h-px flex-1 bg-primary-200"></div>
-								</div>
-								<!-- To row -->
-								<div class="flex items-center justify-between gap-2">
-									<div class="min-w-0">
-										<p
-											class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
-										>
-											{conv.toAccountName}
-										</p>
-										<p class="truncate text-xs text-text-secondary">
-											{conv.toTransactionDescription}
-										</p>
+									<!-- From row -->
+									<div class="flex items-center justify-between gap-2">
+										<div class="min-w-0">
+											<p
+												class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+											>
+												{conv.fromAccountName}
+											</p>
+											<p class="truncate text-xs text-text-secondary">
+												{conv.fromTransactionDescription}
+											</p>
+										</div>
+										<Amount value={-conv.fromAmount} currency="EUR" size="sm" />
 									</div>
-									<Amount value={conv.toAmount} {currency} size="sm" />
-								</div>
-								<!-- Rate footer -->
-								<div
-									class="mt-3 flex items-center justify-between border-t border-primary-200 pt-2.5 text-xs text-text-secondary"
-								>
-									<span>
-										Rate: <span class="font-mono font-semibold text-text-primary">
-											{conv.exchangeRate.toFixed(4)}
-											{currency} / EUR
-										</span>
-									</span>
-									<span class="text-text-tertiary"
-										>Applies to {conv.affectedTxCount} transactions</span
+									<!-- Arrow -->
+									<div class="my-1.5 flex items-center gap-1.5 text-text-tertiary">
+										<div class="h-px flex-1 bg-primary-200"></div>
+										<ArrowRight size={12} class="text-primary-400" />
+										<div class="h-px flex-1 bg-primary-200"></div>
+									</div>
+									<!-- To row -->
+									<div class="flex items-center justify-between gap-2">
+										<div class="min-w-0">
+											<p
+												class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+											>
+												{conv.toAccountName}
+											</p>
+											<p class="truncate text-xs text-text-secondary">
+												{conv.toTransactionDescription}
+											</p>
+										</div>
+										<Amount value={conv.toAmount} {currency} size="sm" />
+									</div>
+									<!-- Rate footer -->
+									<div
+										class="mt-3 flex items-center justify-between border-t border-primary-200 pt-2.5 text-xs text-text-secondary"
 									>
-								</div>
-							</div>
-						{/each}
-					</div>
-				{/if}
-
-			<!-- Transfer linking section -->
-			{#if importResult.unresolvedTransfers?.length > 0}
-				<div class="my-4 w-full space-y-2 overflow-y-auto" style:max-height="min(40vh, 400px)">
-					{#each importResult.unresolvedTransfers as match (match.sourceId)}
-						{@const decision = transferDecisions[match.sourceId] ?? null}
-						{@const isLinking = transferLinking[match.sourceId] ?? false}
-
-						{#if match.candidateId !== null}
-							<!-- Auto-linked -->
-							<div class="flex items-center gap-2 rounded-lg border border-border bg-surface-sunken px-3 py-2.5">
-								<Link size={13} class="shrink-0 text-success-600" />
-								<div class="min-w-0 flex-1">
-									<p class="text-xs font-medium text-text-primary">Transfer linked automatically</p>
-									<p class="truncate text-[11px] text-text-secondary">
-										{match.sourceAccountName} · {match.sourceDescription}
-										<span class="text-text-tertiary">→</span>
-										{match.candidates[0]?.accountName} · {match.candidates[0]?.description}
-									</p>
-								</div>
-							</div>
-						{:else if decision === 'linked'}
-							<!-- Just linked by user -->
-							<div class="flex items-center gap-2 rounded-lg border border-success-200 bg-success-50 px-3 py-2.5">
-								<CheckCircle2 size={13} class="shrink-0 text-success-600" />
-								<p class="text-xs font-medium text-success-700">Transfer linked</p>
-							</div>
-						{:else if decision === 'skipped'}
-							<!-- Dismissed -->
-							<div class="flex items-center gap-2 rounded-lg border border-border bg-surface-sunken px-3 py-2.5 opacity-50">
-								<p class="text-xs text-text-tertiary">Skipped — link manually from the transactions page</p>
-							</div>
-						{:else if match.candidates.length === 0}
-							<!-- No counterpart found -->
-							<div class="rounded-lg border border-border bg-surface-sunken p-3 text-left">
-								<div class="flex items-center justify-between gap-2">
-									<p class="truncate text-xs font-medium text-text-primary">{match.sourceAccountName} · {match.sourceDescription}</p>
-									<Amount value={match.sourceAmount} currency="EUR" size="sm" />
-								</div>
-								<div class="mt-1.5 flex items-center justify-between gap-2">
-									<p class="text-[11px] text-text-tertiary">No matching transfer found</p>
-									<button
-										class="text-[11px] text-text-tertiary underline underline-offset-2 hover:text-text-secondary"
-										onclick={() => (transferDecisions[match.sourceId] = 'skipped')}
-									>Skip</button>
-								</div>
-							</div>
-						{:else}
-							<!-- Multiple candidates — needs user choice -->
-							<div class="rounded-lg border border-border p-3 text-left">
-								<div class="mb-2 flex items-center gap-2">
-									<ArrowLeftRight size={13} class="text-text-tertiary" />
-									<div class="min-w-0">
-										<p class="text-xs font-semibold text-text-primary">{match.sourceAccountName}</p>
-										<p class="truncate text-[11px] text-text-secondary">{match.sourceDescription}</p>
-									</div>
-									<Amount value={match.sourceAmount} currency="EUR" size="sm" />
-								</div>
-								<p class="mb-1.5 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">
-									Match with
-								</p>
-								<div class="space-y-1">
-									{#each match.candidates as candidate (candidate.id)}
-										<button
-											class="flex w-full items-center justify-between gap-2 rounded-md border border-border px-2.5 py-2 text-left transition-colors hover:border-primary-300 hover:bg-primary-50 disabled:opacity-50"
-											disabled={isLinking}
-											onclick={() => linkTransfer(match.sourceId, candidate.id)}
+										<span>
+											Rate: <span class="font-mono font-semibold text-text-primary">
+												{conv.exchangeRate.toFixed(4)}
+												{currency} / EUR
+											</span>
+										</span>
+										<span class="text-text-tertiary"
+											>Applies to {conv.affectedTxCount} transactions</span
 										>
-											<div class="min-w-0">
-												<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">{candidate.accountName}</p>
-												<p class="truncate text-xs text-text-primary">{candidate.description}</p>
-												{#if candidate.daysDiff > 0}
-													<p class="text-[10px] text-text-tertiary">{candidate.daysDiff}d apart</p>
-												{/if}
-											</div>
-											<Amount value={candidate.amount} currency="EUR" size="sm" />
-										</button>
-									{/each}
+									</div>
 								</div>
-								<button
-									class="mt-2 text-[11px] text-text-tertiary underline underline-offset-2 hover:text-text-secondary"
-									onclick={() => (transferDecisions[match.sourceId] = 'skipped')}
-								>
-									Skip for now
-								</button>
-							</div>
-						{/if}
-					{/each}
+							{/each}
+						</div>
+					{/if}
+
+					<!-- Transfer linking section -->
+					{#if importResult.unresolvedTransfers?.length > 0}
+						<div class="mt-4 w-full space-y-2">
+							{#each importResult.unresolvedTransfers as match (match.sourceId)}
+								{@const decision = transferDecisions[match.sourceId] ?? null}
+								{@const isLinking = transferLinking[match.sourceId] ?? false}
+
+								{#if match.candidateId !== null}
+									<!-- Auto-linked -->
+									<div
+										class="flex items-center gap-2 rounded-lg border border-border bg-surface-sunken px-3 py-2.5"
+									>
+										<Link size={13} class="shrink-0 text-success-600" />
+										<div class="min-w-0 flex-1">
+											<p class="text-xs font-medium text-text-primary">
+												Transfer linked automatically
+											</p>
+											<p class="truncate text-[11px] text-text-secondary">
+												{match.sourceAccountName} · {match.sourceDescription}
+												<span class="text-text-tertiary">→</span>
+												{match.candidates[0]?.accountName} · {match.candidates[0]?.description}
+											</p>
+										</div>
+									</div>
+								{:else if decision === 'linked'}
+									<!-- Just linked by user -->
+									<div
+										class="border-success-200 flex items-center gap-2 rounded-lg border bg-success-50 px-3 py-2.5"
+									>
+										<CheckCircle2 size={13} class="shrink-0 text-success-600" />
+										<p class="text-xs font-medium text-success-700">Transfer linked</p>
+									</div>
+								{:else if decision === 'skipped'}
+									<!-- Dismissed -->
+									<div
+										class="flex items-center gap-2 rounded-lg border border-border bg-surface-sunken px-3 py-2.5 opacity-50"
+									>
+										<p class="text-xs text-text-tertiary">
+											Skipped — link manually from the transactions page
+										</p>
+									</div>
+								{:else if match.candidates.length === 0}
+									<!-- No counterpart found -->
+									<div class="rounded-lg border border-border bg-surface-sunken p-3 text-left">
+										<div class="flex items-center justify-between gap-2">
+											<p class="truncate text-xs font-medium text-text-primary">
+												{match.sourceAccountName} · {match.sourceDescription}
+											</p>
+											<Amount value={match.sourceAmount} currency="EUR" size="sm" />
+										</div>
+										<div class="mt-1.5 flex items-center justify-between gap-2">
+											<p class="text-[11px] text-text-tertiary">No matching transfer found</p>
+											<button
+												class="text-[11px] text-text-tertiary underline underline-offset-2 hover:text-text-secondary"
+												onclick={() => (transferDecisions[match.sourceId] = 'skipped')}>Skip</button
+											>
+										</div>
+									</div>
+								{:else}
+									<!-- Multiple candidates — needs user choice -->
+									<div class="rounded-lg border border-border p-3 text-left">
+										<div class="mb-2 flex items-center gap-2">
+											<ArrowLeftRight size={13} class="text-text-tertiary" />
+											<div class="min-w-0">
+												<p class="text-xs font-semibold text-text-primary">
+													{match.sourceAccountName}
+												</p>
+												<p class="truncate text-[11px] text-text-secondary">
+													{match.sourceDescription}
+												</p>
+											</div>
+											<Amount value={match.sourceAmount} currency="EUR" size="sm" />
+										</div>
+										<p
+											class="mb-1.5 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+										>
+											Match with
+										</p>
+										<div class="space-y-1">
+											{#each match.candidates as candidate (candidate.id)}
+												<button
+													class="flex w-full items-center justify-between gap-2 rounded-md border border-border px-2.5 py-2 text-left transition-colors hover:border-primary-300 hover:bg-primary-50 disabled:opacity-50"
+													disabled={isLinking}
+													onclick={() => linkTransfer(match.sourceId, candidate.id)}
+												>
+													<div class="min-w-0">
+														<p
+															class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+														>
+															{candidate.accountName}
+														</p>
+														<p class="truncate text-xs text-text-primary">
+															{candidate.description}
+														</p>
+														{#if candidate.daysDiff > 0}
+															<p class="text-[10px] text-text-tertiary">
+																{candidate.daysDiff}d apart
+															</p>
+														{/if}
+													</div>
+													<Amount value={candidate.amount} currency="EUR" size="sm" />
+												</button>
+											{/each}
+										</div>
+										<button
+											class="mt-2 text-[11px] text-text-tertiary underline underline-offset-2 hover:text-text-secondary"
+											onclick={() => (transferDecisions[match.sourceId] = 'skipped')}
+										>
+											Skip for now
+										</button>
+									</div>
+								{/if}
+							{/each}
+						</div>
+					{/if}
 				</div>
-			{/if}
 			</div>
 		{/if}
 
