@@ -6,7 +6,10 @@ import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { getAllProfiles } from '$lib/server/parsers/index.js';
 
+import { CURRENCY_CODES } from '$lib/currencies.js';
+
 const VALID_PROFILE_IDS = new Set(getAllProfiles().map((p) => p.bankProfileId));
+const VALID_CURRENCIES = new Set(CURRENCY_CODES);
 
 // ─── GET /api/accounts ────────────────────────────────────────────────────────
 // Returns all accounts accessible to the current user (owned + shared),
@@ -69,6 +72,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		throw error(400, `Unknown bankProfileId: ${bankProfileId}`);
 	if (!ibanLast4?.trim()) throw error(400, 'ibanLast4 is required');
 	if (!/^\d{4}$/.test(ibanLast4.trim())) throw error(400, 'ibanLast4 must be exactly 4 digits');
+	if (!VALID_CURRENCIES.has(currency)) throw error(400, `Unsupported currency: ${currency}`);
 
 	const profile = getAllProfiles().find((p) => p.bankProfileId === bankProfileId)!;
 
