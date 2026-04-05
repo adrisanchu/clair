@@ -74,7 +74,9 @@ export async function detectAndLinkTransfers(
 		const sourceDate = source.accountingDate as unknown as Date;
 		// Convert to ISO date string — passing a Date directly into a `sql` template
 		// causes the pg driver to serialise via .toString() which PostgreSQL cannot cast as ::date.
-		const sourceDateStr = (sourceDate instanceof Date ? sourceDate : new Date(sourceDate as unknown as string))
+		const sourceDateStr = (
+			sourceDate instanceof Date ? sourceDate : new Date(sourceDate as unknown as string)
+		)
 			.toISOString()
 			.split('T')[0];
 

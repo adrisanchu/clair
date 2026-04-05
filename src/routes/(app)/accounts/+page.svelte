@@ -47,8 +47,8 @@
 						<div class="min-w-0">
 							<p class="text-sm font-medium text-amber-800">
 								{fx.unresolvedCount}
-								{fx.unresolvedCount === 1 ? 'transaction' : 'transactions'} in {fx.accountName} have
-								no EUR rate.
+								{fx.unresolvedCount === 1 ? 'transaction' : 'transactions'} in {fx.accountName} have no
+								EUR rate.
 							</p>
 							<p class="mt-0.5 text-xs text-amber-700">
 								Upload the matching EUR export or enter a conversion rate manually.
