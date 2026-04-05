@@ -31,6 +31,12 @@ export const transactionStatusEnum = pgEnum('transaction_status', ['pending', 'p
 
 export const syncSourceEnum = pgEnum('sync_source', ['csv_upload', 'cron', 'manual']);
 
+export const conversionConfidenceEnum = pgEnum('conversion_confidence', [
+	'auto',
+	'confirmed',
+	'manual'
+]);
+
 // ─── Workspaces ────────────────────────────────────────────────────────────
 
 export const workspaces = coreSchema.table('workspaces', {
@@ -155,6 +161,14 @@ export const transactions = coreSchema.table(
 		transferLinkedById: text('transfer_linked_by_id'),
 		transferLinkedAt: timestamp('transfer_linked_at'),
 
+		// FX — populated at import time from the bank CSV type column
+		// true for rows that represent a currency exchange (e.g. Revolut 'Cambio')
+		isFxCandidate: boolean('is_fx_candidate').default(false).notNull(),
+		// conversionId → core.currency_conversions.id; null until a conversion is matched
+		conversionId: text('conversion_id'),
+		// Locked exchange rate used to compute amountEur (foreign-currency / EUR)
+		exchangeRate: numeric('exchange_rate', { precision: 14, scale: 6 }),
+
 		// Expense split — null means 100% mine; 0.5 means I pay half, etc.
 		// Used for dashboard "effective expense" calculation without a full Splitwise model.
 		myPortion: numeric('my_portion', { precision: 4, scale: 3 }),
@@ -173,7 +187,8 @@ export const transactions = coreSchema.table(
 	(t) => [
 		uniqueIndex('transactions_dedup_idx').on(t.bankAccountId, t.externalId),
 		index('transactions_accounting_date_idx').on(t.bankAccountId, t.accountingDate),
-		index('transactions_transfer_idx').on(t.transferCounterpartId)
+		index('transactions_transfer_idx').on(t.transferCounterpartId),
+		index('transactions_conversion_idx').on(t.conversionId)
 	]
 );
 
@@ -196,6 +211,39 @@ export const transactionOverrides = coreSchema.table(
 		updatedAt: timestamp('updated_at').defaultNow().notNull()
 	},
 	(t) => [uniqueIndex('tx_override_user_idx').on(t.transactionId, t.userId)]
+);
+
+// ─── Currency conversions ───────────────────────────────────────────────────
+// Records each cross-currency funding event (e.g. EUR → SEK top-up).
+// Used as the source of truth for exchange rates applied to foreign-currency
+// transactions. Each conversion covers all transactions on `toAccount` from
+// `effectiveFrom` up to the next conversion's `effectiveFrom`.
+
+export const currencyConversions = coreSchema.table(
+	'currency_conversions',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspaces.id),
+		fromAccountId: text('from_account_id')
+			.notNull()
+			.references(() => bankAccounts.id, { onDelete: 'cascade' }),
+		toAccountId: text('to_account_id')
+			.notNull()
+			.references(() => bankAccounts.id, { onDelete: 'cascade' }),
+		fromAmount: numeric('from_amount', { precision: 18, scale: 4 }).notNull(),
+		toAmount: numeric('to_amount', { precision: 18, scale: 4 }).notNull(),
+		exchangeRate: numeric('exchange_rate', { precision: 14, scale: 6 }).notNull(),
+		effectiveFrom: timestamp('effective_from').notNull(),
+		confidence: conversionConfidenceEnum('confidence').notNull().default('auto'),
+		fromTransactionId: text('from_transaction_id'),
+		toTransactionId: text('to_transaction_id'),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('currency_conversions_to_account_idx').on(t.toAccountId, t.effectiveFrom)]
 );
 
 // ─── Categories ────────────────────────────────────────────────────────────
@@ -237,14 +285,17 @@ export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
 	bankAccounts: many(bankAccounts),
 	categories: many(categories),
 	csvColumnMappings: many(csvColumnMappings),
-	invites: many(invites)
+	invites: many(invites),
+	currencyConversions: many(currencyConversions)
 }));
 
 export const bankAccountsRelations = relations(bankAccounts, ({ one, many }) => ({
 	owner: one(authUser, { fields: [bankAccounts.ownerUserId], references: [authUser.id] }),
 	workspace: one(workspaces, { fields: [bankAccounts.workspaceId], references: [workspaces.id] }),
 	transactions: many(transactions),
-	csvUploads: many(csvUploads)
+	csvUploads: many(csvUploads),
+	conversionsFrom: many(currencyConversions, { relationName: 'ConversionFromAccount' }),
+	conversionsTo: many(currencyConversions, { relationName: 'ConversionToAccount' })
 }));
 
 export const csvUploadsRelations = relations(csvUploads, ({ one, many }) => ({
@@ -291,6 +342,23 @@ export const csvColumnMappingsRelations = relations(csvColumnMappings, ({ one })
 	workspace: one(workspaces, {
 		fields: [csvColumnMappings.workspaceId],
 		references: [workspaces.id]
+	})
+}));
+
+export const currencyConversionsRelations = relations(currencyConversions, ({ one }) => ({
+	workspace: one(workspaces, {
+		fields: [currencyConversions.workspaceId],
+		references: [workspaces.id]
+	}),
+	fromAccount: one(bankAccounts, {
+		fields: [currencyConversions.fromAccountId],
+		references: [bankAccounts.id],
+		relationName: 'ConversionFromAccount'
+	}),
+	toAccount: one(bankAccounts, {
+		fields: [currencyConversions.toAccountId],
+		references: [bankAccounts.id],
+		relationName: 'ConversionToAccount'
 	})
 }));
 

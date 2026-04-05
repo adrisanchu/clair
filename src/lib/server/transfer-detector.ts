@@ -1,7 +1,12 @@
-import { and, ne, eq, isNull, gte, lte, sql, inArray } from 'drizzle-orm';
+import { and, ne, eq, isNull, sql, inArray } from 'drizzle-orm';
 import { addDays, subDays } from 'date-fns';
 import { db } from './db/index.js';
 import { transactions } from './db/schema.js';
+
+function toDateStr(d: unknown): string {
+	const date = d instanceof Date ? d : new Date(d as string);
+	return date.toISOString().split('T')[0];
+}
 
 export interface TransferCandidate {
 	id: string;
@@ -54,6 +59,11 @@ export async function detectAndLinkTransfers(
 
 	for (const source of sources) {
 		const sourceDate = source.accountingDate as unknown as Date;
+		// Convert to ISO date string — passing a Date directly into a `sql` template
+		// causes the pg driver to serialise via .toString() which PostgreSQL cannot cast as ::date.
+		const sourceDateStr = (sourceDate instanceof Date ? sourceDate : new Date(sourceDate as unknown as string))
+			.toISOString()
+			.split('T')[0];
 
 		const candidates = await db
 			.select({
@@ -63,7 +73,7 @@ export async function detectAndLinkTransfers(
 				description: transactions.description,
 				bankAccountId: transactions.bankAccountId,
 				daysDiff: sql<number>`ABS(EXTRACT(DAY FROM (
-					${transactions.accountingDate} - ${source.accountingDate}::date
+					${transactions.accountingDate} - ${sourceDateStr}::date
 				)))`
 			})
 			.from(transactions)
@@ -73,14 +83,14 @@ export async function detectAndLinkTransfers(
 					inArray(transactions.bankAccountId, accessibleAccountIds),
 					sql`ABS(${transactions.amount}::numeric) = ABS(${source.amount}::numeric)`,
 					sql`SIGN(${transactions.amount}::numeric) != SIGN(${source.amount}::numeric)`,
-					gte(transactions.accountingDate, subDays(sourceDate, 3)),
-					lte(transactions.accountingDate, addDays(sourceDate, 3)),
+					sql`${transactions.accountingDate} >= ${toDateStr(subDays(sourceDate, 3))}::date`,
+					sql`${transactions.accountingDate} <= ${toDateStr(addDays(sourceDate, 3))}::date`,
 					isNull(transactions.transferCounterpartId),
 					eq(transactions.isOpeningBalance, false)
 				)
 			)
 			.orderBy(
-				sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${source.accountingDate}::date)))`
+				sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${sourceDateStr}::date)))`
 			)
 			.limit(5);
 

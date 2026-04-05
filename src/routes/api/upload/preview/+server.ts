@@ -4,6 +4,7 @@ import { getProfile, detectProfile, parseCSV, fileToText } from '$lib/server/par
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user) throw error(401, 'Unauthorized');
+	if (!locals.user.workspaceId) throw error(403, 'No workspace');
 
 	const form = await request.formData();
 	const file = form.get('file');

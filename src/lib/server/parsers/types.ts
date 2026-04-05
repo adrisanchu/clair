@@ -17,6 +17,7 @@ export interface BankParserProfile {
 	statusColumn: string | null; // e.g. 'COMPLETADO'/'PENDIENTE'
 	typeColumn: string | null; // raw transaction type (e.g. Revolut 'Tipo')
 	transferTypes: string[]; // typeColumn values that flag a row as a transfer candidate
+	fxCandidateTypes: string[]; // typeColumn values that flag a row as a currency exchange candidate
 }
 
 export interface NormalizedTransaction {
@@ -31,6 +32,7 @@ export interface NormalizedTransaction {
 	status: 'pending' | 'posted';
 	rawType: string | null; // original type string from CSV
 	isTransferCandidate: boolean; // derived from rawType + profile.transferTypes
+	isFxCandidate: boolean; // derived from rawType + profile.fxCandidateTypes
 }
 
 export type DedupAction = 'insert' | 'update_status' | 'update_desc' | 'skip' | 'review';

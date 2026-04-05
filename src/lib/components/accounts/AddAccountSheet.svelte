@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
+	import { CURRENCIES } from '$lib/currencies.js';
 
 	interface Profile {
 		id: string;
@@ -21,6 +22,7 @@
 	let displayName = $state('');
 	let bankProfileId = $state(profiles[0]?.id ?? '');
 	let ibanLast4 = $state('');
+	let currency = $state('EUR');
 	let submitting = $state(false);
 	let fieldError = $state<string | null>(null);
 
@@ -28,6 +30,7 @@
 		displayName = '';
 		bankProfileId = profiles[0]?.id ?? '';
 		ibanLast4 = '';
+		currency = 'EUR';
 		fieldError = null;
 	}
 
@@ -45,7 +48,7 @@
 			const res = await fetch('/api/accounts', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ displayName, bankProfileId, ibanLast4: ibanLast4.trim() })
+				body: JSON.stringify({ displayName, bankProfileId, ibanLast4: ibanLast4.trim(), currency })
 			});
 
 			if (!res.ok) {
@@ -107,6 +110,27 @@
 				</select>
 				<p class="text-xs text-text-tertiary">
 					This sets the CSV format used when you upload statements.
+				</p>
+			</div>
+
+			<!-- Currency -->
+			<div class="grid gap-1.5">
+				<Label for="currency">Primary currency</Label>
+				<select
+					id="currency"
+					bind:value={currency}
+					disabled={submitting}
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs
+					       transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none
+					       disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					{#each CURRENCIES as c (c.code)}
+						<option value={c.code}>{c.label}</option>
+					{/each}
+				</select>
+				<p class="text-xs text-text-tertiary">
+					The currency this account operates in. Non-EUR accounts will need a conversion rate for
+					EUR reporting.
 				</p>
 			</div>
 

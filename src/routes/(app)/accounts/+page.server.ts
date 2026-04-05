@@ -1,13 +1,19 @@
 import { error } from '@sveltejs/kit';
-import { and, count, eq, inArray, isNull, max } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
+import { authUser, bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { getAllProfiles } from '$lib/server/parsers/index.js';
+import { getUnresolvedFxAccounts } from '$lib/server/currency-converter.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) error(401);
+
+	const user = await db.query.authUser.findFirst({
+		where: eq(authUser.id, locals.user.id),
+		columns: { workspaceId: true }
+	});
 
 	const accessibleIds = await getAccessibleAccountIds(locals.user.id);
 
@@ -28,7 +34,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 						ownerUserId: bankAccounts.ownerUserId,
 						createdAt: bankAccounts.createdAt,
 						txCount: count(transactions.id),
-						lastUploadedAt: max(csvUploads.uploadedAt)
+						lastUploadedAt: sql<Date | null>`(SELECT MAX(${csvUploads.uploadedAt}) FROM ${csvUploads} WHERE ${csvUploads.bankAccountId} = ${bankAccounts.id})`
 					})
 					.from(bankAccounts)
 					.leftJoin(
@@ -38,10 +44,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 							eq(transactions.isOpeningBalance, false)
 						)
 					)
-					.leftJoin(csvUploads, eq(csvUploads.bankAccountId, bankAccounts.id))
 					.where(and(inArray(bankAccounts.id, accessibleIds), isNull(bankAccounts.deletedAt)))
 					.groupBy(bankAccounts.id)
 					.orderBy(bankAccounts.createdAt);
+
+	const unresolvedFx = user?.workspaceId
+		? await getUnresolvedFxAccounts(user.workspaceId)
+		: [];
 
 	return {
 		accounts: accounts.map((a) => ({
@@ -52,6 +61,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		profiles: getAllProfiles().map((p) => ({
 			id: p.bankProfileId,
 			displayName: p.displayName
-		}))
+		})),
+		unresolvedFx
 	};
 };

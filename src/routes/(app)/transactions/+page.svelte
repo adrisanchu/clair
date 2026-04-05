@@ -11,7 +11,8 @@
 		AlertTriangle,
 		ChevronLeft,
 		ChevronRight,
-		Info
+		Info,
+		CircleAlert
 	} from '@lucide/svelte';
 	import Amount from '$lib/components/Amount.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
@@ -392,6 +393,18 @@
 								<!-- Amount -->
 								<td class="px-2 py-3 text-right md:px-4">
 									<Amount value={tx.amount} currency={tx.currency} size="sm" />
+									{#if tx.currency !== 'EUR'}
+										{#if tx.amountEur != null}
+											<div class="mt-0.5 font-mono text-[11px] tabular-nums text-text-tertiary">
+												<Amount value={tx.amountEur} currency="EUR" size="sm" colorize={false} />
+											</div>
+										{:else}
+											<div class="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-amber-500">
+												<CircleAlert size={10} />
+												<span class="font-mono">— EUR</span>
+											</div>
+										{/if}
+									{/if}
 								</td>
 							</tr>
 						{/if}

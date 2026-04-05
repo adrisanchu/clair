@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { and, count, eq, gte, inArray, isNull, max, sum } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, isNull, sql, sum } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
@@ -44,7 +44,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				status: bankAccounts.status,
 				ownerUserId: bankAccounts.ownerUserId,
 				txCount: count(transactions.id),
-				lastUploadedAt: max(csvUploads.uploadedAt)
+				lastUploadedAt: sql<Date | null>`(SELECT MAX(${csvUploads.uploadedAt}) FROM ${csvUploads} WHERE ${csvUploads.bankAccountId} = ${bankAccounts.id})`
 			})
 			.from(bankAccounts)
 			.leftJoin(
@@ -54,7 +54,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 					eq(transactions.isOpeningBalance, false)
 				)
 			)
-			.leftJoin(csvUploads, eq(csvUploads.bankAccountId, bankAccounts.id))
 			.where(and(inArray(bankAccounts.id, accessibleIds), isNull(bankAccounts.deletedAt)))
 			.groupBy(bankAccounts.id)
 			.orderBy(bankAccounts.createdAt),

@@ -21,8 +21,10 @@ export const revolut_eu: BankParserProfile = {
 	statusColumn: 'State',
 	typeColumn: 'Tipo',
 	// Only 'Transferir' rows are inter-account transfer candidates.
-	// 'Cambio' (currency exchange) is intentionally excluded.
-	transferTypes: ['Transferir']
+	// 'Cambio' (currency exchange) is intentionally excluded from same-currency transfer matching.
+	transferTypes: ['Transferir'],
+	// 'Cambio' marks a cross-currency exchange (e.g. EUR → SEK top-up).
+	fxCandidateTypes: ['Cambio']
 };
 
 /**

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { CheckCircle2, AlertCircle, Upload, ArrowRight } from '@lucide/svelte';
+	import { CheckCircle2, AlertCircle, Upload, ArrowRight, ArrowLeftRight } from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import Amount from '$lib/components/Amount.svelte';
@@ -40,11 +40,26 @@
 		closingBalance: number | null;
 	};
 
+	type DetectedConversion = {
+		conversionId: string;
+		fromAmount: number;
+		toAmount: number;
+		exchangeRate: number;
+		effectiveFrom: string;
+		affectedTxCount: number;
+		confidence: 'auto';
+		fromAccountName: string;
+		fromTransactionDescription: string;
+		toAccountName: string;
+		toTransactionDescription: string;
+	};
+
 	type ImportResult = {
 		imported: number;
 		flagged: number;
 		statusUpdates: number;
 		duplicates: number;
+		detectedConversions: DetectedConversion[];
 	};
 
 	let preview = $state<PreviewData | null>(null);
@@ -356,6 +371,51 @@
 						</div>
 					{/if}
 				</div>
+
+				<!-- Conversion confirmation cards -->
+				{#if importResult.detectedConversions?.length > 0}
+					<div class="mt-4 w-full space-y-2">
+						{#each importResult.detectedConversions as conv (conv.conversionId)}
+							<div class="rounded-lg border border-primary-200 bg-primary-50 p-4 text-left">
+								<div class="mb-3 flex items-center gap-2">
+									<ArrowLeftRight size={14} class="text-primary-500" />
+									<span class="text-xs font-semibold text-primary-700">Conversion detected</span>
+								</div>
+								<!-- From row -->
+								<div class="flex items-center justify-between gap-2">
+									<div class="min-w-0">
+										<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">{conv.fromAccountName}</p>
+										<p class="truncate text-xs text-text-secondary">{conv.fromTransactionDescription}</p>
+									</div>
+									<Amount value={-conv.fromAmount} currency="EUR" size="sm" />
+								</div>
+								<!-- Arrow -->
+								<div class="my-1.5 flex items-center gap-1.5 text-text-tertiary">
+									<div class="h-px flex-1 bg-primary-200"></div>
+									<ArrowRight size={12} class="text-primary-400" />
+									<div class="h-px flex-1 bg-primary-200"></div>
+								</div>
+								<!-- To row -->
+								<div class="flex items-center justify-between gap-2">
+									<div class="min-w-0">
+										<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">{conv.toAccountName}</p>
+										<p class="truncate text-xs text-text-secondary">{conv.toTransactionDescription}</p>
+									</div>
+									<Amount value={conv.toAmount} currency={currency} size="sm" />
+								</div>
+								<!-- Rate footer -->
+								<div class="mt-3 flex items-center justify-between border-t border-primary-200 pt-2.5 text-xs text-text-secondary">
+									<span>
+										Rate: <span class="font-mono font-semibold text-text-primary">
+											{conv.exchangeRate.toFixed(4)} {currency} / EUR
+										</span>
+									</span>
+									<span class="text-text-tertiary">Applies to {conv.affectedTxCount} transactions</span>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		{/if}
 

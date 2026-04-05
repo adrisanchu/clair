@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { Plus, Landmark } from '@lucide/svelte';
+	import { AlertTriangle, Plus, Landmark } from '@lucide/svelte';
+	import ResolveFxDialog from '$lib/components/accounts/ResolveFxDialog.svelte';
 	import AddAccountSheet from '$lib/components/accounts/AddAccountSheet.svelte';
 	import BankCard from '$lib/components/accounts/BankCard.svelte';
 	import UploadCsvDialog from '$lib/components/accounts/UploadCsvDialog.svelte';
@@ -13,6 +14,7 @@
 	let uploadOpen = $state(false);
 	let uploadAccount = $state<(typeof data.accounts)[0] | null>(null);
 	let deletingId = $state<string | null>(null);
+	let resolveFxAccount = $state<(typeof data.unresolvedFx)[0] | null>(null);
 
 	async function handleRename(id: string, newName: string) {
 		await fetch(`/api/accounts/${id}`, {
@@ -33,6 +35,37 @@
 </script>
 
 <div class="max-w-5xl px-4 py-6 md:px-8 md:py-8">
+	<!-- Unresolved FX banner -->
+	{#if data.unresolvedFx.length > 0}
+		<div class="mb-6 space-y-2">
+			{#each data.unresolvedFx as fx}
+				<div
+					class="flex items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3"
+				>
+					<div class="flex items-start gap-3">
+						<AlertTriangle size={16} class="mt-0.5 shrink-0 text-amber-500" />
+						<div class="min-w-0">
+							<p class="text-sm font-medium text-amber-800">
+								{fx.unresolvedCount}
+								{fx.unresolvedCount === 1 ? 'transaction' : 'transactions'} in {fx.accountName} have
+								no EUR rate.
+							</p>
+							<p class="mt-0.5 text-xs text-amber-700">
+								Upload the matching EUR export or enter a conversion rate manually.
+							</p>
+						</div>
+					</div>
+					<button
+						onclick={() => (resolveFxAccount = fx)}
+						class="shrink-0 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-50"
+					>
+						Resolve
+					</button>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
 	<!-- Page header -->
 	<div class="mb-8 flex items-center justify-between">
 		<h1 class="text-2xl font-semibold text-text-primary">Accounts</h1>
@@ -101,5 +134,21 @@
 		bankProfileId={uploadAccount.bankProfileId}
 		currency={uploadAccount.currency}
 		isFirstUpload={uploadAccount.txCount === 0}
+	/>
+{/if}
+
+{#if resolveFxAccount}
+	<ResolveFxDialog
+		accountId={resolveFxAccount.accountId}
+		accountName={resolveFxAccount.accountName}
+		currency={resolveFxAccount.currency}
+		unresolvedCount={resolveFxAccount.unresolvedCount}
+		earliestDate={resolveFxAccount.earliestDate}
+		latestDate={resolveFxAccount.latestDate}
+		onclose={() => (resolveFxAccount = null)}
+		onsuccess={() => {
+			resolveFxAccount = null;
+			invalidateAll();
+		}}
 	/>
 {/if}

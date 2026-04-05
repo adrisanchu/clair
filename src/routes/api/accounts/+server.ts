@@ -1,12 +1,15 @@
 import { error, json } from '@sveltejs/kit';
-import { and, count, eq, inArray, isNull, max } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { getAllProfiles } from '$lib/server/parsers/index.js';
 
+import { CURRENCY_CODES } from '$lib/currencies.js';
+
 const VALID_PROFILE_IDS = new Set(getAllProfiles().map((p) => p.bankProfileId));
+const VALID_CURRENCIES = new Set(CURRENCY_CODES);
 
 // ─── GET /api/accounts ────────────────────────────────────────────────────────
 // Returns all accounts accessible to the current user (owned + shared),
@@ -32,14 +35,13 @@ export const GET: RequestHandler = async ({ locals }) => {
 			ownerUserId: bankAccounts.ownerUserId,
 			createdAt: bankAccounts.createdAt,
 			txCount: count(transactions.id),
-			lastUploadedAt: max(csvUploads.uploadedAt)
+			lastUploadedAt: sql<Date | null>`(SELECT MAX(${csvUploads.uploadedAt}) FROM ${csvUploads} WHERE ${csvUploads.bankAccountId} = ${bankAccounts.id})`
 		})
 		.from(bankAccounts)
 		.leftJoin(
 			transactions,
 			and(eq(transactions.bankAccountId, bankAccounts.id), eq(transactions.isOpeningBalance, false))
 		)
-		.leftJoin(csvUploads, eq(csvUploads.bankAccountId, bankAccounts.id))
 		.where(and(inArray(bankAccounts.id, accessibleIds), isNull(bankAccounts.deletedAt)))
 		.groupBy(bankAccounts.id)
 		.orderBy(bankAccounts.createdAt);
@@ -69,6 +71,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		throw error(400, `Unknown bankProfileId: ${bankProfileId}`);
 	if (!ibanLast4?.trim()) throw error(400, 'ibanLast4 is required');
 	if (!/^\d{4}$/.test(ibanLast4.trim())) throw error(400, 'ibanLast4 must be exactly 4 digits');
+	if (!VALID_CURRENCIES.has(currency)) throw error(400, `Unsupported currency: ${currency}`);
 
 	const profile = getAllProfiles().find((p) => p.bankProfileId === bankProfileId)!;
 
