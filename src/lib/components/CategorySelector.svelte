@@ -49,7 +49,7 @@
 	<Popover.Trigger
 		class={cn(
 			'inline-flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-xs outline-none',
-			'hover:bg-surface-sunken focus-visible:ring-1 focus-visible:ring-primary-400',
+			'hover:bg-surface-sunken focus-visible:ring-1 focus-visible:ring-primary-400', 'w-full',
 			pending && 'opacity-50'
 		)}
 		disabled={pending}
@@ -71,7 +71,7 @@
 	</Popover.Trigger>
 
 	<Popover.Content
-		class="z-50 w-52 rounded-lg border border-border bg-surface p-1 shadow-md"
+		class="z-50 w-52 rounded-lg border border-border bg-surface p-1 gap-1 shadow-md max-h-72 overflow-y-auto"
 		align="start"
 		sideOffset={4}
 	>
