@@ -59,9 +59,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		where: and(
 			eq(categories.workspaceId, workspaceId),
 			eq(categories.name, name.trim()),
-			parentId === null
-				? isNull(categories.parentId)
-				: eq(categories.parentId, parentId)
+			parentId === null ? isNull(categories.parentId) : eq(categories.parentId, parentId)
 		)
 	});
 	if (sibling) throw error(409, `A category named "${name.trim()}" already exists at this level`);

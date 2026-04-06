@@ -31,7 +31,12 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	const body = await request.json();
 	const { name, color, sortOrder, parentId } = body;
 
-	if (name === undefined && color === undefined && sortOrder === undefined && parentId === undefined)
+	if (
+		name === undefined &&
+		color === undefined &&
+		sortOrder === undefined &&
+		parentId === undefined
+	)
 		throw error(400, 'Nothing to update');
 
 	if (name !== undefined) {

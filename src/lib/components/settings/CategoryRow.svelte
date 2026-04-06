@@ -40,9 +40,10 @@
 	}
 
 	async function handleDelete() {
-		const msg = childCount > 0
-			? `"${category.name}" has ${childCount} subcategor${childCount === 1 ? 'y' : 'ies'}. Delete them first.`
-			: `Delete "${category.name}"? Transactions using this category will keep the label.`;
+		const msg =
+			childCount > 0
+				? `"${category.name}" has ${childCount} subcategor${childCount === 1 ? 'y' : 'ies'}. Delete them first.`
+				: `Delete "${category.name}"? Transactions using this category will keep the label.`;
 
 		if (childCount > 0) {
 			alert(msg);
@@ -68,10 +69,7 @@
 		: ''} {isDeleting ? 'opacity-50' : ''}"
 >
 	<!-- Color dot -->
-	<span
-		class="h-3 w-3 shrink-0 rounded-full"
-		style="background-color: {category.color}"
-	></span>
+	<span class="h-3 w-3 shrink-0 rounded-full" style="background-color: {category.color}"></span>
 
 	<!-- Name (or inline rename input) -->
 	<div class="min-w-0 flex-1">

@@ -49,15 +49,14 @@
 	<Popover.Trigger
 		class={cn(
 			'inline-flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-xs outline-none',
-			'hover:bg-surface-sunken focus-visible:ring-1 focus-visible:ring-primary-400', 'w-full',
+			'hover:bg-surface-sunken focus-visible:ring-1 focus-visible:ring-primary-400',
+			'w-full',
 			pending && 'opacity-50'
 		)}
 		disabled={pending}
 	>
 		{#if effectiveCat}
-			<span
-				class="h-1.5 w-1.5 shrink-0 rounded-full"
-				style="background-color: {effectiveCat.color}"
+			<span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background-color: {effectiveCat.color}"
 			></span>
 			<span class={localOverride ? 'text-text-primary' : 'text-text-secondary'}>
 				{effective}
@@ -71,7 +70,7 @@
 	</Popover.Trigger>
 
 	<Popover.Content
-		class="z-50 w-52 rounded-lg border border-border bg-surface p-1 gap-1 shadow-md max-h-72 overflow-y-auto"
+		class="z-50 max-h-72 w-52 gap-1 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-md"
 		align="start"
 		sideOffset={4}
 	>
@@ -95,9 +94,7 @@
 					effective === parent.name ? 'font-medium text-text-primary' : 'text-text-secondary'
 				)}
 			>
-				<span
-					class="h-1.5 w-1.5 shrink-0 rounded-full"
-					style="background-color: {parent.color}"
+				<span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background-color: {parent.color}"
 				></span>
 				{parent.name}
 			</button>
@@ -109,9 +106,7 @@
 						effective === child.name ? 'font-medium text-text-primary' : 'text-text-secondary'
 					)}
 				>
-					<span
-						class="h-1.5 w-1.5 shrink-0 rounded-full"
-						style="background-color: {child.color}"
+					<span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background-color: {child.color}"
 					></span>
 					{child.name}
 				</button>

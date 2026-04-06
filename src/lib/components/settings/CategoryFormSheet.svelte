@@ -17,8 +17,12 @@
 		category?: CategoryRow | null;
 	}
 
-	let { open = $bindable(false), mode = 'create', parentId = null, category = null }: Props =
-		$props();
+	let {
+		open = $bindable(false),
+		mode = 'create',
+		parentId = null,
+		category = null
+	}: Props = $props();
 
 	let name = $state('');
 	let color = $state('#6b7280');
@@ -34,11 +38,7 @@
 	});
 
 	const title = $derived(
-		mode === 'edit'
-			? 'Edit category'
-			: parentId
-				? 'Add subcategory'
-				: 'Add category'
+		mode === 'edit' ? 'Edit category' : parentId ? 'Add subcategory' : 'Add category'
 	);
 
 	async function handleSubmit(e: SubmitEvent) {
@@ -88,7 +88,9 @@
 		<Sheet.Header>
 			<Sheet.Title>{title}</Sheet.Title>
 			<Sheet.Description>
-				{mode === 'edit' ? 'Update the name or color.' : 'Choose a name and color for the category.'}
+				{mode === 'edit'
+					? 'Update the name or color.'
+					: 'Choose a name and color for the category.'}
 			</Sheet.Description>
 		</Sheet.Header>
 

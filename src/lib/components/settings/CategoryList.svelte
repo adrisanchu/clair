@@ -32,20 +32,26 @@
 			}
 		}
 
-		return parents.map((p): CategoryGroup => ({
-			parent: p,
-			children: childMap.get(p.id) ?? []
-		}));
+		return parents.map(
+			(p): CategoryGroup => ({
+				parent: p,
+				children: childMap.get(p.id) ?? []
+			})
+		);
 	});
 </script>
 
 <div class="space-y-1">
 	{#if groups.length === 0}
-		<div class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-12">
+		<div
+			class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-12"
+		>
 			<Tags size={32} class="text-text-tertiary" />
 			<div class="text-center">
 				<p class="text-sm font-medium text-text-primary">No categories yet</p>
-				<p class="mt-1 text-xs text-text-secondary">Add categories to organise your transactions.</p>
+				<p class="mt-1 text-xs text-text-secondary">
+					Add categories to organise your transactions.
+				</p>
 			</div>
 			{#if isOwner}
 				<Button size="sm" onclick={() => (addOpen = true)}>Add category</Button>
