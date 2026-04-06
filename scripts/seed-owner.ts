@@ -48,7 +48,7 @@ if (!email || !name || !password) {
 
 // Set up DB client
 const client = postgres(DATABASE_URL);
-const { authUser, authSession, authAccount, authVerification, workspaces } =
+const { authUser, authSession, authAccount, authVerification, workspaces, categories } =
 	await import('../src/lib/server/db/schema.js');
 const db = drizzle(client, { schema: { authUser, workspaces } });
 
@@ -104,6 +104,25 @@ if (!workspaceId) {
 		.values({ name: `${name}'s workspace`, ownerId: createdUser.id })
 		.returning({ id: workspaces.id });
 	workspaceId = ws.id;
+
+	// Seed default categories for the new workspace
+	await db.insert(categories).values([
+		{ workspaceId, name: 'Restaurants', color: '#f97316', sortOrder: 0 },
+		{ workspaceId, name: 'Coffee', color: '#a16207', sortOrder: 1 },
+		{ workspaceId, name: 'Groceries', color: '#16a34a', sortOrder: 2 },
+		{ workspaceId, name: 'Transport', color: '#2563eb', sortOrder: 3 },
+		{ workspaceId, name: 'Travel', color: '#7c3aed', sortOrder: 4 },
+		{ workspaceId, name: 'Sports', color: '#0891b2', sortOrder: 5 },
+		{ workspaceId, name: 'Health', color: '#dc2626', sortOrder: 6 },
+		{ workspaceId, name: 'Subscriptions', color: '#9333ea', sortOrder: 7 },
+		{ workspaceId, name: 'Transfers', color: '#6b7280', sortOrder: 8 },
+		{ workspaceId, name: 'Savings', color: '#15803d', sortOrder: 9 },
+		{ workspaceId, name: 'Shopping', color: '#db2777', sortOrder: 10 },
+		{ workspaceId, name: 'Utilities', color: '#b45309', sortOrder: 11 },
+		{ workspaceId, name: 'Income', color: '#059669', sortOrder: 12 },
+		{ workspaceId, name: 'Other', color: '#78716c', sortOrder: 13 }
+	]);
+	console.log('  Default categories seeded.');
 }
 
 // Set role=owner and workspaceId on the user
