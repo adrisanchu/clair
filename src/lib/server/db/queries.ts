@@ -28,6 +28,7 @@ export interface TxRow {
 	isOpeningBalance: boolean;
 	notes: string | null;
 	category: string | null;
+	categoryOverride: string | null;
 	bankAccountId: string;
 	accountName: string | null;
 	bankProfileId: string | null;
@@ -96,6 +97,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				isOpeningBalance: transactions.isOpeningBalance,
 				notes: transactions.notes,
 				category: transactions.category,
+				categoryOverride: transactions.categoryOverride,
 				bankAccountId: transactions.bankAccountId,
 				accountName: bankAccounts.displayName,
 				bankProfileId: bankAccounts.bankProfileId
