@@ -24,8 +24,8 @@ Add a `currency` column defaulting to `EUR`. This is the native currency of the 
 
 ```ts
 export const accounts = pgTable('accounts', {
-  // ... existing columns
-  currency: varchar('currency', { length: 3 }).notNull().default('EUR'),
+	// ... existing columns
+	currency: varchar('currency', { length: 3 }).notNull().default('EUR')
 });
 ```
 
@@ -46,21 +46,21 @@ Tracks each funding event: a user converts money from one currency account to an
 
 ```ts
 export const currencyConversions = pgTable('currency_conversions', {
-  id:               uuid('id').primaryKey().defaultRandom(),
-  workspaceId:      uuid('workspace_id').notNull(),
-  fromAccountId:    uuid('from_account_id').notNull(), // e.g. Revolut EUR
-  toAccountId:      uuid('to_account_id').notNull(),   // e.g. Revolut SEK
-  fromAmount:       numeric('from_amount',   { precision: 18, scale: 4 }).notNull(), // 200.0000
-  toAmount:         numeric('to_amount',     { precision: 18, scale: 4 }).notNull(), // 2182.0000
-  exchangeRate:     numeric('exchange_rate', { precision: 14, scale: 6 }).notNull(), // 10.910000
-  effectiveFrom:    timestamp('effective_from').notNull(), // date of the funding transaction
-  confidence:       varchar('confidence', { length: 20 }).notNull().default('auto'),
-  // 'auto'     → derived from matched transfer pair
-  // 'confirmed' → user confirmed the auto-detected rate
-  // 'manual'   → user entered the rate by hand
-  fromTransactionId: uuid('from_transaction_id'), // FK to the -200 EUR transaction
-  toTransactionId:   uuid('to_transaction_id'),   // FK to the +2182 SEK transaction
-  createdAt:        timestamp('created_at').notNull().defaultNow(),
+	id: uuid('id').primaryKey().defaultRandom(),
+	workspaceId: uuid('workspace_id').notNull(),
+	fromAccountId: uuid('from_account_id').notNull(), // e.g. Revolut EUR
+	toAccountId: uuid('to_account_id').notNull(), // e.g. Revolut SEK
+	fromAmount: numeric('from_amount', { precision: 18, scale: 4 }).notNull(), // 200.0000
+	toAmount: numeric('to_amount', { precision: 18, scale: 4 }).notNull(), // 2182.0000
+	exchangeRate: numeric('exchange_rate', { precision: 14, scale: 6 }).notNull(), // 10.910000
+	effectiveFrom: timestamp('effective_from').notNull(), // date of the funding transaction
+	confidence: varchar('confidence', { length: 20 }).notNull().default('auto'),
+	// 'auto'     → derived from matched transfer pair
+	// 'confirmed' → user confirmed the auto-detected rate
+	// 'manual'   → user entered the rate by hand
+	fromTransactionId: uuid('from_transaction_id'), // FK to the -200 EUR transaction
+	toTransactionId: uuid('to_transaction_id'), // FK to the +2182 SEK transaction
+	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 ```
 
@@ -72,22 +72,22 @@ Add FX columns. All are nullable — EUR-native transactions will have them as `
 
 ```ts
 export const transactions = pgTable('transactions', {
-  // ... existing columns:
-  // id, workspaceId, accountId, amount, balance, date, description, ...
+	// ... existing columns:
+	// id, workspaceId, accountId, amount, balance, date, description, ...
 
-  // FX fields
-  nativeCurrency:  varchar('native_currency', { length: 3 }),
-  // Redundant with account.currency but useful for denormalized queries.
-  // Always matches the account's currency at time of import.
+	// FX fields
+	nativeCurrency: varchar('native_currency', { length: 3 }),
+	// Redundant with account.currency but useful for denormalized queries.
+	// Always matches the account's currency at time of import.
 
-  eurAmount:       numeric('eur_amount',    { precision: 18, scale: 4 }),
-  // The EUR equivalent of this transaction. Null if unresolved.
+	eurAmount: numeric('eur_amount', { precision: 18, scale: 4 }),
+	// The EUR equivalent of this transaction. Null if unresolved.
 
-  exchangeRate:    numeric('exchange_rate', { precision: 14, scale: 6 }),
-  // The locked rate used to compute eurAmount.
+	exchangeRate: numeric('exchange_rate', { precision: 14, scale: 6 }),
+	// The locked rate used to compute eurAmount.
 
-  conversionId:    uuid('conversion_id'),
-  // FK to currency_conversions. Null if unresolved or EUR-native.
+	conversionId: uuid('conversion_id')
+	// FK to currency_conversions. Null if unresolved or EUR-native.
 });
 ```
 
@@ -300,13 +300,13 @@ WHERE t.workspace_id = $workspaceId
 
 ## 6. Edge Cases
 
-| Scenario | Handling |
-|---|---|
-| Same account funded multiple times at different rates | Each top-up creates a new `currency_conversion`. Transactions are assigned to the conversion with the latest `effectiveFrom ≤ tx.date`. |
-| User corrects a rate after the fact | Update `exchange_rate` on the `currency_conversions` row, then recompute `eur_amount` on all linked transactions (`conversionId = correctedId`). |
-| EUR CSV uploaded before SEK CSV | The outgoing EUR transaction exists with no match yet. When SEK CSV is uploaded later, matching runs and finds it. |
-| SEK CSV uploaded before EUR CSV | Transactions are UNRESOLVED. Banner shown. Resolved retroactively when EUR CSV is uploaded. |
-| Multiple candidate EUR transactions match the same top-up | Flag as MEDIUM confidence; pick the candidate with the smallest date delta. Show the card with an extra note: "Multiple candidates found — please verify." |
+| Scenario                                                    | Handling                                                                                                                                                                                                                 |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Same account funded multiple times at different rates       | Each top-up creates a new `currency_conversion`. Transactions are assigned to the conversion with the latest `effectiveFrom ≤ tx.date`.                                                                                  |
+| User corrects a rate after the fact                         | Update `exchange_rate` on the `currency_conversions` row, then recompute `eur_amount` on all linked transactions (`conversionId = correctedId`).                                                                         |
+| EUR CSV uploaded before SEK CSV                             | The outgoing EUR transaction exists with no match yet. When SEK CSV is uploaded later, matching runs and finds it.                                                                                                       |
+| SEK CSV uploaded before EUR CSV                             | Transactions are UNRESOLVED. Banner shown. Resolved retroactively when EUR CSV is uploaded.                                                                                                                              |
+| Multiple candidate EUR transactions match the same top-up   | Flag as MEDIUM confidence; pick the candidate with the smallest date delta. Show the card with an extra note: "Multiple candidates found — please verify."                                                               |
 | Account funded in non-EUR foreign currency (e.g. USD → SEK) | Out of scope for initial implementation. Schema supports it (`fromAmount` / `toAmount` have no currency assumption), but the UI and matching logic should guard against this case and surface it as unsupported for now. |
 
 ---

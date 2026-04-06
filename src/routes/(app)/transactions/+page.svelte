@@ -18,6 +18,7 @@
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import NoteHint from '$lib/components/NoteHint.svelte';
+	import CategorySelector from '$lib/components/CategorySelector.svelte';
 	import { cn } from '$lib/utils';
 	import type { PageData } from './$types';
 
@@ -389,13 +390,13 @@
 											<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong"></span>
 											Transfer
 										</span>
-									{:else if tx.category}
-										<span class="inline-flex items-center gap-1.5 text-xs text-text-secondary">
-											<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400"></span>
-											{tx.category}
-										</span>
 									{:else}
-										<span class="text-xs text-text-tertiary">—</span>
+										<CategorySelector
+											txId={tx.id}
+											category={tx.category}
+											categoryOverride={tx.categoryOverride}
+											categories={data.categories}
+										/>
 									{/if}
 								</td>
 

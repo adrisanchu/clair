@@ -259,6 +259,8 @@ export const categories = coreSchema.table('categories', {
 	workspaceId: text('workspace_id')
 		.notNull()
 		.references(() => workspaces.id),
+	// Self-referential: null = top-level category; set = subcategory (max 1 level)
+	parentId: text('parent_id'),
 	name: text('name').notNull(),
 	color: text('color').default('#6b7280').notNull(),
 	sortOrder: integer('sort_order').default(0).notNull(),
@@ -338,8 +340,14 @@ export const transactionOverridesRelations = relations(transactionOverrides, ({ 
 	user: one(authUser, { fields: [transactionOverrides.userId], references: [authUser.id] })
 }));
 
-export const categoriesRelations = relations(categories, ({ one }) => ({
-	workspace: one(workspaces, { fields: [categories.workspaceId], references: [workspaces.id] })
+export const categoriesRelations = relations(categories, ({ one, many }) => ({
+	workspace: one(workspaces, { fields: [categories.workspaceId], references: [workspaces.id] }),
+	parent: one(categories, {
+		fields: [categories.parentId],
+		references: [categories.id],
+		relationName: 'CategoryParent'
+	}),
+	children: many(categories, { relationName: 'CategoryParent' })
 }));
 
 export const csvColumnMappingsRelations = relations(csvColumnMappings, ({ one }) => ({
