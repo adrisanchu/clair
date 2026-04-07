@@ -15,6 +15,7 @@
 		CircleAlert
 	} from '@lucide/svelte';
 	import Amount from '$lib/components/Amount.svelte';
+	import { Badge } from '$lib/components/ui/badge';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import NoteHint from '$lib/components/NoteHint.svelte';
@@ -114,9 +115,9 @@
 	]);
 </script>
 
-<div class="max-w-5xl px-4 py-6 md:px-8 md:py-8">
+<div class="flex h-[calc(100dvh-3rem)] flex-col overflow-hidden">
 	<!-- ── Page header ────────────────────────────────────────────────────────── -->
-	<div class="border-b border-border pb-4">
+	<div class="relative z-20 shrink-0 border-b border-border bg-surface px-4 pt-4 pb-3 md:px-8">
 		<div class="flex flex-wrap items-start justify-between gap-4">
 			<div>
 				<h1 class="text-2xl font-semibold text-text-primary">Transactions</h1>
@@ -165,7 +166,9 @@
 	</div>
 
 	<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
-	<div class="flex flex-wrap items-center gap-2 border-b border-border bg-surface-raised py-3">
+	<div
+		class="relative z-20 shrink-0 flex flex-wrap items-center gap-2 border-b border-border bg-surface px-4 py-3 md:px-8"
+	>
 		<!-- Search using shadcn Input -->
 		<div class="relative min-w-48 flex-1">
 			<Search
@@ -243,9 +246,9 @@
 	</div>
 
 	<!-- ── Transactions table ──────────────────────────────────────────────────── -->
-	<div class="overflow-x-auto">
+	<div class="flex-1 min-h-0 overflow-y-auto">
 		{#if data.rows.length === 0}
-			<div class="flex flex-col items-center justify-center px-4 py-24 text-center">
+			<div class="flex h-full flex-col items-center justify-center px-4 py-24 text-center">
 				<p class="mb-1 text-sm font-medium text-text-primary">No transactions found</p>
 				<p class="text-sm text-text-secondary">
 					{hasFilters ? 'Try adjusting your filters.' : 'Upload a CSV to get started.'}
@@ -257,31 +260,31 @@
 				{/if}
 			</div>
 		{:else}
-			<table class="w-full border-collapse text-sm">
-				<thead>
-					<tr class="border-b border-border bg-surface-raised">
+			<table class="w-full table-fixed border-collapse text-sm">
+				<thead class="sticky top-0 z-10 bg-surface-sunken shadow-[0_1px_0_0_var(--border)]">
+					<tr>
 						<th
-							class="w-36 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4"
-						>
-							Date
-						</th>
-						<th
-							class="px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
-						>
-							Description
-						</th>
-						<th
-							class="hidden w-36 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:table-cell"
-						>
-							Account
-						</th>
-						<th
-							class="hidden w-36 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase lg:table-cell"
+							class="w-[28%] px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4 md:w-36"
 						>
 							Category
 						</th>
 						<th
-							class="w-32 px-2 py-2.5 text-right text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4"
+							class="hidden w-36 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4 md:table-cell"
+						>
+							Date
+						</th>
+						<th
+							class="px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4"
+						>
+							Description
+						</th>
+						<th
+							class="hidden px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4 md:table-cell md:w-36"
+						>
+							Account
+						</th>
+						<th
+							class="w-[22%] px-2 py-2.5 text-right text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:w-32 md:px-4"
 						>
 							Amount
 						</th>
@@ -296,25 +299,34 @@
 						{#if isOpening}
 							<!-- Opening balance row — read-only, visually distinct -->
 							<tr class="border-b border-border bg-surface-sunken/40 opacity-70">
+								<!-- Category col: opening balance label -->
+								<td class="px-2 py-2 md:px-4 md:py-3">
+									<Badge variant="outline" class="text-[11px] font-medium text-text-tertiary">
+										Opening balance
+									</Badge>
+								</td>
+								<!-- Date col (desktop only) -->
 								<td
-									class="px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:px-4"
+									class="hidden px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:table-cell md:px-4"
 								>
 									{format(tx.accountingDate, 'd MMM yyyy')}
 								</td>
-								<td class="max-w-xs px-2 py-3">
+								<!-- Description col -->
+								<td class="px-2 py-2 md:px-4 md:py-3">
 									<div class="flex min-w-0 items-center gap-2">
 										<span class="truncate text-xs text-text-tertiary italic">{tx.description}</span>
 										{#if tx.notes}
 											<NoteHint note={tx.notes} />
 										{/if}
 									</div>
-									{#if tx.accountName}
-										<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
-											{tx.accountName}
-										</span>
-									{/if}
+									<!-- Mobile meta: date + account -->
+									<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
+										{format(tx.accountingDate, 'd MMM yyyy')}
+										{#if tx.accountName} · {tx.accountName}{/if}
+									</span>
 								</td>
-								<td class="hidden px-2 py-3 md:table-cell">
+								<!-- Account col (desktop only) -->
+								<td class="hidden px-2 py-3 md:table-cell md:px-4">
 									{#if tx.accountName}
 										<span
 											class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
@@ -323,13 +335,8 @@
 										</span>
 									{/if}
 								</td>
-								<td class="hidden px-2 py-3 lg:table-cell">
-									<span class="inline-flex items-center gap-1.5 text-xs text-text-tertiary">
-										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong"></span>
-										Opening balance
-									</span>
-								</td>
-								<td class="px-2 py-3 text-right md:px-4">
+								<!-- Amount col -->
+								<td class="px-2 py-2 text-right md:px-4 md:py-3">
 									<Amount value={tx.amount} currency={tx.currency} size="sm" />
 								</td>
 							</tr>
@@ -340,56 +347,16 @@
 									isReview && 'border-l-2 border-l-amber-400'
 								)}
 							>
-								<!-- Date -->
-								<td
-									class="px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:px-4"
-								>
-									{format(tx.accountingDate, 'd MMM yyyy')}
-								</td>
-
-								<!-- Description -->
-								<td class="max-w-xs px-2 py-3 text-text-primary">
-									<div class="flex min-w-0 items-center gap-2">
-										{#if isTransfer}
-											<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
-										{:else if isReview}
-											<AlertTriangle size={13} class="shrink-0 text-amber-500" />
-										{/if}
-										<span class="truncate font-medium">{tx.description}</span>
-										{#if tx.notes}
-											<NoteHint note={tx.notes} />
-										{/if}
-									</div>
-									{#if tx.accountName}
-										<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
-											{tx.accountName}
-										</span>
-									{/if}
-								</td>
-
-								<!-- Account (desktop) -->
-								<td class="hidden px-2 py-3 md:table-cell">
-									{#if tx.accountName}
-										<span
-											class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-secondary uppercase"
-										>
-											{tx.accountName}
-										</span>
-									{/if}
-								</td>
-
-								<!-- Category (desktop) -->
-								<td class="hidden px-2 py-3 lg:table-cell">
+								<!-- Category col: status label or CategorySelector -->
+								<td class="px-2 py-2 md:px-4 md:py-3">
 									{#if isReview}
-										<span class="inline-flex items-center gap-1.5 text-xs text-amber-600">
-											<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"></span>
+										<Badge class="text-[11px] font-medium bg-amber-100 text-amber-700 border-amber-200">
 											Review Required
-										</span>
+										</Badge>
 									{:else if isTransfer}
-										<span class="inline-flex items-center gap-1.5 text-xs text-text-tertiary">
-											<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong"></span>
+										<Badge variant="outline" class="text-[11px] font-medium text-text-secondary">
 											Transfer
-										</span>
+										</Badge>
 									{:else}
 										<CategorySelector
 											txId={tx.id}
@@ -400,8 +367,46 @@
 									{/if}
 								</td>
 
-								<!-- Amount -->
-								<td class="px-2 py-3 text-right md:px-4">
+								<!-- Date col (desktop only) -->
+								<td
+									class="hidden px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:table-cell md:px-4"
+								>
+									{format(tx.accountingDate, 'd MMM yyyy')}
+								</td>
+
+								<!-- Description col -->
+								<td class="px-2 py-2 text-text-primary md:px-4 md:py-3">
+									<div class="flex min-w-0 items-center gap-2">
+										{#if isTransfer}
+											<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
+										{:else if isReview}
+											<AlertTriangle size={13} class="shrink-0 text-amber-500" />
+										{/if}
+										<span class="truncate text-xs font-medium md:text-sm">{tx.description}</span>
+										{#if tx.notes}
+											<NoteHint note={tx.notes} />
+										{/if}
+									</div>
+									<!-- Mobile meta: date + account -->
+									<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
+										{format(tx.accountingDate, 'd MMM yyyy')}
+										{#if tx.accountName} · {tx.accountName}{/if}
+									</span>
+								</td>
+
+								<!-- Account col (desktop only) -->
+								<td class="hidden px-2 py-3 md:table-cell md:px-4">
+									{#if tx.accountName}
+										<span
+											class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-secondary uppercase"
+										>
+											{tx.accountName}
+										</span>
+									{/if}
+								</td>
+
+								<!-- Amount col -->
+								<td class="px-2 py-2 text-right md:px-4 md:py-3">
 									<Amount value={tx.amount} currency={tx.currency} size="sm" />
 									{#if tx.currency !== 'EUR'}
 										{#if tx.amountEur != null}
@@ -429,7 +434,7 @@
 	<!-- ── Footer / Pagination ────────────────────────────────────────────────── -->
 	{#if data.total > 0}
 		<div
-			class="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-surface py-3 md:px-8"
+			class="shrink-0 flex flex-wrap items-center justify-between gap-4 border-t border-border bg-surface px-4 py-3 md:px-8"
 		>
 			<!-- Count label -->
 			<p class="text-xs text-text-tertiary">
