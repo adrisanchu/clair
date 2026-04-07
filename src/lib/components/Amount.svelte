@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { cn } from '$lib/utils';
+
 	interface Props {
 		value: number;
 		currency?: string;
-		size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
+		size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 		showSign?: boolean;
 		colorize?: boolean;
 		class?: string;
@@ -18,6 +20,7 @@
 	}: Props = $props();
 
 	const sizeMap: Record<string, string> = {
+		xs: 'text-xs',
 		sm: 'text-sm',
 		md: 'text-base',
 		lg: 'text-xl',
@@ -47,6 +50,6 @@
 	);
 </script>
 
-<span class="font-mono tabular-nums {sizeMap[size]} {colourClass} {cls}">
+<span class={cn('font-mono tabular-nums', sizeMap[size], colourClass, cls)}>
 	{sign}{formatted}
 </span>

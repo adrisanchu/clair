@@ -246,7 +246,7 @@
 	</div>
 
 	<!-- ── Transactions table ──────────────────────────────────────────────────── -->
-	<div class="flex-1 min-h-0 overflow-y-auto">
+	<div class="flex-1 min-h-0 overflow-x-hidden overflow-y-auto">
 		{#if data.rows.length === 0}
 			<div class="flex h-full flex-col items-center justify-center px-4 py-24 text-center">
 				<p class="mb-1 text-sm font-medium text-text-primary">No transactions found</p>
@@ -260,11 +260,12 @@
 				{/if}
 			</div>
 		{:else}
-			<table class="w-full table-fixed border-collapse text-sm">
+		<div class="px-2 md:px-0">
+			<table class="w-full table-fixed border-collapse text-xs md:text-sm">
 				<thead class="sticky top-0 z-10 bg-surface-sunken shadow-[0_1px_0_0_var(--border)]">
 					<tr>
 						<th
-							class="w-[28%] px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4 md:w-36"
+							class="w-20 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4 md:w-36"
 						>
 							Category
 						</th>
@@ -284,7 +285,7 @@
 							Account
 						</th>
 						<th
-							class="w-[22%] px-2 py-2.5 text-right text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:w-32 md:px-4"
+							class="w-24 px-2 py-2.5 text-right text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:w-32 md:px-4"
 						>
 							Amount
 						</th>
@@ -337,7 +338,7 @@
 								</td>
 								<!-- Amount col -->
 								<td class="px-2 py-2 text-right md:px-4 md:py-3">
-									<Amount value={tx.amount} currency={tx.currency} size="sm" />
+									<Amount value={tx.amount} currency={tx.currency} size="xs" class="md:text-sm" />
 								</td>
 							</tr>
 						{:else}
@@ -407,11 +408,11 @@
 
 								<!-- Amount col -->
 								<td class="px-2 py-2 text-right md:px-4 md:py-3">
-									<Amount value={tx.amount} currency={tx.currency} size="sm" />
+									<Amount value={tx.amount} currency={tx.currency} size="xs" class="md:text-sm" />
 									{#if tx.currency !== 'EUR'}
 										{#if tx.amountEur != null}
-											<div class="mt-0.5 font-mono text-[11px] text-text-tertiary tabular-nums">
-												<Amount value={tx.amountEur} currency="EUR" size="sm" colorize={false} />
+											<div class="mt-0.5 text-text-tertiary">
+												<Amount value={tx.amountEur} currency="EUR" size="xs" class="text-[10px] md:text-xs" colorize={false} />
 											</div>
 										{:else}
 											<div
@@ -428,6 +429,7 @@
 					{/each}
 				</tbody>
 			</table>
+		</div>
 		{/if}
 	</div>
 
