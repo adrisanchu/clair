@@ -1,0 +1,1 @@
+ALTER TABLE "core"."categories" ADD COLUMN "parent_id" text;
