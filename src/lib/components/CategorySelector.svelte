@@ -49,26 +49,25 @@
 <Popover.Root bind:open>
 	<Popover.Trigger
 		class={cn(
-			'inline-flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-xs outline-none',
-			'hover:bg-surface-sunken focus-visible:ring-1 focus-visible:ring-primary-400',
-			'w-full',
+			'group flex w-full cursor-pointer justify-center outline-none',
+			'focus-visible:ring-1 focus-visible:ring-primary-400',
 			pending && 'opacity-50'
 		)}
 		disabled={pending}
 	>
 		{#if effectiveCat}
 			<Badge
-				class="max-w-full truncate text-[11px] font-medium"
+				class="max-w-full shrink min-w-0 truncate px-1 text-[10px] font-medium transition-opacity group-hover:opacity-70 md:px-2 md:text-[11px]"
 				style="background-color: {effectiveCat.color}26; color: {effectiveCat.color}; border-color: {effectiveCat.color}40;"
 			>
 				{effective}
 			</Badge>
 		{:else if effective}
-			<Badge variant="secondary" class="max-w-full truncate text-[11px] font-medium">
+			<Badge variant="secondary" class="max-w-full shrink min-w-0 truncate px-1 text-[10px] font-medium transition-opacity group-hover:opacity-70 md:px-2 md:text-[11px]">
 				{effective}
 			</Badge>
 		{:else}
-			<span class="text-text-tertiary">—</span>
+			<span class="text-text-tertiary transition-colors group-hover:text-text-secondary">—</span>
 		{/if}
 	</Popover.Trigger>
 
