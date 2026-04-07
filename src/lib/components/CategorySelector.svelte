@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as Popover from '$lib/components/ui/popover';
+	import { Badge } from '$lib/components/ui/badge';
 	import { cn } from '$lib/utils';
 	import type { CategoryRow } from '$lib/types';
 
@@ -56,14 +57,16 @@
 		disabled={pending}
 	>
 		{#if effectiveCat}
-			<span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background-color: {effectiveCat.color}"
-			></span>
-			<span class={localOverride ? 'text-text-primary' : 'text-text-secondary'}>
+			<Badge
+				class="max-w-full truncate text-[11px] font-medium"
+				style="background-color: {effectiveCat.color}26; color: {effectiveCat.color}; border-color: {effectiveCat.color}40;"
+			>
 				{effective}
-			</span>
+			</Badge>
 		{:else if effective}
-			<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400"></span>
-			<span class="text-text-secondary">{effective}</span>
+			<Badge variant="secondary" class="max-w-full truncate text-[11px] font-medium">
+				{effective}
+			</Badge>
 		{:else}
 			<span class="text-text-tertiary">—</span>
 		{/if}
