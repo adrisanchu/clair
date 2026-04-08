@@ -29,6 +29,24 @@ export function detectOptionalColumn(headers: string[], synonyms: string[]): str
 	return headers.find((h) => normSynonyms.includes(norm(h))) ?? null;
 }
 
+/** Returns all CSV header names that the profile actively consumes. */
+export function getUsedColumns(profile: BankParserProfile): string[] {
+	return [
+		profile.dateColumn,
+		profile.valueDateColumn,
+		profile.amountColumn,
+		profile.debitColumn,
+		profile.creditColumn,
+		profile.descriptionColumn,
+		profile.currencyColumn,
+		profile.localAmountColumn,
+		profile.balanceColumn,
+		profile.statusColumn,
+		profile.typeColumn,
+		...profile.additionalColumns
+	].filter((c): c is string => c !== null);
+}
+
 // ─── Row normalizer ────────────────────────────────────────────────────────
 
 export function normalizeRow(
