@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { bankAccounts } from '$lib/server/db/schema.js';
+import { bankAccounts, csvColumnMappings } from '$lib/server/db/schema.js';
 import { uploadAndParse, detectFileDirection } from '$lib/server/parsers/index.js';
 
 // ─── POST /api/accounts/[id]/preview ──────────────────────────────────────────
@@ -21,16 +21,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const file = formData.get('file') as File | null;
 	if (!file) throw error(400, 'No file provided');
 
-	let rows: Awaited<ReturnType<typeof uploadAndParse>>['result']['rows'];
-	let skippedCount: number;
+	let result: Awaited<ReturnType<typeof uploadAndParse>>['result'];
 
 	try {
-		({
-			result: { rows, skippedCount }
-		} = await uploadAndParse(file, account.bankProfileId));
+		({ result } = await uploadAndParse(file, account.bankProfileId));
 	} catch (e) {
 		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
 	}
+
+	const { rows, skippedCount } = result;
 
 	const preview = rows.slice(0, 5).map((r) => ({
 		date: r.accountingDate.toISOString().split('T')[0],
@@ -56,6 +55,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		}
 	}
 
+	const savedMappings = await db.query.csvColumnMappings.findMany({
+		where: eq(csvColumnMappings.workspaceId, account.workspaceId)
+	});
+
 	return json({
 		filename: file.name,
 		profile: account.bankProfileId,
@@ -63,6 +66,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		skippedCount,
 		preview,
 		openingBalance,
-		closingBalance
+		closingBalance,
+		columnMappings: result.columnMappings,
+		unusedColumns: result.unusedColumns,
+		savedMappings: savedMappings.map((m) => ({
+			field: m.columnKey,
+			csvHeader: m.columnLabel,
+			enabled: m.enabled
+		}))
 	});
 };

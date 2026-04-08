@@ -2,8 +2,8 @@ import { error, json } from '@sveltejs/kit';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
-import { uploadAndParse, detectFileDirection } from '$lib/server/parsers/index.js';
+import { bankAccounts, csvColumnMappings, csvUploads, transactions } from '$lib/server/db/schema.js';
+import { uploadAndParse, detectFileDirection, type ColumnOverrides } from '$lib/server/parsers/index.js';
 import { classifyRow, applyStatusUpdate, applyDescUpdate } from '$lib/server/dedup.js';
 import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
@@ -30,13 +30,16 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const openingBalanceRaw = formData.get('openingBalance') as string | null;
 	const openingBalance = openingBalanceRaw ? parseFloat(openingBalanceRaw.replace(',', '.')) : null;
 
+	const columnMappingsRaw = formData.get('columnMappings') as string | null;
+	const columnOverrides: ColumnOverrides = columnMappingsRaw ? JSON.parse(columnMappingsRaw) : null;
+
 	let rows: Awaited<ReturnType<typeof uploadAndParse>>['result']['rows'];
 	let skippedCount: number;
 
 	try {
 		({
 			result: { rows, skippedCount }
-		} = await uploadAndParse(file, account.bankProfileId));
+		} = await uploadAndParse(file, account.bankProfileId, columnOverrides));
 	} catch (e) {
 		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
 	}
@@ -112,6 +115,33 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 				? rows[rows.length - 1] // last file row = chronologically first
 				: rows.reduce((a, b) => (a.accountingDate <= b.accountingDate ? a : b));
 		await upsertOpeningBalance(account.id, openingBalance, earliest.accountingDate, locals.user.id);
+	}
+
+	// Save confirmed column mappings to workspace so future uploads are pre-confirmed
+	if (columnOverrides) {
+		const toSave = [
+			columnOverrides.categoryColumn
+				? { key: 'category', label: columnOverrides.categoryColumn }
+				: null,
+			columnOverrides.cityColumn ? { key: 'city', label: columnOverrides.cityColumn } : null,
+			columnOverrides.notesColumn ? { key: 'notes', label: columnOverrides.notesColumn } : null
+		].filter(Boolean) as Array<{ key: string; label: string }>;
+
+		for (const { key, label } of toSave) {
+			await db
+				.insert(csvColumnMappings)
+				.values({
+					workspaceId: account.workspaceId,
+					columnKey: key,
+					columnLabel: label,
+					sortOrder: 0,
+					enabled: true
+				})
+				.onConflictDoUpdate({
+					target: [csvColumnMappings.workspaceId, csvColumnMappings.columnKey],
+					set: { columnLabel: label, enabled: true }
+				});
+		}
 	}
 
 	// Mark account as active and refresh balance

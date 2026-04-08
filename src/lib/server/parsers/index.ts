@@ -4,6 +4,7 @@ import type { BankParserProfile, NormalizedTransaction } from './types.js';
 import {
 	normalizeRow,
 	detectOptionalColumn,
+	getUsedColumns,
 	CATEGORY_SYNONYMS,
 	CITY_SYNONYMS,
 	NOTES_SYNONYMS
@@ -104,13 +105,69 @@ export interface ParseResult {
 	rows: NormalizedTransaction[];
 	skippedCount: number;
 	errors: string[];
+	columnMappings: Array<{ csvHeader: string; field: 'category' | 'city' | 'notes'; label: string }>;
+	unusedColumns: string[];
+}
+
+export type ColumnOverrides = {
+	categoryColumn: string | null;
+	cityColumn: string | null;
+	notesColumn: string | null;
+} | null;
+
+const FIELD_LABELS: Record<'category' | 'city' | 'notes', string> = {
+	category: 'Category',
+	city: 'City',
+	notes: 'Notes'
+};
+
+function buildOptionalColumns(
+	headers: string[],
+	overrides: ColumnOverrides
+): { categoryColumn: string | null; cityColumn: string | null; notesColumn: string | null } {
+	if (overrides) return overrides;
+	return {
+		categoryColumn: detectOptionalColumn(headers, CATEGORY_SYNONYMS),
+		cityColumn: detectOptionalColumn(headers, CITY_SYNONYMS),
+		notesColumn: detectOptionalColumn(headers, NOTES_SYNONYMS)
+	};
+}
+
+function buildColumnMeta(
+	headers: string[],
+	profile: BankParserProfile,
+	optionalColumns: { categoryColumn: string | null; cityColumn: string | null; notesColumn: string | null }
+): { columnMappings: ParseResult['columnMappings']; unusedColumns: string[] } {
+	const usedByProfile = getUsedColumns(profile);
+	const optionalValues = Object.values(optionalColumns).filter(Boolean) as string[];
+
+	const unusedColumns = headers.filter(
+		(h) => !usedByProfile.includes(h) && !optionalValues.includes(h)
+	);
+
+	const columnMappings = (
+		[
+			['category', optionalColumns.categoryColumn],
+			['city', optionalColumns.cityColumn],
+			['notes', optionalColumns.notesColumn]
+		] as [keyof typeof FIELD_LABELS, string | null][]
+	)
+		.filter(([, v]) => v !== null)
+		.map(([field, csvHeader]) => ({ csvHeader: csvHeader!, field, label: FIELD_LABELS[field] }));
+
+	return { columnMappings, unusedColumns };
 }
 
 /**
  * Parse a CSV string using the given profile.
- * Returns normalised rows, count of skipped rows, and any parse errors.
+ * Returns normalised rows, count of skipped rows, any parse errors, and column mapping metadata.
+ * Pass `columnOverrides` to use user-confirmed mappings instead of auto-detection.
  */
-export function parseCSV(csvText: string, profile: BankParserProfile): ParseResult {
+export function parseCSV(
+	csvText: string,
+	profile: BankParserProfile,
+	columnOverrides: ColumnOverrides = null
+): ParseResult {
 	// Strip leading metadata rows (e.g. bank header lines before the column header)
 	let text = csvText;
 	if (profile.skipRows > 0) {
@@ -131,11 +188,8 @@ export function parseCSV(csvText: string, profile: BankParserProfile): ParseResu
 	const postNorm = POST_NORMALIZE[profile.bankProfileId];
 
 	const csvHeaders = Object.keys(result.data[0] ?? {});
-	const optionalColumns = {
-		categoryColumn: detectOptionalColumn(csvHeaders, CATEGORY_SYNONYMS),
-		cityColumn: detectOptionalColumn(csvHeaders, CITY_SYNONYMS),
-		notesColumn: detectOptionalColumn(csvHeaders, NOTES_SYNONYMS)
-	};
+	const optionalColumns = buildOptionalColumns(csvHeaders, columnOverrides);
+	const { columnMappings, unusedColumns } = buildColumnMeta(csvHeaders, profile, optionalColumns);
 
 	for (let i = 0; i < result.data.length; i++) {
 		const raw = result.data[i];
@@ -166,15 +220,20 @@ export function parseCSV(csvText: string, profile: BankParserProfile): ParseResu
 		errors.push(`Parse error row ${err.row ?? '?'}: ${err.message}`);
 	}
 
-	return { rows, skippedCount, errors };
+	return { rows, skippedCount, errors, columnMappings, unusedColumns };
 }
 
 /**
  * Parse an XLSX buffer using the given profile.
  * Uses profile.skipRows as the 0-indexed row that becomes the header row.
- * Returns normalised rows, count of skipped rows, and any parse errors.
+ * Returns normalised rows, count of skipped rows, any parse errors, and column mapping metadata.
+ * Pass `columnOverrides` to use user-confirmed mappings instead of auto-detection.
  */
-export function parseXLSX(buffer: Buffer, profile: BankParserProfile): ParseResult {
+export function parseXLSX(
+	buffer: Buffer,
+	profile: BankParserProfile,
+	columnOverrides: ColumnOverrides = null
+): ParseResult {
 	const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false });
 	const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
@@ -198,11 +257,8 @@ export function parseXLSX(buffer: Buffer, profile: BankParserProfile): ParseResu
 	const postNorm = POST_NORMALIZE[profile.bankProfileId];
 
 	const xlsxHeaders = Object.keys(rowsData[0] ?? {});
-	const optionalColumns = {
-		categoryColumn: detectOptionalColumn(xlsxHeaders, CATEGORY_SYNONYMS),
-		cityColumn: detectOptionalColumn(xlsxHeaders, CITY_SYNONYMS),
-		notesColumn: detectOptionalColumn(xlsxHeaders, NOTES_SYNONYMS)
-	};
+	const optionalColumns = buildOptionalColumns(xlsxHeaders, columnOverrides);
+	const { columnMappings, unusedColumns } = buildColumnMeta(xlsxHeaders, profile, optionalColumns);
 
 	for (let i = 0; i < rowsData.length; i++) {
 		const raw = rowsData[i];
@@ -228,7 +284,7 @@ export function parseXLSX(buffer: Buffer, profile: BankParserProfile): ParseResu
 		rows.push({ ...normalized, sourceIndex: i });
 	}
 
-	return { rows, skippedCount, errors };
+	return { rows, skippedCount, errors, columnMappings, unusedColumns };
 }
 
 // ─── File utilities ────────────────────────────────────────────────────────
@@ -256,10 +312,12 @@ export async function fileToBuffer(file: File): Promise<Buffer> {
  * Single entry point for all file uploads.
  * Detects file type (csv / xlsx) → optionally detects bank profile → parses.
  * Pass profileIdHint when the profile is already known (e.g. stored on the account record).
+ * Pass columnOverrides to use user-confirmed column mappings instead of auto-detection.
  */
 export async function uploadAndParse(
 	file: File,
-	profileIdHint?: string | null
+	profileIdHint?: string | null,
+	columnOverrides?: ColumnOverrides
 ): Promise<{ profileId: string; result: ParseResult }> {
 	const isXlsx =
 		file.name.endsWith('.xlsx') ||
@@ -271,7 +329,7 @@ export async function uploadAndParse(
 		if (!profileId) throw new Error('Could not detect bank profile from XLSX');
 		const profile = getProfile(profileId);
 		if (!profile) throw new Error(`Unknown bank profile: ${profileId}`);
-		return { profileId, result: parseXLSX(buffer, profile) };
+		return { profileId, result: parseXLSX(buffer, profile, columnOverrides ?? null) };
 	}
 
 	// Default: treat as CSV
@@ -280,5 +338,5 @@ export async function uploadAndParse(
 	if (!profileId) throw new Error('Could not detect bank profile from CSV');
 	const profile = getProfile(profileId);
 	if (!profile) throw new Error(`Unknown bank profile: ${profileId}`);
-	return { profileId, result: parseCSV(csvText, profile) };
+	return { profileId, result: parseCSV(csvText, profile, columnOverrides ?? null) };
 }
