@@ -79,6 +79,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 						description: row.description,
 						isTransfer: row.isTransferCandidate,
 						isFxCandidate: row.isFxCandidate,
+						category: row.category ?? null,
+						city: row.city ?? null,
+						notes: row.notes ?? null,
 						payerUserId: locals.user.id,
 						status: row.status,
 						syncSource: 'csv_upload'
@@ -121,6 +124,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 						description: row.description,
 						isTransfer: row.isTransferCandidate,
 						isFxCandidate: row.isFxCandidate,
+						category: row.category ?? null,
+						city: row.city ?? null,
+						notes: row.notes ?? null,
 						payerUserId: locals.user.id,
 						status: 'review',
 						syncSource: 'csv_upload'

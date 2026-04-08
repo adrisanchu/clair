@@ -34,6 +34,9 @@ export interface NormalizedTransaction {
 	rawType: string | null; // original type string from CSV
 	isTransferCandidate: boolean; // derived from rawType + profile.transferTypes
 	isFxCandidate: boolean; // derived from rawType + profile.fxCandidateTypes
+	category: string | null; // from CSV if user pre-filled a category column; null otherwise
+	city: string | null; // from CSV if user pre-filled a city column; null otherwise
+	notes: string | null; // from CSV if user pre-filled a notes column; null otherwise
 	sourceIndex: number; // 0-based position in original file (after skipRows); used for ordering
 }
 
