@@ -1,7 +1,13 @@
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type { BankParserProfile, NormalizedTransaction } from './types.js';
-import { normalizeRow } from './normalizer.js';
+import {
+	normalizeRow,
+	detectOptionalColumn,
+	CATEGORY_SYNONYMS,
+	CITY_SYNONYMS,
+	NOTES_SYNONYMS
+} from './normalizer.js';
 import { preCategorize } from './pre-categorize.js';
 import {
 	revolut_eu,
@@ -124,9 +130,16 @@ export function parseCSV(csvText: string, profile: BankParserProfile): ParseResu
 	let skippedCount = 0;
 	const postNorm = POST_NORMALIZE[profile.bankProfileId];
 
+	const csvHeaders = Object.keys(result.data[0] ?? {});
+	const optionalColumns = {
+		categoryColumn: detectOptionalColumn(csvHeaders, CATEGORY_SYNONYMS),
+		cityColumn: detectOptionalColumn(csvHeaders, CITY_SYNONYMS),
+		notesColumn: detectOptionalColumn(csvHeaders, NOTES_SYNONYMS)
+	};
+
 	for (let i = 0; i < result.data.length; i++) {
 		const raw = result.data[i];
-		let normalized = normalizeRow(raw, profile);
+		let normalized = normalizeRow(raw, profile, optionalColumns);
 
 		if (!normalized) {
 			skippedCount++;
@@ -184,9 +197,16 @@ export function parseXLSX(buffer: Buffer, profile: BankParserProfile): ParseResu
 	let skippedCount = 0;
 	const postNorm = POST_NORMALIZE[profile.bankProfileId];
 
+	const xlsxHeaders = Object.keys(rowsData[0] ?? {});
+	const optionalColumns = {
+		categoryColumn: detectOptionalColumn(xlsxHeaders, CATEGORY_SYNONYMS),
+		cityColumn: detectOptionalColumn(xlsxHeaders, CITY_SYNONYMS),
+		notesColumn: detectOptionalColumn(xlsxHeaders, NOTES_SYNONYMS)
+	};
+
 	for (let i = 0; i < rowsData.length; i++) {
 		const raw = rowsData[i];
-		let normalized = normalizeRow(raw, profile);
+		let normalized = normalizeRow(raw, profile, optionalColumns);
 
 		if (!normalized) {
 			skippedCount++;

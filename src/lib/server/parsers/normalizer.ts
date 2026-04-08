@@ -1,9 +1,44 @@
 import { parse as parseDate, isValid } from 'date-fns';
 import type { BankParserProfile, NormalizedTransaction } from './types.js';
 
+// ─── Optional column synonym lists ────────────────────────────────────────
+
+export const CATEGORY_SYNONYMS = [
+	'category', 'categoria', 'categoría', 'cat', 'tipo', 'type',
+	'label', 'etiqueta', 'clasificación', 'clasificacion'
+];
+
+export const CITY_SYNONYMS = [
+	'city', 'ciudad', 'ubicación', 'ubicacion', 'localización',
+	'localizacion', 'geografía', 'geografia', 'location', 'place',
+	'lugar', 'zona', 'region', 'región'
+];
+
+export const NOTES_SYNONYMS = [
+	'notes', 'notas', 'nota', 'info adicional',
+	'comments', 'comentarios', 'comentario',
+	'observaciones', 'observacion', 'observación',
+	'remark', 'remarks'
+];
+
+/** Returns the first header that matches any synonym (case- and accent-insensitive). */
+export function detectOptionalColumn(headers: string[], synonyms: string[]): string | null {
+	const norm = (s: string) =>
+		s.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+	const normSynonyms = synonyms.map(norm);
+	return headers.find((h) => normSynonyms.includes(norm(h))) ?? null;
+}
+
+// ─── Row normalizer ────────────────────────────────────────────────────────
+
 export function normalizeRow(
 	raw: Record<string, string>,
-	profile: BankParserProfile
+	profile: BankParserProfile,
+	optionalColumns: {
+		categoryColumn: string | null;
+		cityColumn: string | null;
+		notesColumn: string | null;
+	} = { categoryColumn: null, cityColumn: null, notesColumn: null }
 ): NormalizedTransaction | null {
 	const amount = profile.amountColumn
 		? parseAmount(raw[profile.amountColumn])
@@ -41,7 +76,17 @@ export function normalizeRow(
 		status,
 		rawType,
 		isTransferCandidate: rawType !== null && profile.transferTypes.includes(rawType),
-		isFxCandidate: rawType !== null && profile.fxCandidateTypes.includes(rawType)
+		isFxCandidate: rawType !== null && profile.fxCandidateTypes.includes(rawType),
+		category: optionalColumns.categoryColumn
+			? (raw[optionalColumns.categoryColumn]?.trim() || null)
+			: null,
+		city: optionalColumns.cityColumn
+			? (raw[optionalColumns.cityColumn]?.trim() || null)
+			: null,
+		notes: optionalColumns.notesColumn
+			? (raw[optionalColumns.notesColumn]?.trim() || null)
+			: null,
+		sourceIndex: 0 // placeholder; always overwritten by the caller
 	};
 }
 
