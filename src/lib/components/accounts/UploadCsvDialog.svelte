@@ -6,7 +6,8 @@
 		Upload,
 		ArrowRight,
 		ArrowLeftRight,
-		Link
+		Link,
+		Columns3
 	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
@@ -30,13 +31,15 @@
 		isFirstUpload
 	}: Props = $props();
 
-	type Step = 'upload' | 'preview' | 'importing' | 'done';
+	type Step = 'upload' | 'preview' | 'columns' | 'importing' | 'done';
 	let step = $state<Step>('upload');
 	let loading = $state(false);
 	let err = $state<string | null>(null);
 	let file = $state<File | null>(null);
 	let dragging = $state(false);
 	let balanceInput = $state('');
+
+	type ColumnMapping = { csvHeader: string; field: 'category' | 'city' | 'notes'; label: string };
 
 	type PreviewData = {
 		filename: string;
@@ -45,6 +48,9 @@
 		preview: Array<{ date: string; description: string; amount: number; currency: string }>;
 		openingBalance: number | null;
 		closingBalance: number | null;
+		columnMappings: ColumnMapping[];
+		unusedColumns: string[];
+		savedMappings: Array<{ field: string; csvHeader: string; enabled: boolean }>;
 	};
 
 	type DetectedConversion = {
@@ -92,6 +98,11 @@
 
 	let preview = $state<PreviewData | null>(null);
 	let importResult = $state<ImportResult | null>(null);
+	let columnConfirm = $state<Record<'category' | 'city' | 'notes', boolean>>({
+		category: true,
+		city: true,
+		notes: true
+	});
 	// Per-match state: sourceId → 'linked' | 'skipped' | selectedCandidateId | null (pending)
 	let transferDecisions = $state<Record<string, string | null>>({});
 	let transferLinking = $state<Record<string, boolean>>({});
@@ -107,6 +118,7 @@
 		importResult = null;
 		transferDecisions = {};
 		transferLinking = {};
+		columnConfirm = { category: true, city: true, notes: true };
 	}
 
 	function handleOpenChange(v: boolean) {
@@ -166,6 +178,12 @@
 			if (data.openingBalance !== null) {
 				balanceInput = data.openingBalance.toFixed(2);
 			}
+			// Pre-apply saved workspace mappings to confirm toggles
+			columnConfirm = { category: true, city: true, notes: true };
+			for (const saved of data.savedMappings ?? []) {
+				const field = saved.field as 'category' | 'city' | 'notes';
+				if (field in columnConfirm) columnConfirm[field] = saved.enabled;
+			}
 			step = 'preview';
 		} catch (e) {
 			err = e instanceof Error ? e.message : 'Could not parse the file';
@@ -182,6 +200,21 @@
 		formData.append('file', file);
 		if (balanceInput.trim()) {
 			formData.append('openingBalance', balanceInput.replace(',', '.'));
+		}
+		// Send user-confirmed column overrides if there were any detected mappings
+		if (preview && preview.columnMappings.length > 0) {
+			const overrides = {
+				categoryColumn: columnConfirm.category
+					? (preview.columnMappings.find((m) => m.field === 'category')?.csvHeader ?? null)
+					: null,
+				cityColumn: columnConfirm.city
+					? (preview.columnMappings.find((m) => m.field === 'city')?.csvHeader ?? null)
+					: null,
+				notesColumn: columnConfirm.notes
+					? (preview.columnMappings.find((m) => m.field === 'notes')?.csvHeader ?? null)
+					: null
+			};
+			formData.append('columnMappings', JSON.stringify(overrides));
 		}
 		try {
 			const res = await fetch(`/api/accounts/${accountId}/import`, {
@@ -218,9 +251,18 @@
 		}
 	}
 
-	const steps = ['Upload', 'Review', 'Done'];
+	const hasColumnsStep = $derived(
+		!!preview && (preview.columnMappings.length > 0 || preview.unusedColumns.length > 0)
+	);
+	const steps = $derived(hasColumnsStep ? ['Upload', 'Preview', 'Columns', 'Done'] : ['Upload', 'Preview', 'Done']);
 	const stepIndex = $derived(
-		step === 'upload' ? 0 : step === 'preview' || step === 'importing' ? 1 : 2
+		step === 'upload'
+			? 0
+			: step === 'preview'
+				? 1
+				: step === 'columns'
+					? 2
+					: steps.length - 1
 	);
 </script>
 
@@ -381,7 +423,58 @@
 				</div>
 			{/if}
 
-			<!-- ── Step: Importing ── -->
+		<!-- ── Step: Columns ── -->
+	{:else if step === 'columns' && preview}
+		{#if preview.columnMappings.length > 0}
+			<div class="mb-4">
+				<p class="mb-3 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">
+					Optional columns detected
+				</p>
+				<div class="space-y-2">
+					{#each preview.columnMappings as mapping (mapping.field)}
+						<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+						<label
+							class="flex cursor-pointer items-center justify-between rounded-lg border border-border p-3 transition-colors hover:border-border-strong {columnConfirm[mapping.field]
+								? 'bg-surface'
+								: 'bg-surface-sunken opacity-60'}"
+						>
+							<div class="flex items-center gap-3">
+								<Columns3 size={15} class="shrink-0 text-text-tertiary" />
+								<div>
+									<p class="text-sm font-medium text-text-primary">{mapping.csvHeader}</p>
+									<p class="text-xs text-text-secondary">→ {mapping.label}</p>
+								</div>
+							</div>
+							<input
+								type="checkbox"
+								bind:checked={columnConfirm[mapping.field]}
+								class="h-4 w-4 accent-primary-500"
+							/>
+						</label>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		{#if preview.unusedColumns.length > 0}
+			<div class="rounded-lg border border-border bg-surface-sunken p-3">
+				<p class="mb-2 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">
+					{preview.unusedColumns.length}
+					{preview.unusedColumns.length === 1 ? 'column' : 'columns'} won't be imported
+				</p>
+				<div class="flex flex-wrap gap-1.5">
+					{#each preview.unusedColumns as col}
+						<span
+							class="rounded-md border border-border bg-surface px-2 py-0.5 text-xs text-text-secondary"
+						>
+							{col}
+						</span>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<!-- ── Step: Importing ── -->
 		{:else if step === 'importing'}
 			<div class="flex flex-col items-center gap-3 py-12">
 				<div
@@ -634,7 +727,20 @@
 				>
 					Back
 				</Button>
-				<Button onclick={submitImport} disabled={loading}>
+				{#if hasColumnsStep}
+					<Button onclick={() => (step = 'columns')} disabled={loading}>
+						Review columns
+						<ArrowRight size={14} />
+					</Button>
+				{:else}
+					<Button onclick={submitImport} disabled={loading}>
+						Import {preview?.totalParsed ?? ''} transactions
+						<ArrowRight size={14} />
+					</Button>
+				{/if}
+			{:else if step === 'columns'}
+				<Button variant="outline" onclick={() => (step = 'preview')}>Back</Button>
+				<Button onclick={submitImport}>
 					Import {preview?.totalParsed ?? ''} transactions
 					<ArrowRight size={14} />
 				</Button>
