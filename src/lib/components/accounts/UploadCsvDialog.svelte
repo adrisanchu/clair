@@ -94,6 +94,7 @@
 		duplicates: number;
 		detectedConversions: DetectedConversion[];
 		unresolvedTransfers: TransferMatch[];
+		newCategories: Array<{ name: string; color: string }>;
 	};
 
 	let preview = $state<PreviewData | null>(null);
@@ -273,7 +274,7 @@
 		</Dialog.Header>
 
 		<!-- Step progress bar -->
-		<div class="mb-6 flex gap-1.5">
+		<div class="mb-4 flex gap-1.5">
 			{#each steps as _, i}
 				<div
 					class="h-1 flex-1 rounded-full transition-colors duration-300 {i <= stepIndex
@@ -519,6 +520,26 @@
 				</div>
 
 				<div class="max-h-[45vh] w-full overflow-y-auto">
+					<!-- New categories detected -->
+					{#if importResult.newCategories?.length > 0}
+						<div class="mb-3 w-full rounded-lg border border-border p-3 text-left">
+							<p class="mb-2 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">
+								{importResult.newCategories.length}
+								{importResult.newCategories.length === 1 ? 'new category' : 'new categories'} added
+							</p>
+							<div class="flex flex-wrap gap-1.5">
+								{#each importResult.newCategories as cat}
+									<span
+										class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium text-white"
+										style="background-color: {cat.color}"
+									>
+										{cat.name}
+									</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
 					<!-- Conversion confirmation cards -->
 					{#if importResult.detectedConversions?.length > 0}
 						<div class="mt-2 w-full space-y-2">
@@ -711,7 +732,7 @@
 		{/if}
 
 		<!-- Footer -->
-		<Dialog.Footer class="sticky bottom-0 bg-surface pt-2">
+		<Dialog.Footer class="sticky bottom-0 pt-2">
 			{#if step === 'upload'}
 				<div></div>
 				<Button variant="outline" onclick={() => (open = false)}>Cancel</Button>

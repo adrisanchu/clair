@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { bankAccounts, csvColumnMappings, csvUploads, transactions } from '$lib/server/db/schema.js';
+import { bankAccounts, categories, csvColumnMappings, csvUploads, transactions } from '$lib/server/db/schema.js';
 import { uploadAndParse, detectFileDirection, type ColumnOverrides } from '$lib/server/parsers/index.js';
 import { classifyRow, applyStatusUpdate, applyDescUpdate } from '$lib/server/dedup.js';
 import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
@@ -149,6 +149,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	await refreshCurrentBalance(account.id);
 
+	// Detect and insert new categories from the CSV
+	const newCategories = await upsertNewCategories(rows, account.workspaceId);
+
 	// Transfer auto-detection and cross-currency conversion detection
 	const accessibleIds = await getAccessibleAccountIds(locals.user.id);
 	const [unresolvedTransfers, detectedConversions] = await Promise.all([
@@ -162,9 +165,63 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		statusUpdates: statusUpdatesCount,
 		duplicates: duplicateCount,
 		unresolvedTransfers,
-		detectedConversions
+		detectedConversions,
+		newCategories
 	});
 };
+
+// ─── Category palette ─────────────────────────────────────────────────────
+
+const CATEGORY_COLORS = [
+	'#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6',
+	'#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
+	'#f59e0b', '#10b981', '#6366f1', '#d946ef', '#0ea5e9'
+];
+
+function randomCategoryColor(): string {
+	return CATEGORY_COLORS[Math.floor(Math.random() * CATEGORY_COLORS.length)];
+}
+
+/**
+ * Collect unique non-empty category values from parsed rows,
+ * find which ones don't exist yet in the workspace, insert them,
+ * and return the newly created category names.
+ */
+async function upsertNewCategories(
+	rows: NormalizedTransaction[],
+	workspaceId: string
+): Promise<Array<{ name: string; color: string }>> {
+	// Collect unique non-empty category names from the CSV
+	const csvCategories = [
+		...new Set(rows.map((r) => r.category?.trim()).filter(Boolean) as string[])
+	];
+	if (csvCategories.length === 0) return [];
+
+	// Load existing category names for this workspace (lowercase for comparison)
+	const existing = await db.query.categories.findMany({
+		where: eq(categories.workspaceId, workspaceId),
+		columns: { name: true }
+	});
+	const existingNames = new Set(existing.map((c) => c.name.toLowerCase()));
+
+	// Filter to only the ones that don't exist yet
+	const toCreate = csvCategories.filter((name) => !existingNames.has(name.toLowerCase()));
+	if (toCreate.length === 0) return [];
+
+	const inserted = await db
+		.insert(categories)
+		.values(
+			toCreate.map((name) => ({
+				workspaceId,
+				name,
+				color: randomCategoryColor(),
+				sortOrder: 0
+			}))
+		)
+		.returning({ name: categories.name, color: categories.color });
+
+	return inserted;
+}
 
 function buildTxInsert(
 	row: NormalizedTransaction,
