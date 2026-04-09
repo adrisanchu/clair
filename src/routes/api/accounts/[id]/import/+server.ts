@@ -170,16 +170,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	});
 };
 
-// ─── Category palette ─────────────────────────────────────────────────────
-
-const CATEGORY_COLORS = [
-	'#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6',
-	'#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
-	'#f59e0b', '#10b981', '#6366f1', '#d946ef', '#0ea5e9'
-];
+import { CATEGORY_PALETTE } from '$lib/constants/colors.js';
 
 function randomCategoryColor(): string {
-	return CATEGORY_COLORS[Math.floor(Math.random() * CATEGORY_COLORS.length)];
+	return CATEGORY_PALETTE[Math.floor(Math.random() * CATEGORY_PALETTE.length)];
 }
 
 /**
