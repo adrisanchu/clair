@@ -268,13 +268,13 @@
 </script>
 
 <Dialog.Root bind:open onOpenChange={handleOpenChange}>
-	<Dialog.Content class="overflow-y-hidden">
+	<Dialog.Content class="flex flex-col overflow-hidden">
+		<!-- Fixed: header + progress bar never scroll -->
 		<Dialog.Header>
 			<Dialog.Title>Import Transactions</Dialog.Title>
 		</Dialog.Header>
 
-		<!-- Step progress bar -->
-		<div class="mb-4 flex gap-1.5">
+		<div class="mb-4 flex shrink-0 gap-1.5">
 			{#each steps as _, i}
 				<div
 					class="h-1 flex-1 rounded-full transition-colors duration-300 {i <= stepIndex
@@ -283,6 +283,9 @@
 				></div>
 			{/each}
 		</div>
+
+		<!-- Scrollable content: grows to fill remaining space, scrolls if needed -->
+		<div class="min-h-0 flex-1 overflow-y-auto">
 
 		<!-- ── Step: Upload ── -->
 		{#if step === 'upload'}
@@ -486,35 +489,33 @@
 
 			<!-- ── Step: Done ── -->
 		{:else if step === 'done' && importResult}
-			<div class="flex flex-col items-center gap-4 text-center">
-				<div class="bg-success-100 flex h-14 w-14 items-center justify-center rounded-full">
-					<CheckCircle2 size={28} class="text-success-600" />
+			<div class="flex flex-col items-center gap-2 text-center">
+				<div class="bg-success-100 flex h-10 w-10 items-center justify-center rounded-full">
+					<CheckCircle2 size={24} class="text-success-600" />
 				</div>
 				<div>
 					<h3 class="text-base font-semibold text-text-primary">Import complete</h3>
-					<p class="mt-0.5 text-sm text-text-secondary">Your transactions have been saved.</p>
+					<p class="text-sm text-text-secondary">Your transactions have been saved.</p>
 				</div>
-				<div class="mt-1 grid w-full max-w-xs grid-cols-2 gap-3">
-					<div class="rounded-lg border border-border p-3 text-center">
-						<p class="font-mono text-2xl font-bold text-text-primary">{importResult.imported}</p>
-						<p class="mt-0.5 text-xs text-text-secondary">Imported</p>
+				<div class="grid w-full max-w-xs grid-cols-2 gap-2">
+					<div class="rounded-lg border border-border px-3 py-2 text-center">
+						<p class="font-mono text-xl font-bold text-text-primary">{importResult.imported}</p>
+						<p class="text-xs text-text-secondary">Imported</p>
 					</div>
-					<div class="rounded-lg border border-border p-3 text-center">
-						<p class="font-mono text-2xl font-bold text-text-primary">{importResult.duplicates}</p>
-						<p class="mt-0.5 text-xs text-text-secondary">Duplicates</p>
+					<div class="rounded-lg border border-border px-3 py-2 text-center">
+						<p class="font-mono text-xl font-bold text-text-primary">{importResult.duplicates}</p>
+						<p class="text-xs text-text-secondary">Duplicates</p>
 					</div>
 					{#if importResult.statusUpdates > 0}
-						<div class="rounded-lg border border-border p-3 text-center">
-							<p class="font-mono text-2xl font-bold text-text-primary">
-								{importResult.statusUpdates}
-							</p>
-							<p class="mt-0.5 text-xs text-text-secondary">Status updates</p>
+						<div class="rounded-lg border border-border px-3 py-2 text-center">
+							<p class="font-mono text-xl font-bold text-text-primary">{importResult.statusUpdates}</p>
+							<p class="text-xs text-text-secondary">Status updates</p>
 						</div>
 					{/if}
 					{#if importResult.flagged > 0}
-						<div class="border-warning-200 bg-warning-50 rounded-lg border p-3 text-center">
-							<p class="text-warning-700 font-mono text-2xl font-bold">{importResult.flagged}</p>
-							<p class="text-warning-600 mt-0.5 text-xs">Need review</p>
+						<div class="border-warning-200 bg-warning-50 rounded-lg border px-3 py-2 text-center">
+							<p class="text-warning-700 font-mono text-xl font-bold">{importResult.flagged}</p>
+							<p class="text-warning-600 text-xs">Need review</p>
 						</div>
 					{/if}
 				</div>
@@ -721,7 +722,7 @@
 			</div>
 		{/if}
 
-		<!-- Error banner -->
+			<!-- Error banner -->
 		{#if err}
 			<div
 				class="border-danger-200 mt-3 flex items-center gap-2 rounded-lg border bg-danger-50 px-3 py-2.5 text-sm text-danger-600"
@@ -730,9 +731,9 @@
 				{err}
 			</div>
 		{/if}
+		</div>
 
-		<!-- Footer -->
-		<Dialog.Footer class="sticky bottom-0 pt-2">
+		<Dialog.Footer class="shrink-0 pt-2 mt-4">
 			{#if step === 'upload'}
 				<div></div>
 				<Button variant="outline" onclick={() => (open = false)}>Cancel</Button>
