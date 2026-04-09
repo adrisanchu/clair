@@ -73,6 +73,22 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			field: m.columnKey,
 			csvHeader: m.columnLabel,
 			enabled: m.enabled
-		}))
+		})),
+		// Adaptive detection metadata — null when the strict profile was used successfully
+		detection: result.detectionMeta
+			? {
+					usedAdaptive: true,
+					overallConfidence: result.detectionMeta.overallConfidence,
+					warnings: result.detectionMeta.warnings,
+					detectedDelimiter: result.detectionMeta.detectedDelimiter.value,
+					detectedDateFormat: result.detectionMeta.detectedDateFormat.value,
+					columnMappings: Object.fromEntries(
+						Object.entries(result.detectionMeta.columnMappingDetails).map(([f, d]) => [
+							f,
+							{ header: d.value, confidence: d.confidence }
+						])
+					)
+				}
+			: null
 	});
 };

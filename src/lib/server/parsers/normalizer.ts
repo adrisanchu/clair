@@ -1,25 +1,12 @@
 import { parse as parseDate, isValid } from 'date-fns';
 import type { BankParserProfile, NormalizedTransaction } from './types.js';
+import { SEMANTIC_SYNONYMS } from './detector.js';
 
-// ─── Optional column synonym lists ────────────────────────────────────────
+// ─── Optional column synonym lists (re-exported from detector for backward compat) ──
 
-export const CATEGORY_SYNONYMS = [
-	'category', 'categoria', 'categoría', 'cat', 'tipo', 'type',
-	'label', 'etiqueta', 'clasificación', 'clasificacion'
-];
-
-export const CITY_SYNONYMS = [
-	'city', 'ciudad', 'ubicación', 'ubicacion', 'localización',
-	'localizacion', 'geografía', 'geografia', 'location', 'place',
-	'lugar', 'zona', 'region', 'región'
-];
-
-export const NOTES_SYNONYMS = [
-	'notes', 'notas', 'nota', 'info adicional',
-	'comments', 'comentarios', 'comentario',
-	'observaciones', 'observacion', 'observación',
-	'remark', 'remarks'
-];
+export const CATEGORY_SYNONYMS = SEMANTIC_SYNONYMS.category;
+export const CITY_SYNONYMS = SEMANTIC_SYNONYMS.city;
+export const NOTES_SYNONYMS = SEMANTIC_SYNONYMS.notes;
 
 /** Returns the first header that matches any synonym (case- and accent-insensitive). */
 export function detectOptionalColumn(headers: string[], synonyms: string[]): string | null {

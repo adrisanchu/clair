@@ -64,6 +64,13 @@
       "when": 1775476251804,
       "tag": "0008_careful_red_shift",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1775754069631,
+      "tag": "0009_new_energizer",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "csv_col_map_workspace_key_uidx" ON "core"."csv_column_mappings" USING btree ("workspace_id","column_key");
