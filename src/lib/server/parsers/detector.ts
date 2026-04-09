@@ -61,7 +61,7 @@ export const SEMANTIC_SYNONYMS: Record<SemanticField, string[]> = {
 	],
 	notes: [
 		'notes', 'notas', 'nota', 'info adicional', 'comments', 'comentarios',
-		'comentario', 'observaciones', 'observacion', 'observación', 'remark', 'remarks'
+		'comentario', 'observaciones', 'observacion', 'observación', 'remark', 'remarks', 'info'
 	]
 };
 
