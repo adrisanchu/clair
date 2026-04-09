@@ -144,7 +144,11 @@ function buildOptionalColumns(
 function buildColumnMeta(
 	headers: string[],
 	profile: BankParserProfile,
-	optionalColumns: { categoryColumn: string | null; cityColumn: string | null; notesColumn: string | null }
+	optionalColumns: {
+		categoryColumn: string | null;
+		cityColumn: string | null;
+		notesColumn: string | null;
+	}
 ): { columnMappings: ParseResult['columnMappings']; unusedColumns: string[] } {
 	const usedByProfile = getUsedColumns(profile);
 	const optionalValues = Object.values(optionalColumns).filter(Boolean) as string[];

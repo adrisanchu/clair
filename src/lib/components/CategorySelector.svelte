@@ -57,13 +57,16 @@
 	>
 		{#if effectiveCat}
 			<Badge
-				class="max-w-full shrink min-w-0 truncate px-1 text-[10px] font-medium transition-opacity group-hover:opacity-70 md:px-2 md:text-[11px]"
+				class="max-w-full min-w-0 shrink truncate px-1 text-[10px] font-medium transition-opacity group-hover:opacity-70 md:px-2 md:text-[11px]"
 				style="background-color: {effectiveCat.color}26; color: {effectiveCat.color}; border-color: {effectiveCat.color}40;"
 			>
 				{effective}
 			</Badge>
 		{:else if effective}
-			<Badge variant="secondary" class="max-w-full shrink min-w-0 truncate px-1 text-[10px] font-medium transition-opacity group-hover:opacity-70 md:px-2 md:text-[11px]">
+			<Badge
+				variant="secondary"
+				class="max-w-full min-w-0 shrink truncate px-1 text-[10px] font-medium transition-opacity group-hover:opacity-70 md:px-2 md:text-[11px]"
+			>
 				{effective}
 			</Badge>
 		{:else}

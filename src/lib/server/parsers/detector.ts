@@ -1,75 +1,186 @@
 import { parse as dateFnsParse, isValid, getYear } from 'date-fns';
 import * as XLSX from 'xlsx';
-import type { BankParserProfile, DetectionMeta, FieldDetection, ResolvedProfile, SemanticField } from './types.js';
+import type {
+	BankParserProfile,
+	DetectionMeta,
+	FieldDetection,
+	ResolvedProfile,
+	SemanticField
+} from './types.js';
 
 // ─── Synonym lists for semantic field mapping ──────────────────────────────
 
 export const SEMANTIC_SYNONYMS: Record<SemanticField, string[]> = {
 	date: [
-		'date', 'fecha', 'fecha contable', 'fecha de inicio', 'start date',
-		'transaction date', 'booking date', 'fecha operación', 'fecha operacion',
-		'fecha de operacion', 'accounting date', 'datum', 'trade date', 'data'
+		'date',
+		'fecha',
+		'fecha contable',
+		'fecha de inicio',
+		'start date',
+		'transaction date',
+		'booking date',
+		'fecha operación',
+		'fecha operacion',
+		'fecha de operacion',
+		'accounting date',
+		'datum',
+		'trade date',
+		'data'
 	],
 	valueDate: [
-		'value date', 'fecha valor', 'fecha de valor', 'fecha de finalización',
-		'fecha de finalizacion', 'settlement date', 'end date', 'fecha fin',
-		'valuta', 'disponible'
+		'value date',
+		'fecha valor',
+		'fecha de valor',
+		'fecha de finalización',
+		'fecha de finalizacion',
+		'settlement date',
+		'end date',
+		'fecha fin',
+		'valuta',
+		'disponible'
 	],
 	amount: [
-		'amount', 'importe', 'monto', 'cantidad', 'value', 'betrag',
-		'montant', 'bedrag', 'importo', 'net amount', 'importe neto'
+		'amount',
+		'importe',
+		'monto',
+		'cantidad',
+		'value',
+		'betrag',
+		'montant',
+		'bedrag',
+		'importo',
+		'net amount',
+		'importe neto'
 	],
 	debit: [
-		'debit', 'cargo', 'cargos', 'débito', 'debito', 'salida', 'gasto',
-		'withdrawal', 'out', 'ausgabe'
+		'debit',
+		'cargo',
+		'cargos',
+		'débito',
+		'debito',
+		'salida',
+		'gasto',
+		'withdrawal',
+		'out',
+		'ausgabe'
 	],
 	credit: [
-		'credit', 'abono', 'abonos', 'crédito', 'credito', 'entrada', 'ingreso',
-		'deposit', 'in', 'eingang'
+		'credit',
+		'abono',
+		'abonos',
+		'crédito',
+		'credito',
+		'entrada',
+		'ingreso',
+		'deposit',
+		'in',
+		'eingang'
 	],
 	description: [
-		'description', 'descripción', 'descripcion', 'concepto', 'detalle',
-		'detail', 'details', 'memo', 'narrative', 'reference', 'referencia',
-		'bezeichnung', 'omschrijving', 'libellé', 'libelle', 'beneficiary',
-		'beneficiario', 'comercio', 'merchant'
+		'description',
+		'descripción',
+		'descripcion',
+		'concepto',
+		'detalle',
+		'detail',
+		'details',
+		'memo',
+		'narrative',
+		'reference',
+		'referencia',
+		'bezeichnung',
+		'omschrijving',
+		'libellé',
+		'libelle',
+		'beneficiary',
+		'beneficiario',
+		'comercio',
+		'merchant'
 	],
-	currency: [
-		'currency', 'divisa', 'moneda', 'devise', 'währung', 'valuta', 'cur', 'ccy'
-	],
+	currency: ['currency', 'divisa', 'moneda', 'devise', 'währung', 'valuta', 'cur', 'ccy'],
 	localAmount: [
-		'local amount', 'importe local', 'foreign amount', 'original amount',
-		'importe original', 'amount in original currency'
+		'local amount',
+		'importe local',
+		'foreign amount',
+		'original amount',
+		'importe original',
+		'amount in original currency'
 	],
 	balance: [
-		'balance', 'saldo', 'solde', 'kontostand', 'running balance',
-		'saldo contable', 'balance disponible', 'available balance'
+		'balance',
+		'saldo',
+		'solde',
+		'kontostand',
+		'running balance',
+		'saldo contable',
+		'balance disponible',
+		'available balance'
 	],
-	status: [
-		'status', 'estado', 'state', 'statut', 'zustand'
-	],
+	status: ['status', 'estado', 'state', 'statut', 'zustand'],
 	type: [
-		'type', 'tipo', 'art', 'transaction type', 'tipo de operacion',
-		'tipo de operación', 'operacion'
+		'type',
+		'tipo',
+		'art',
+		'transaction type',
+		'tipo de operacion',
+		'tipo de operación',
+		'operacion'
 	],
 	category: [
-		'category', 'categoria', 'categoría', 'cat', 'label', 'etiqueta',
-		'clasificación', 'clasificacion'
+		'category',
+		'categoria',
+		'categoría',
+		'cat',
+		'label',
+		'etiqueta',
+		'clasificación',
+		'clasificacion'
 	],
 	city: [
-		'city', 'ciudad', 'ubicación', 'ubicacion', 'localización',
-		'localizacion', 'location', 'place', 'lugar', 'zona'
+		'city',
+		'ciudad',
+		'ubicación',
+		'ubicacion',
+		'localización',
+		'localizacion',
+		'location',
+		'place',
+		'lugar',
+		'zona'
 	],
 	notes: [
-		'notes', 'notas', 'nota', 'info adicional', 'comments', 'comentarios',
-		'comentario', 'observaciones', 'observacion', 'observación', 'remark', 'remarks', 'info'
+		'notes',
+		'notas',
+		'nota',
+		'info adicional',
+		'comments',
+		'comentarios',
+		'comentario',
+		'observaciones',
+		'observacion',
+		'observación',
+		'remark',
+		'remarks',
+		'info'
 	]
 };
 
 // Priority order for field assignment (earlier = higher priority when two fields compete).
 const FIELD_PRIORITY: SemanticField[] = [
-	'date', 'description', 'amount', 'balance', 'currency',
-	'valueDate', 'debit', 'credit', 'status', 'type',
-	'localAmount', 'category', 'city', 'notes'
+	'date',
+	'description',
+	'amount',
+	'balance',
+	'currency',
+	'valueDate',
+	'debit',
+	'credit',
+	'status',
+	'type',
+	'localAmount',
+	'category',
+	'city',
+	'notes'
 ];
 
 // ─── Candidate date formats ────────────────────────────────────────────────
@@ -103,7 +214,11 @@ const DATE_PARSE_REFERENCE = new Date(2000, 0, 1);
 
 /** Normalize a string for accent-insensitive, case-insensitive comparison. */
 function norm(s: string): string {
-	return s.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+	return s
+		.trim()
+		.toLowerCase()
+		.normalize('NFD')
+		.replace(/\p{Diacritic}/gu, '');
 }
 
 // ─── detectEncoding ────────────────────────────────────────────────────────
@@ -289,8 +404,8 @@ export function detectDateFormat(samples: string[]): FieldDetection {
 
 	let confidence: number;
 	if (winner.rate >= 0.95) confidence = 1.0;
-	else if (winner.rate >= 0.70) confidence = 0.7;
-	else if (winner.rate >= 0.50) confidence = 0.5;
+	else if (winner.rate >= 0.7) confidence = 0.7;
+	else if (winner.rate >= 0.5) confidence = 0.5;
 	else confidence = 0.2;
 
 	return {
@@ -355,11 +470,13 @@ export function detectAdaptiveProfile(
 
 	if (dateColumn) {
 		const dataLines = lines.slice(skipRows + 1, skipRows + 22);
-		const dateSamples = dataLines.map((l) => {
-			const parts = l.split(delimiter);
-			const idx = headers.indexOf(dateColumn);
-			return idx >= 0 ? (parts[idx] ?? '').trim() : '';
-		}).filter(Boolean);
+		const dateSamples = dataLines
+			.map((l) => {
+				const parts = l.split(delimiter);
+				const idx = headers.indexOf(dateColumn);
+				return idx >= 0 ? (parts[idx] ?? '').trim() : '';
+			})
+			.filter(Boolean);
 		dateFormatDet = detectDateFormat(dateSamples);
 		if (dateFormatDet.candidatesTried?.length) {
 			// Pull out any ambiguity warnings already set inside detectDateFormat
@@ -371,7 +488,9 @@ export function detectAdaptiveProfile(
 					try {
 						const p = dateFnsParse(s, f, DATE_PARSE_REFERENCE);
 						if (isValid(p) && getYear(p) >= 1970 && getYear(p) <= 2100) ok++;
-					} catch { /* ignore */ }
+					} catch {
+						/* ignore */
+					}
 				}
 				return { format: f, rate: ok / (dateSamples.length || 1) };
 			}).sort((a, b) => b.rate - a.rate || b.format.length - a.format.length);
@@ -406,11 +525,12 @@ export function detectAdaptiveProfile(
 		columnMappingDetails.description.confidence,
 		columnMappingDetails.amount.confidence
 	];
-	const overallConfidence =
-		fieldConfidences.reduce((a, b) => a + b, 0) / fieldConfidences.length;
+	const overallConfidence = fieldConfidences.reduce((a, b) => a + b, 0) / fieldConfidences.length;
 
 	if (overallConfidence < 0.7) {
-		warnings.push(`Low detection confidence (${(overallConfidence * 100).toFixed(0)}%) — please review column mappings`);
+		warnings.push(
+			`Low detection confidence (${(overallConfidence * 100).toFixed(0)}%) — please review column mappings`
+		);
 	}
 
 	const meta: DetectionMeta = {
@@ -486,8 +606,7 @@ function detectAdaptiveXLSX(
 		columnMappingDetails.description.confidence,
 		columnMappingDetails.amount.confidence
 	];
-	const overallConfidence =
-		fieldConfidences.reduce((a, b) => a + b, 0) / fieldConfidences.length;
+	const overallConfidence = fieldConfidences.reduce((a, b) => a + b, 0) / fieldConfidences.length;
 
 	if (overallConfidence < 0.7) {
 		warnings.push(`Low XLSX detection confidence (${(overallConfidence * 100).toFixed(0)}%)`);
