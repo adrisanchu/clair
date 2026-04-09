@@ -17,6 +17,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	let rows: Awaited<ReturnType<typeof uploadAndParse>>['result']['rows'];
 	let skippedCount: number;
 	let errors: string[];
+	let detectionMeta: Awaited<ReturnType<typeof uploadAndParse>>['result']['detectionMeta'];
 
 	try {
 		const parsed = await uploadAndParse(
@@ -24,12 +25,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			typeof profileIdParam === 'string' && profileIdParam ? profileIdParam : null
 		);
 		profileId = parsed.profileId;
-		({ rows, skippedCount, errors } = parsed.result);
+		({ rows, skippedCount, errors, detectionMeta } = parsed.result);
 	} catch (e) {
 		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
 	}
 
-	const profile = getProfile(profileId)!;
+	// getProfile returns null for 'adaptive' — handle gracefully
+	const profile = getProfile(profileId);
+	const profileDisplay = profile
+		? { id: profile.bankProfileId, displayName: profile.displayName }
+		: { id: 'adaptive', displayName: 'Auto-detected' };
 
 	if (rows.length === 0 && errors.length > 0) {
 		throw error(422, `Could not parse CSV: ${errors[0]}`);
@@ -55,7 +60,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	return json({
 		detectedProfile: profileId,
-		profile: { id: profile.bankProfileId, displayName: profile.displayName },
+		profile: profileDisplay,
 		rowCount: rows.length,
 		skippedCount,
 		postedCount,
@@ -72,6 +77,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			currency: r.currency,
 			status: r.status
 		})),
-		errors: errors.slice(0, 10)
+		errors: errors.slice(0, 10),
+		// Adaptive detection metadata — null when the strict profile was used successfully
+		detection: detectionMeta
+			? {
+					usedAdaptive: true,
+					overallConfidence: detectionMeta.overallConfidence,
+					warnings: detectionMeta.warnings,
+					detectedDelimiter: detectionMeta.detectedDelimiter.value,
+					detectedDateFormat: detectionMeta.detectedDateFormat.value,
+					columnMappings: Object.fromEntries(
+						Object.entries(detectionMeta.columnMappingDetails).map(([f, d]) => [
+							f,
+							{ header: d.value, confidence: d.confidence }
+						])
+					)
+				}
+			: null
 	});
 };

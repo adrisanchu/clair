@@ -167,7 +167,7 @@
 
 	<!-- ── Filter bar ─────────────────────────────────────────────────────────── -->
 	<div
-		class="relative z-20 shrink-0 flex flex-wrap items-center gap-2 border-b border-border bg-surface px-4 py-3 md:px-8"
+		class="relative z-20 flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-4 py-3 md:px-8"
 	>
 		<!-- Search using shadcn Input -->
 		<div class="relative min-w-48 flex-1">
@@ -246,7 +246,7 @@
 	</div>
 
 	<!-- ── Transactions table ──────────────────────────────────────────────────── -->
-	<div class="flex-1 min-h-0 overflow-x-hidden overflow-y-auto">
+	<div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
 		{#if data.rows.length === 0}
 			<div class="flex h-full flex-col items-center justify-center px-4 py-24 text-center">
 				<p class="mb-1 text-sm font-medium text-text-primary">No transactions found</p>
@@ -260,183 +260,195 @@
 				{/if}
 			</div>
 		{:else}
-		<div class="px-2 md:px-0">
-			<table class="w-full table-fixed border-collapse text-xs md:text-sm">
-				<thead class="sticky top-0 z-10 bg-surface-sunken shadow-[0_1px_0_0_var(--border)]">
-					<tr>
-						<th
-							class="w-20 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4 md:w-36"
-						>
-							Category
-						</th>
-						<th
-							class="hidden w-36 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4 md:table-cell"
-						>
-							Date
-						</th>
-						<th
-							class="px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4"
-						>
-							Description
-						</th>
-						<th
-							class="hidden px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4 md:table-cell md:w-36"
-						>
-							Account
-						</th>
-						<th
-							class="w-24 px-2 py-2.5 text-right text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:w-32 md:px-4"
-						>
-							Amount
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each data.rows as tx (tx.id)}
-						{@const isReview = tx.status === 'review'}
-						{@const isTransfer = tx.isTransfer}
-						{@const isOpening = tx.isOpeningBalance}
-
-						{#if isOpening}
-							<!-- Opening balance row — read-only, visually distinct -->
-							<tr class="border-b border-border bg-surface-sunken/40 opacity-70">
-								<!-- Category col: opening balance label -->
-								<td class="px-2 py-2 md:px-4 md:py-3">
-									<Badge variant="outline" class="text-[11px] font-medium text-text-tertiary">
-										Opening balance
-									</Badge>
-								</td>
-								<!-- Date col (desktop only) -->
-								<td
-									class="hidden px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:table-cell md:px-4"
-								>
-									{format(tx.accountingDate, 'd MMM yyyy')}
-								</td>
-								<!-- Description col -->
-								<td class="px-2 py-2 md:px-4 md:py-3">
-									<div class="flex min-w-0 items-center gap-2">
-										<span class="truncate text-xs text-text-tertiary italic">{tx.description}</span>
-										{#if tx.notes}
-											<NoteHint note={tx.notes} />
-										{/if}
-									</div>
-									<!-- Mobile meta: date + account -->
-									<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
-										{format(tx.accountingDate, 'd MMM yyyy')}
-										{#if tx.accountName} · {tx.accountName}{/if}
-									</span>
-								</td>
-								<!-- Account col (desktop only) -->
-								<td class="hidden px-2 py-3 md:table-cell md:px-4">
-									{#if tx.accountName}
-										<span
-											class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
-										>
-											{tx.accountName}
-										</span>
-									{/if}
-								</td>
-								<!-- Amount col -->
-								<td class="px-2 py-2 text-right md:px-4 md:py-3">
-									<Amount value={tx.amount} currency={tx.currency} size="xs" class="md:text-sm" />
-								</td>
-							</tr>
-						{:else}
-							<tr
-								class={cn(
-									'border-b border-border transition-colors hover:bg-surface-sunken/60',
-									isReview && 'border-l-2 border-l-amber-400'
-								)}
+			<div class="px-2 md:px-0">
+				<table class="w-full table-fixed border-collapse text-xs md:text-sm">
+					<thead class="sticky top-0 z-10 bg-surface-sunken shadow-[0_1px_0_0_var(--border)]">
+						<tr>
+							<th
+								class="w-20 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:w-36 md:px-4"
 							>
-								<!-- Category col: status label or CategorySelector -->
-								<td class="px-2 py-2 md:px-4 md:py-3">
-									{#if isReview}
-										<Badge class="text-[11px] font-medium bg-amber-100 text-amber-700 border-amber-200">
-											Review Required
-										</Badge>
-									{:else if isTransfer}
-										<Badge variant="outline" class="text-[11px] font-medium text-text-secondary">
-											Transfer
-										</Badge>
-									{:else}
-										<CategorySelector
-											txId={tx.id}
-											category={tx.category}
-											categoryOverride={tx.categoryOverride}
-											categories={data.categories}
-										/>
-									{/if}
-								</td>
+								Category
+							</th>
+							<th
+								class="hidden w-36 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:table-cell md:px-4"
+							>
+								Date
+							</th>
+							<th
+								class="px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:px-4"
+							>
+								Description
+							</th>
+							<th
+								class="hidden px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:table-cell md:w-36 md:px-4"
+							>
+								Account
+							</th>
+							<th
+								class="w-24 px-2 py-2.5 text-right text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:w-32 md:px-4"
+							>
+								Amount
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each data.rows as tx (tx.id)}
+							{@const isReview = tx.status === 'review'}
+							{@const isTransfer = tx.isTransfer}
+							{@const isOpening = tx.isOpeningBalance}
 
-								<!-- Date col (desktop only) -->
-								<td
-									class="hidden px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:table-cell md:px-4"
-								>
-									{format(tx.accountingDate, 'd MMM yyyy')}
-								</td>
-
-								<!-- Description col -->
-								<td class="px-2 py-2 text-text-primary md:px-4 md:py-3">
-									<div class="flex min-w-0 items-center gap-2">
-										{#if isTransfer}
-											<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
-										{:else if isReview}
-											<AlertTriangle size={13} class="shrink-0 text-amber-500" />
-										{/if}
-										<span class="truncate text-xs font-medium md:text-sm">{tx.description}</span>
-										{#if tx.notes}
-											<NoteHint note={tx.notes} />
-										{/if}
-									</div>
-									<!-- Mobile meta: date + account -->
-									<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
+							{#if isOpening}
+								<!-- Opening balance row — read-only, visually distinct -->
+								<tr class="border-b border-border bg-surface-sunken/40 opacity-70">
+									<!-- Category col: opening balance label -->
+									<td class="px-2 py-2 md:px-4 md:py-3">
+										<Badge variant="outline" class="text-[11px] font-medium text-text-tertiary">
+											Opening balance
+										</Badge>
+									</td>
+									<!-- Date col (desktop only) -->
+									<td
+										class="hidden px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:table-cell md:px-4"
+									>
 										{format(tx.accountingDate, 'd MMM yyyy')}
-										{#if tx.accountName} · {tx.accountName}{/if}
-									</span>
-								</td>
-
-								<!-- Account col (desktop only) -->
-								<td class="hidden px-2 py-3 md:table-cell md:px-4">
-									{#if tx.accountName}
-										<span
-											class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-secondary uppercase"
-										>
-											{tx.accountName}
-										</span>
-									{/if}
-								</td>
-
-								<!-- Amount col -->
-								<td class="px-2 py-2 text-right md:px-4 md:py-3">
-									<Amount value={tx.amount} currency={tx.currency} size="xs" class="md:text-sm" />
-									{#if tx.currency !== 'EUR'}
-										{#if tx.amountEur != null}
-											<div class="mt-0.5 text-text-tertiary">
-												<Amount value={tx.amountEur} currency="EUR" size="xs" class="text-[10px] md:text-xs" colorize={false} />
-											</div>
-										{:else}
-											<div
-												class="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-amber-500"
+									</td>
+									<!-- Description col -->
+									<td class="px-2 py-2 md:px-4 md:py-3">
+										<div class="flex min-w-0 items-center gap-2">
+											<span class="truncate text-xs text-text-tertiary italic"
+												>{tx.description}</span
 											>
-												<CircleAlert size={10} />
-												<span class="font-mono">— EUR</span>
-											</div>
+											{#if tx.notes}
+												<NoteHint note={tx.notes} />
+											{/if}
+										</div>
+										<!-- Mobile meta: date + account -->
+										<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
+											{format(tx.accountingDate, 'd MMM yyyy')}
+											{#if tx.accountName}
+												· {tx.accountName}{/if}
+										</span>
+									</td>
+									<!-- Account col (desktop only) -->
+									<td class="hidden px-2 py-3 md:table-cell md:px-4">
+										{#if tx.accountName}
+											<span
+												class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+											>
+												{tx.accountName}
+											</span>
 										{/if}
-									{/if}
-								</td>
-							</tr>
-						{/if}
-					{/each}
-				</tbody>
-			</table>
-		</div>
+									</td>
+									<!-- Amount col -->
+									<td class="px-2 py-2 text-right md:px-4 md:py-3">
+										<Amount value={tx.amount} currency={tx.currency} size="xs" class="md:text-sm" />
+									</td>
+								</tr>
+							{:else}
+								<tr
+									class={cn(
+										'border-b border-border transition-colors hover:bg-surface-sunken/60',
+										isReview && 'border-l-2 border-l-amber-400'
+									)}
+								>
+									<!-- Category col: status label or CategorySelector -->
+									<td class="px-2 py-2 md:px-4 md:py-3">
+										{#if isReview}
+											<Badge
+												class="border-amber-200 bg-amber-100 text-[11px] font-medium text-amber-700"
+											>
+												Review Required
+											</Badge>
+										{:else if isTransfer}
+											<Badge variant="outline" class="text-[11px] font-medium text-text-secondary">
+												Transfer
+											</Badge>
+										{:else}
+											<CategorySelector
+												txId={tx.id}
+												category={tx.category}
+												categoryOverride={tx.categoryOverride}
+												categories={data.categories}
+											/>
+										{/if}
+									</td>
+
+									<!-- Date col (desktop only) -->
+									<td
+										class="hidden px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:table-cell md:px-4"
+									>
+										{format(tx.accountingDate, 'd MMM yyyy')}
+									</td>
+
+									<!-- Description col -->
+									<td class="px-2 py-2 text-text-primary md:px-4 md:py-3">
+										<div class="flex min-w-0 items-center gap-2">
+											{#if isTransfer}
+												<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
+											{:else if isReview}
+												<AlertTriangle size={13} class="shrink-0 text-amber-500" />
+											{/if}
+											<span class="truncate text-xs font-medium md:text-sm">{tx.description}</span>
+											{#if tx.notes}
+												<NoteHint note={tx.notes} />
+											{/if}
+										</div>
+										<!-- Mobile meta: date + account -->
+										<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
+											{format(tx.accountingDate, 'd MMM yyyy')}
+											{#if tx.accountName}
+												· {tx.accountName}{/if}
+										</span>
+									</td>
+
+									<!-- Account col (desktop only) -->
+									<td class="hidden px-2 py-3 md:table-cell md:px-4">
+										{#if tx.accountName}
+											<span
+												class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-secondary uppercase"
+											>
+												{tx.accountName}
+											</span>
+										{/if}
+									</td>
+
+									<!-- Amount col -->
+									<td class="px-2 py-2 text-right md:px-4 md:py-3">
+										<Amount value={tx.amount} currency={tx.currency} size="xs" class="md:text-sm" />
+										{#if tx.currency !== 'EUR'}
+											{#if tx.amountEur != null}
+												<div class="mt-0.5 text-text-tertiary">
+													<Amount
+														value={tx.amountEur}
+														currency="EUR"
+														size="xs"
+														class="text-[10px] md:text-xs"
+														colorize={false}
+													/>
+												</div>
+											{:else}
+												<div
+													class="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-amber-500"
+												>
+													<CircleAlert size={10} />
+													<span class="font-mono">— EUR</span>
+												</div>
+											{/if}
+										{/if}
+									</td>
+								</tr>
+							{/if}
+						{/each}
+					</tbody>
+				</table>
+			</div>
 		{/if}
 	</div>
 
 	<!-- ── Footer / Pagination ────────────────────────────────────────────────── -->
 	{#if data.total > 0}
 		<div
-			class="shrink-0 flex flex-wrap items-center justify-between gap-4 border-t border-border bg-surface px-4 py-3 md:px-8"
+			class="flex shrink-0 flex-wrap items-center justify-between gap-4 border-t border-border bg-surface px-4 py-3 md:px-8"
 		>
 			<!-- Count label -->
 			<p class="text-xs text-text-tertiary">

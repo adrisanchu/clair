@@ -21,7 +21,8 @@ export const bankinter_es: BankParserProfile = {
 	statusColumn: null, // all exported rows are posted
 	typeColumn: null, // Bankinter exports do not include an operation type column
 	transferTypes: [],
-	fxCandidateTypes: []
+	fxCandidateTypes: [],
+	additionalColumns: []
 };
 
 /**

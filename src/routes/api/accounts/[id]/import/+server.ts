@@ -2,8 +2,18 @@ import { error, json } from '@sveltejs/kit';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
-import { uploadAndParse, detectFileDirection } from '$lib/server/parsers/index.js';
+import {
+	bankAccounts,
+	categories,
+	csvColumnMappings,
+	csvUploads,
+	transactions
+} from '$lib/server/db/schema.js';
+import {
+	uploadAndParse,
+	detectFileDirection,
+	type ColumnOverrides
+} from '$lib/server/parsers/index.js';
 import { classifyRow, applyStatusUpdate, applyDescUpdate } from '$lib/server/dedup.js';
 import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
@@ -30,13 +40,16 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const openingBalanceRaw = formData.get('openingBalance') as string | null;
 	const openingBalance = openingBalanceRaw ? parseFloat(openingBalanceRaw.replace(',', '.')) : null;
 
+	const columnMappingsRaw = formData.get('columnMappings') as string | null;
+	const columnOverrides: ColumnOverrides = columnMappingsRaw ? JSON.parse(columnMappingsRaw) : null;
+
 	let rows: Awaited<ReturnType<typeof uploadAndParse>>['result']['rows'];
 	let skippedCount: number;
 
 	try {
 		({
 			result: { rows, skippedCount }
-		} = await uploadAndParse(file, account.bankProfileId));
+		} = await uploadAndParse(file, account.bankProfileId, columnOverrides));
 	} catch (e) {
 		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
 	}
@@ -114,10 +127,40 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		await upsertOpeningBalance(account.id, openingBalance, earliest.accountingDate, locals.user.id);
 	}
 
+	// Save confirmed column mappings to workspace so future uploads are pre-confirmed
+	if (columnOverrides) {
+		const toSave = [
+			columnOverrides.categoryColumn
+				? { key: 'category', label: columnOverrides.categoryColumn }
+				: null,
+			columnOverrides.cityColumn ? { key: 'city', label: columnOverrides.cityColumn } : null,
+			columnOverrides.notesColumn ? { key: 'notes', label: columnOverrides.notesColumn } : null
+		].filter(Boolean) as Array<{ key: string; label: string }>;
+
+		for (const { key, label } of toSave) {
+			await db
+				.insert(csvColumnMappings)
+				.values({
+					workspaceId: account.workspaceId,
+					columnKey: key,
+					columnLabel: label,
+					sortOrder: 0,
+					enabled: true
+				})
+				.onConflictDoUpdate({
+					target: [csvColumnMappings.workspaceId, csvColumnMappings.columnKey],
+					set: { columnLabel: label, enabled: true }
+				});
+		}
+	}
+
 	// Mark account as active and refresh balance
 	await db.update(bankAccounts).set({ status: 'active' }).where(eq(bankAccounts.id, account.id));
 
 	await refreshCurrentBalance(account.id);
+
+	// Detect and insert new categories from the CSV
+	const newCategories = await upsertNewCategories(rows, account.workspaceId);
 
 	// Transfer auto-detection and cross-currency conversion detection
 	const accessibleIds = await getAccessibleAccountIds(locals.user.id);
@@ -132,9 +175,57 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		statusUpdates: statusUpdatesCount,
 		duplicates: duplicateCount,
 		unresolvedTransfers,
-		detectedConversions
+		detectedConversions,
+		newCategories
 	});
 };
+
+import { CATEGORY_PALETTE } from '$lib/constants/colors.js';
+
+function randomCategoryColor(): string {
+	return CATEGORY_PALETTE[Math.floor(Math.random() * CATEGORY_PALETTE.length)];
+}
+
+/**
+ * Collect unique non-empty category values from parsed rows,
+ * find which ones don't exist yet in the workspace, insert them,
+ * and return the newly created category names.
+ */
+async function upsertNewCategories(
+	rows: NormalizedTransaction[],
+	workspaceId: string
+): Promise<Array<{ name: string; color: string }>> {
+	// Collect unique non-empty category names from the CSV
+	const csvCategories = [
+		...new Set(rows.map((r) => r.category?.trim()).filter(Boolean) as string[])
+	];
+	if (csvCategories.length === 0) return [];
+
+	// Load existing category names for this workspace (lowercase for comparison)
+	const existing = await db.query.categories.findMany({
+		where: eq(categories.workspaceId, workspaceId),
+		columns: { name: true }
+	});
+	const existingNames = new Set(existing.map((c) => c.name.toLowerCase()));
+
+	// Filter to only the ones that don't exist yet
+	const toCreate = csvCategories.filter((name) => !existingNames.has(name.toLowerCase()));
+	if (toCreate.length === 0) return [];
+
+	const inserted = await db
+		.insert(categories)
+		.values(
+			toCreate.map((name) => ({
+				workspaceId,
+				name,
+				color: randomCategoryColor(),
+				sortOrder: 0
+			}))
+		)
+		.returning({ name: categories.name, color: categories.color });
+
+	return inserted;
+}
 
 function buildTxInsert(
 	row: NormalizedTransaction,
@@ -155,6 +246,9 @@ function buildTxInsert(
 		description: row.description,
 		isTransfer: row.isTransferCandidate,
 		isFxCandidate: row.isFxCandidate,
+		category: row.category ?? null,
+		city: row.city ?? null,
+		notes: row.notes ?? null,
 		originalOrder: row.sourceIndex,
 		status,
 		payerUserId,

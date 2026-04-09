@@ -26,7 +26,8 @@ export const revolut_eu: BankParserProfile = {
 	// treated as transfer candidates so the counterpart in the source bank gets auto-linked.
 	transferTypes: ['Transferir', 'Recargas'],
 	// 'Cambio' marks a cross-currency exchange (e.g. EUR → SEK top-up).
-	fxCandidateTypes: ['Cambio']
+	fxCandidateTypes: ['Cambio'],
+	additionalColumns: ['Comisión'] // used in postNormalize to add fees to amount
 };
 
 /**

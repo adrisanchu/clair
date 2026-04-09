@@ -1,9 +1,53 @@
 import { parse as parseDate, isValid } from 'date-fns';
 import type { BankParserProfile, NormalizedTransaction } from './types.js';
+import { SEMANTIC_SYNONYMS } from './detector.js';
+
+// ─── Optional column synonym lists (re-exported from detector for backward compat) ──
+
+export const CATEGORY_SYNONYMS = SEMANTIC_SYNONYMS.category;
+export const CITY_SYNONYMS = SEMANTIC_SYNONYMS.city;
+export const NOTES_SYNONYMS = SEMANTIC_SYNONYMS.notes;
+
+/** Returns the first header that matches any synonym (case- and accent-insensitive). */
+export function detectOptionalColumn(headers: string[], synonyms: string[]): string | null {
+	const norm = (s: string) =>
+		s
+			.trim()
+			.toLowerCase()
+			.normalize('NFD')
+			.replace(/\p{Diacritic}/gu, '');
+	const normSynonyms = synonyms.map(norm);
+	return headers.find((h) => normSynonyms.includes(norm(h))) ?? null;
+}
+
+/** Returns all CSV header names that the profile actively consumes. */
+export function getUsedColumns(profile: BankParserProfile): string[] {
+	return [
+		profile.dateColumn,
+		profile.valueDateColumn,
+		profile.amountColumn,
+		profile.debitColumn,
+		profile.creditColumn,
+		profile.descriptionColumn,
+		profile.currencyColumn,
+		profile.localAmountColumn,
+		profile.balanceColumn,
+		profile.statusColumn,
+		profile.typeColumn,
+		...profile.additionalColumns
+	].filter((c): c is string => c !== null);
+}
+
+// ─── Row normalizer ────────────────────────────────────────────────────────
 
 export function normalizeRow(
 	raw: Record<string, string>,
-	profile: BankParserProfile
+	profile: BankParserProfile,
+	optionalColumns: {
+		categoryColumn: string | null;
+		cityColumn: string | null;
+		notesColumn: string | null;
+	} = { categoryColumn: null, cityColumn: null, notesColumn: null }
 ): NormalizedTransaction | null {
 	const amount = profile.amountColumn
 		? parseAmount(raw[profile.amountColumn])
@@ -41,7 +85,13 @@ export function normalizeRow(
 		status,
 		rawType,
 		isTransferCandidate: rawType !== null && profile.transferTypes.includes(rawType),
-		isFxCandidate: rawType !== null && profile.fxCandidateTypes.includes(rawType)
+		isFxCandidate: rawType !== null && profile.fxCandidateTypes.includes(rawType),
+		category: optionalColumns.categoryColumn
+			? raw[optionalColumns.categoryColumn]?.trim() || null
+			: null,
+		city: optionalColumns.cityColumn ? raw[optionalColumns.cityColumn]?.trim() || null : null,
+		notes: optionalColumns.notesColumn ? raw[optionalColumns.notesColumn]?.trim() || null : null,
+		sourceIndex: 0 // placeholder; always overwritten by the caller
 	};
 }
 

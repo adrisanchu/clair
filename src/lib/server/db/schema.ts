@@ -269,18 +269,22 @@ export const categories = coreSchema.table('categories', {
 
 // ─── CSV column mappings ───────────────────────────────────────────────────
 
-export const csvColumnMappings = coreSchema.table('csv_column_mappings', {
-	id: text('id')
-		.primaryKey()
-		.$defaultFn(() => crypto.randomUUID()),
-	workspaceId: text('workspace_id')
-		.notNull()
-		.references(() => workspaces.id),
-	columnKey: text('column_key').notNull(),
-	columnLabel: text('column_label').notNull(),
-	sortOrder: integer('sort_order').notNull(),
-	enabled: boolean('enabled').default(true).notNull()
-});
+export const csvColumnMappings = coreSchema.table(
+	'csv_column_mappings',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspaces.id),
+		columnKey: text('column_key').notNull(),
+		columnLabel: text('column_label').notNull(),
+		sortOrder: integer('sort_order').notNull(),
+		enabled: boolean('enabled').default(true).notNull()
+	},
+	(table) => [uniqueIndex('csv_col_map_workspace_key_uidx').on(table.workspaceId, table.columnKey)]
+);
 
 // ─── Relations ─────────────────────────────────────────────────────────────
 // Cross-schema relations (touching authUser) use Drizzle relation API without

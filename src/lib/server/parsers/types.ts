@@ -1,3 +1,40 @@
+// ─── Adaptive detection types ──────────────────────────────────────────────
+
+export type SemanticField =
+	| 'date'
+	| 'valueDate'
+	| 'amount'
+	| 'debit'
+	| 'credit'
+	| 'description'
+	| 'currency'
+	| 'localAmount'
+	| 'balance'
+	| 'status'
+	| 'type'
+	| 'category'
+	| 'city'
+	| 'notes';
+
+export interface FieldDetection {
+	value: string | null;
+	confidence: number; // 0–1
+	candidatesTried?: string[];
+}
+
+export interface DetectionMeta {
+	usedAdaptive: boolean;
+	detectedDelimiter: FieldDetection;
+	detectedEncoding: FieldDetection;
+	detectedSkipRows: FieldDetection;
+	detectedDateFormat: FieldDetection;
+	columnMappingDetails: Record<SemanticField, FieldDetection>;
+	overallConfidence: number; // mean of field confidences
+	warnings: string[];
+}
+
+// ─── Bank profile types ────────────────────────────────────────────────────
+
 export interface BankParserProfile {
 	fileType: 'csv' | 'xlsx';
 	bankProfileId: string;
@@ -19,6 +56,15 @@ export interface BankParserProfile {
 	typeColumn: string | null; // raw transaction type (e.g. Revolut 'Tipo')
 	transferTypes: string[]; // typeColumn values that flag a row as a transfer candidate
 	fxCandidateTypes: string[]; // typeColumn values that flag a row as a currency exchange candidate
+	additionalColumns: string[]; // extra CSV columns consumed by postNormalize hooks (e.g. 'Comisión')
+}
+
+/**
+ * A BankParserProfile assembled by the adaptive detector rather than declared statically.
+ * Structurally identical — compatible with normalizeRow() without any conversion.
+ */
+export interface ResolvedProfile extends BankParserProfile {
+	_isAdaptive: true;
 }
 
 export interface NormalizedTransaction {
@@ -34,6 +80,9 @@ export interface NormalizedTransaction {
 	rawType: string | null; // original type string from CSV
 	isTransferCandidate: boolean; // derived from rawType + profile.transferTypes
 	isFxCandidate: boolean; // derived from rawType + profile.fxCandidateTypes
+	category: string | null; // from CSV if user pre-filled a category column; null otherwise
+	city: string | null; // from CSV if user pre-filled a city column; null otherwise
+	notes: string | null; // from CSV if user pre-filled a notes column; null otherwise
 	sourceIndex: number; // 0-based position in original file (after skipRows); used for ordering
 }
 
