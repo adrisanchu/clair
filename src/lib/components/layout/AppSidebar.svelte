@@ -18,6 +18,12 @@
 
 	let { user }: Props = $props();
 
+	const { setOpenMobile, isMobile } = Sidebar.useSidebar();
+
+	function handleNavClick() {
+		if (isMobile) setOpenMobile(false);
+	}
+
 	const navLinks = [
 		{ href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
 		{ href: '/accounts', label: 'Accounts', Icon: Landmark },
@@ -73,7 +79,7 @@
 								class={active ? 'bg-primary-50! font-medium text-primary-600!' : ''}
 							>
 								{#snippet child({ props })}
-									<a href={link.href} {...props}>
+									<a href={link.href} {...props} onclick={handleNavClick}>
 										<link.Icon />
 										<span>{link.label}</span>
 									</a>
@@ -92,7 +98,7 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton tooltipContent="Settings">
 					{#snippet child({ props })}
-						<a href="/settings" {...props}>
+						<a href="/settings" {...props} onclick={handleNavClick}>
 							<Settings />
 							<span>Settings</span>
 						</a>
