@@ -4,11 +4,21 @@ import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
+import { queryRollingBalance, type Granularity } from '$lib/server/db/queries.js';
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) error(401);
 
 	const accessibleIds = await getAccessibleAccountIds(locals.user.id);
+
+	const gParam = url.searchParams.get('g') ?? 'month';
+	const granularity: Granularity = (['week', 'month', 'quarter'] as const).includes(
+		gParam as Granularity
+	)
+		? (gParam as Granularity)
+		: 'month';
+
+	const emptyBalance = { points: [], windowStart: '', windowEnd: '' };
 
 	if (accessibleIds.length === 0) {
 		return {
@@ -25,14 +35,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 				txCount: number;
 				lastUploadedAt: Date | null;
 			}[],
-			trendPercent: null as number | null
+			trendPercent: null as number | null,
+			balanceData: emptyBalance,
+			granularity
 		};
 	}
 
 	const thirtyDaysAgo = new Date();
 	thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-	const [rows, recentSums] = await Promise.all([
+	const [rows, recentSums, balanceData] = await Promise.all([
 		db
 			.select({
 				id: bankAccounts.id,
@@ -71,7 +83,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 					eq(transactions.isOpeningBalance, false)
 				)
 			)
-			.groupBy(transactions.bankAccountId)
+			.groupBy(transactions.bankAccountId),
+
+		queryRollingBalance(accessibleIds, granularity)
 	]);
 
 	const netChangeMap = new Map(
@@ -100,6 +114,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		user: locals.user,
 		accounts,
-		trendPercent
+		trendPercent,
+		balanceData,
+		granularity
 	};
 };
