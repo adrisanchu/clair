@@ -44,5 +44,22 @@ export function buildProjection(
 		step++;
 	}
 
+	// Always anchor the projection to endDate so the chart domain ends there for all
+	// granularities. Without this, quarterly's last bucket (Oct 1) causes scaleUtc.nice(4)
+	// to extend the domain to Jan 1 next year, leaving a blank strip on the right.
+	const lastBucketDate = points.length > 0 ? new Date(points[points.length - 1].bucket) : new Date(last.bucket);
+	if (lastBucketDate < endDate) {
+		const lastBalance = points.length > 0 ? points[points.length - 1].cumulativeBalance : last.cumulativeBalance;
+		// Use the actual next-step duration from the last bucket to get the correct fraction
+		const nextBucketDate = add(lastBucketDate, 1);
+		const bucketDurationMs = nextBucketDate.getTime() - lastBucketDate.getTime();
+		const fraction = (endDate.getTime() - lastBucketDate.getTime()) / bucketDurationMs;
+		points.push({
+			bucket: endDate.toISOString().slice(0, 10),
+			cumulativeBalance: lastBalance + avgChangePerBucket * fraction,
+			isProjected: true
+		});
+	}
+
 	return points;
 }
