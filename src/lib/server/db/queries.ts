@@ -55,8 +55,7 @@ export async function queryRollingBalance(
 
 	// safe — granularity is a validated union type, never user-controlled input
 	const unit = sql.raw(`'${granularity}'`);
-	const bucketExpr =
-		sql<string>`DATE_TRUNC(${unit}, ${transactions.accountingDate}::timestamp)::date::text`;
+	const bucketExpr = sql<string>`DATE_TRUNC(${unit}, ${transactions.accountingDate}::timestamp)::date::text`;
 
 	const buckets = await db
 		.select({

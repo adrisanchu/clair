@@ -61,7 +61,15 @@
 	}
 </script>
 
-{#snippet balanceFormatter({ value }: { value: unknown; name: string; item: TooltipPayload; index: number; payload: TooltipPayload[] })}
+{#snippet balanceFormatter({
+	value
+}: {
+	value: unknown;
+	name: string;
+	item: TooltipPayload;
+	index: number;
+	payload: TooltipPayload[];
+})}
 	<div class="flex w-full items-center justify-between gap-6">
 		<div class="flex items-center gap-1.5">
 			<div class="size-2.5 rounded-[2px] bg-[--color-chart-1]"></div>
@@ -109,7 +117,7 @@
 					<Spline
 						data={splineData}
 						curve={curveNatural}
-						class="stroke-2 stroke-[--color-chart-2] [stroke-dasharray:4_4]"
+						class="stroke-[--color-chart-2] stroke-2 [stroke-dasharray:4_4]"
 					/>
 				{/if}
 			{/snippet}

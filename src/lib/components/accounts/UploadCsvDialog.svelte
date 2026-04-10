@@ -411,7 +411,9 @@
 							Opening balance
 						</p>
 						<div class="flex items-baseline gap-2 border-b-2 border-border pb-1.5">
-							<span class="text-2xl text-text-tertiary">{currency === PRIMARY_CURRENCY ? '€' : currency}</span>
+							<span class="text-2xl text-text-tertiary"
+								>{currency === PRIMARY_CURRENCY ? '€' : currency}</span
+							>
 							<input
 								type="text"
 								inputmode="decimal"
@@ -710,7 +712,11 @@
 																</p>
 															{/if}
 														</div>
-														<Amount value={candidate.amount} currency={PRIMARY_CURRENCY} size="sm" />
+														<Amount
+															value={candidate.amount}
+															currency={PRIMARY_CURRENCY}
+															size="sm"
+														/>
 													</button>
 												{/each}
 											</div>

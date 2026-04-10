@@ -78,9 +78,13 @@ export function normalizeRow(
 		accountingDate,
 		valueDate,
 		amount,
-		currency: profile.currencyColumn ? raw[profile.currencyColumn]?.trim() || PRIMARY_CURRENCY : PRIMARY_CURRENCY,
+		currency: profile.currencyColumn
+			? raw[profile.currencyColumn]?.trim() || PRIMARY_CURRENCY
+			: PRIMARY_CURRENCY,
 		amountOriginal: localAmount ?? amount,
-		currencyOriginal: profile.currencyColumn ? raw[profile.currencyColumn]?.trim() || PRIMARY_CURRENCY : PRIMARY_CURRENCY,
+		currencyOriginal: profile.currencyColumn
+			? raw[profile.currencyColumn]?.trim() || PRIMARY_CURRENCY
+			: PRIMARY_CURRENCY,
 		description: raw[profile.descriptionColumn]?.trim() ?? '',
 		runningBalance,
 		status,

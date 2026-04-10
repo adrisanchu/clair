@@ -16,7 +16,7 @@
 	];
 </script>
 
-<div class="flex items-center rounded-lg border border-border bg-surface-sunken p-0.5 gap-0.5">
+<div class="flex items-center gap-0.5 rounded-lg border border-border bg-surface-sunken p-0.5">
 	{#each options as opt (opt.value)}
 		<button
 			type="button"
