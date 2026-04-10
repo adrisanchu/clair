@@ -60,7 +60,7 @@ export async function queryRollingBalance(
 	const buckets = await db
 		.select({
 			bucket: bucketExpr,
-			netChange: sql<string>`SUM(COALESCE(${transactions.amountEur}, ${transactions.amount})::numeric)`
+			netChange: sql<string>`SUM(CASE WHEN ${transactions.currency} = 'EUR' THEN ${transactions.amount}::numeric ELSE ${transactions.amountEur}::numeric END)`
 		})
 		.from(transactions)
 		.where(
