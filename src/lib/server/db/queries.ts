@@ -1,8 +1,93 @@
-import { and, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, sql } from 'drizzle-orm';
 import { db } from './index.js';
 import { transactions, bankAccounts } from './schema.js';
+import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 export const TX_PAGE_SIZE = 25;
+
+// ---------------------------------------------------------------------------
+// Rolling balance query
+// ---------------------------------------------------------------------------
+
+export type Granularity = 'week' | 'month' | 'quarter';
+
+export interface BalancePoint {
+	bucket: string; // ISO date string — start of the period bucket
+	netChange: number;
+	cumulativeBalance: number;
+}
+
+export interface RollingBalanceResult {
+	points: BalancePoint[];
+	windowStart: string; // ISO string — serialisable across SSR boundary
+	windowEnd: string;
+}
+
+export async function queryRollingBalance(
+	accessibleIds: string[],
+	granularity: Granularity = 'month'
+): Promise<RollingBalanceResult> {
+	const now = new Date();
+	const windowEnd = now.toISOString();
+
+	const threeMonthsAgo = new Date(now);
+	threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+	// Find the earliest posted non-transfer non-opening-balance transaction
+	const [earliest] = await db
+		.select({ minDate: sql<string>`MIN(${transactions.accountingDate})::text` })
+		.from(transactions)
+		.where(
+			and(
+				inArray(transactions.bankAccountId, accessibleIds),
+				eq(transactions.isTransfer, false),
+				eq(transactions.isOpeningBalance, false),
+				eq(transactions.status, 'posted')
+			)
+		);
+
+	if (!earliest?.minDate) {
+		return { points: [], windowStart: threeMonthsAgo.toISOString(), windowEnd };
+	}
+
+	const earliestDate = new Date(earliest.minDate);
+	const windowStart = earliestDate < threeMonthsAgo ? threeMonthsAgo : earliestDate;
+
+	// safe — granularity is a validated union type, never user-controlled input
+	const unit = sql.raw(`'${granularity}'`);
+	const bucketExpr = sql<string>`DATE_TRUNC(${unit}, ${transactions.accountingDate}::timestamp)::date::text`;
+
+	const buckets = await db
+		.select({
+			bucket: bucketExpr,
+			netChange: sql<string>`SUM(CASE WHEN ${transactions.currency} = ${PRIMARY_CURRENCY} THEN ${transactions.amount}::numeric ELSE ${transactions.amountEur}::numeric END)`
+		})
+		.from(transactions)
+		.where(
+			and(
+				inArray(transactions.bankAccountId, accessibleIds),
+				eq(transactions.isTransfer, false),
+				eq(transactions.isOpeningBalance, false),
+				eq(transactions.status, 'posted'),
+				gte(transactions.accountingDate, windowStart)
+			)
+		)
+		.groupBy(bucketExpr)
+		.orderBy(bucketExpr);
+
+	// Compute running cumulative sum in JS — dataset is tiny (≤52 weekly buckets)
+	let running = 0;
+	const points: BalancePoint[] = buckets.map((b) => {
+		running += parseFloat(b.netChange ?? '0');
+		return {
+			bucket: b.bucket,
+			netChange: parseFloat(b.netChange ?? '0'),
+			cumulativeBalance: running
+		};
+	});
+
+	return { points, windowStart: windowStart.toISOString(), windowEnd };
+}
 
 export type TxFilter = 'all' | 'expenses' | 'transfers' | 'review';
 
@@ -145,7 +230,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 			...r,
 			amount: parseFloat(r.amount as string),
 			amountEur:
-				r.currency === 'EUR'
+				r.currency === PRIMARY_CURRENCY
 					? parseFloat(r.amount as string)
 					: r.amountEur != null
 						? parseFloat(r.amountEur as string)

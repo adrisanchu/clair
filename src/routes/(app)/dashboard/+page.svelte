@@ -1,12 +1,19 @@
 <script lang="ts">
 	import { formatDistanceToNow } from 'date-fns';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
+	import { buildProjection } from '$lib/chart-utils.js';
 	import Amount from '$lib/components/Amount.svelte';
 	import BankLogo from '$lib/components/BankLogo.svelte';
+	import BalanceChart from '$lib/components/BalanceChart.svelte';
+	import GranularitySelector from '$lib/components/GranularitySelector.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
-	import { TrendingUp, TrendingDown, Plus, Clock, MoreHorizontal, Landmark } from '@lucide/svelte';
+	import { TrendingUp, TrendingDown, Plus, Clock, MoreHorizontal, Landmark, BarChart2 } from '@lucide/svelte';
 	import type { PageData } from './$types';
+	import type { Granularity } from '$lib/server/db/queries.js';
 
 	let { data }: { data: PageData } = $props();
 
@@ -15,12 +22,20 @@
 	const formattedTotal = $derived(
 		new Intl.NumberFormat('es-ES', {
 			style: 'currency',
-			currency: 'EUR',
+			currency: PRIMARY_CURRENCY,
 			minimumFractionDigits: 2
 		}).format(totalBalance)
 	);
 
 	const firstName = $derived(data.user.name.split(' ')[0]);
+
+	const projectedPoints = $derived(buildProjection(data.balanceData.points, data.granularity));
+
+	function setGranularity(g: Granularity) {
+		const url = new URL(page.url.href);
+		url.searchParams.set('g', g);
+		goto(url.toString(), { keepFocus: true, replaceState: true });
+	}
 
 	function formatLastUpdated(date: Date | string | null): string {
 		if (!date) return 'No uploads yet';
@@ -67,6 +82,44 @@
 				{/if}
 			{/if}
 		</div>
+	</div>
+
+	<!-- Rolling balance chart -->
+	<div class="mb-10">
+		<Card.Root class="gap-2 border-border bg-surface px-2 py-4 shadow-sm">
+			<Card.Header class="flex flex-row items-center gap-2 space-y-0 border-b">
+				<div class="grid flex-1 gap-1 text-start">
+					<Card.Title>Rolling Balance</Card.Title>
+					<Card.Description>Showing the last 3 months</Card.Description>
+				</div>
+				{#if data.balanceData.points.length > 0}
+					<GranularitySelector value={data.granularity} onchange={setGranularity} />
+				{/if}
+			</Card.Header>
+			<Card.Content>
+				{#if data.balanceData.points.length > 0}
+					<BalanceChart
+						points={data.balanceData.points}
+						{projectedPoints}
+						granularity={data.granularity}
+					/>
+				{:else}
+					<div class="flex h-56 flex-col items-center justify-center gap-3 text-center md:h-64">
+						<div
+							class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-sunken text-text-tertiary"
+						>
+							<BarChart2 size={22} />
+						</div>
+						<div>
+							<p class="text-sm font-medium text-text-primary">No data yet</p>
+							<p class="mt-0.5 text-sm text-text-secondary">
+								Upload your first bank statement to see your balance history.
+							</p>
+						</div>
+					</div>
+				{/if}
+			</Card.Content>
+		</Card.Root>
 	</div>
 
 	<!-- Section heading -->

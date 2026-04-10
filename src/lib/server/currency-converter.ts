@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { addDays, subDays } from 'date-fns';
 import { db } from './db/index.js';
 import { bankAccounts, currencyConversions, transactions } from './db/schema.js';
+import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 /**
  * Converts a Date (or Drizzle date result) to a plain `YYYY-MM-DD` string.
@@ -51,7 +52,7 @@ export async function detectAndCreateConversions(
 
 	const results: CurrencyConversionResult[] = [];
 
-	if (accountCurrency !== 'EUR') {
+	if (accountCurrency !== PRIMARY_CURRENCY) {
 		// Flow 1: new non-EUR transactions → find matching negative EUR transactions
 		const fxTxs = await db
 			.select({
@@ -92,7 +93,7 @@ export async function detectAndCreateConversions(
 				.where(
 					and(
 						eq(bankAccounts.workspaceId, workspaceId),
-						eq(bankAccounts.currency, 'EUR'),
+						eq(bankAccounts.currency, PRIMARY_CURRENCY),
 						sql`${transactions.amount}::numeric < 0`,
 						eq(transactions.isFxCandidate, true),
 						// EUR outgoing must be ≤ FX settlement date, within 3 days
@@ -190,7 +191,7 @@ export async function detectAndCreateConversions(
 				.where(
 					and(
 						eq(bankAccounts.workspaceId, workspaceId),
-						ne(bankAccounts.currency, 'EUR'),
+						ne(bankAccounts.currency, PRIMARY_CURRENCY),
 						sql`${transactions.amount}::numeric > 0`,
 						eq(transactions.isFxCandidate, true),
 						isNull(transactions.conversionId),
@@ -324,7 +325,7 @@ export async function countUnresolvedFxTransactions(workspaceId: string): Promis
 		.where(
 			and(
 				eq(bankAccounts.workspaceId, workspaceId),
-				ne(bankAccounts.currency, 'EUR'),
+				ne(bankAccounts.currency, PRIMARY_CURRENCY),
 				isNull(transactions.conversionId),
 				eq(transactions.isOpeningBalance, false)
 			)
@@ -361,7 +362,7 @@ export async function getUnresolvedFxAccounts(workspaceId: string): Promise<Unre
 		.where(
 			and(
 				eq(bankAccounts.workspaceId, workspaceId),
-				ne(bankAccounts.currency, 'EUR'),
+				ne(bankAccounts.currency, PRIMARY_CURRENCY),
 				isNull(transactions.conversionId),
 				eq(transactions.isOpeningBalance, false)
 			)

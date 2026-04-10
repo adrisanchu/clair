@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
+	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 	interface Props {
 		value: number;
@@ -12,7 +13,7 @@
 
 	let {
 		value,
-		currency = 'EUR',
+		currency = PRIMARY_CURRENCY,
 		size = 'md',
 		showSign = true,
 		colorize = true,

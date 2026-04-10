@@ -1,3 +1,10 @@
+/**
+ * The workspace's primary (home) currency.
+ * All dashboards, totals, and charts are expressed in this currency.
+ * In a future version this will be a per-workspace setting; for now it is fixed.
+ */
+export const PRIMARY_CURRENCY = 'EUR';
+
 /** Supported currencies with their display labels. */
 export const CURRENCIES: { code: string; label: string }[] = [
 	{ code: 'EUR', label: 'EUR — Euro' },

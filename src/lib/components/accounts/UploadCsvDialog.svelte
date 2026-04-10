@@ -12,6 +12,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import Amount from '$lib/components/Amount.svelte';
+	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 	interface Props {
 		open: boolean;
@@ -410,7 +411,9 @@
 							Opening balance
 						</p>
 						<div class="flex items-baseline gap-2 border-b-2 border-border pb-1.5">
-							<span class="text-2xl text-text-tertiary">{currency === 'EUR' ? '€' : currency}</span>
+							<span class="text-2xl text-text-tertiary"
+								>{currency === PRIMARY_CURRENCY ? '€' : currency}</span
+							>
 							<input
 								type="text"
 								inputmode="decimal"
@@ -567,7 +570,7 @@
 													{conv.fromTransactionDescription}
 												</p>
 											</div>
-											<Amount value={-conv.fromAmount} currency="EUR" size="sm" />
+											<Amount value={-conv.fromAmount} currency={PRIMARY_CURRENCY} size="sm" />
 										</div>
 										<!-- Arrow -->
 										<div class="my-1.5 flex items-center gap-1.5 text-text-tertiary">
@@ -656,7 +659,7 @@
 												<p class="truncate text-xs font-medium text-text-primary">
 													{match.sourceAccountName} · {match.sourceDescription}
 												</p>
-												<Amount value={match.sourceAmount} currency="EUR" size="sm" />
+												<Amount value={match.sourceAmount} currency={PRIMARY_CURRENCY} size="sm" />
 											</div>
 											<div class="mt-1.5 flex items-center justify-between gap-2">
 												<p class="text-[11px] text-text-tertiary">No matching transfer found</p>
@@ -680,7 +683,7 @@
 														{match.sourceDescription}
 													</p>
 												</div>
-												<Amount value={match.sourceAmount} currency="EUR" size="sm" />
+												<Amount value={match.sourceAmount} currency={PRIMARY_CURRENCY} size="sm" />
 											</div>
 											<p
 												class="mb-1.5 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
@@ -709,7 +712,11 @@
 																</p>
 															{/if}
 														</div>
-														<Amount value={candidate.amount} currency="EUR" size="sm" />
+														<Amount
+															value={candidate.amount}
+															currency={PRIMARY_CURRENCY}
+															size="sm"
+														/>
 													</button>
 												{/each}
 											</div>

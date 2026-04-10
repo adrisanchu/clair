@@ -4,6 +4,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, currencyConversions, transactions } from '$lib/server/db/schema.js';
 import { propagateRateToAccount } from '$lib/server/currency-converter.js';
+import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 // ─── POST /api/accounts/[id]/resolve-fx ───────────────────────────────────────
 // Manually assign an exchange rate to unresolved transactions on a non-EUR account.
@@ -18,7 +19,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	});
 	if (!account) throw error(404, 'Account not found');
 	if (account.ownerUserId !== locals.user.id) throw error(403, 'Forbidden');
-	if (account.currency === 'EUR') throw error(400, 'Account is already EUR-denominated');
+	if (account.currency === PRIMARY_CURRENCY) throw error(400, 'Account is already EUR-denominated');
 
 	const body = await request.json();
 	const exchangeRate = parseFloat(body.exchangeRate);
@@ -47,7 +48,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const eurAccount = await db.query.bankAccounts.findFirst({
 		where: and(
 			eq(bankAccounts.workspaceId, account.workspaceId),
-			eq(bankAccounts.currency, 'EUR'),
+			eq(bankAccounts.currency, PRIMARY_CURRENCY),
 			isNull(bankAccounts.deletedAt)
 		),
 		columns: { id: true }
