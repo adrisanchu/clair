@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { formatDistanceToNow } from 'date-fns';
+	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 	import Amount from '$lib/components/Amount.svelte';
 	import BankLogo from '$lib/components/BankLogo.svelte';
 	import { Badge } from '$lib/components/ui/badge';
@@ -15,7 +16,7 @@
 	const formattedTotal = $derived(
 		new Intl.NumberFormat('es-ES', {
 			style: 'currency',
-			currency: 'EUR',
+			currency: PRIMARY_CURRENCY,
 			minimumFractionDigits: 2
 		}).format(totalBalance)
 	);

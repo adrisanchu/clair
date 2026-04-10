@@ -4,7 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { CURRENCIES } from '$lib/currencies.js';
+	import { CURRENCIES, PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 	interface Profile {
 		id: string;
@@ -22,7 +22,7 @@
 	let displayName = $state('');
 	let bankProfileId = $state(profiles[0]?.id ?? '');
 	let ibanLast4 = $state('');
-	let currency = $state('EUR');
+	let currency = $state(PRIMARY_CURRENCY);
 	let submitting = $state(false);
 	let fieldError = $state<string | null>(null);
 
@@ -30,7 +30,7 @@
 		displayName = '';
 		bankProfileId = profiles[0]?.id ?? '';
 		ibanLast4 = '';
-		currency = 'EUR';
+		currency = PRIMARY_CURRENCY;
 		fieldError = null;
 	}
 

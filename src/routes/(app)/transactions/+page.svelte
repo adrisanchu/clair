@@ -15,6 +15,7 @@
 		CircleAlert
 	} from '@lucide/svelte';
 	import Amount from '$lib/components/Amount.svelte';
+	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -161,7 +162,7 @@
 
 		<!-- Main KPIs -->
 		<div class="flex items-start gap-4 pt-4">
-			<Amount value={totalBalance} currency={'EUR'} size="lg" />
+			<Amount value={totalBalance} currency={PRIMARY_CURRENCY} size="lg" />
 		</div>
 	</div>
 
@@ -422,12 +423,12 @@
 									<!-- Amount col -->
 									<td class="px-2 py-2 text-right md:px-4 md:py-3">
 										<Amount value={tx.amount} currency={tx.currency} size="xs" class="md:text-sm" />
-										{#if tx.currency !== 'EUR'}
+										{#if tx.currency !== PRIMARY_CURRENCY}
 											{#if tx.amountEur != null}
 												<div class="mt-0.5 text-text-tertiary">
 													<Amount
 														value={tx.amountEur}
-														currency="EUR"
+														currency={PRIMARY_CURRENCY}
 														size="xs"
 														class="text-[10px] md:text-xs"
 														colorize={false}

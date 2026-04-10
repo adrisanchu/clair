@@ -6,7 +6,7 @@ import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { getAllProfiles } from '$lib/server/parsers/index.js';
 
-import { CURRENCY_CODES } from '$lib/currencies.js';
+import { CURRENCY_CODES, PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 const VALID_PROFILE_IDS = new Set(getAllProfiles().map((p) => p.bankProfileId));
 const VALID_CURRENCIES = new Set(CURRENCY_CODES);
@@ -63,7 +63,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user.workspaceId) throw error(403, 'No workspace — run the seed script first');
 
 	const body = await request.json();
-	const { displayName, bankProfileId, ibanLast4, currency = 'EUR' } = body;
+	const { displayName, bankProfileId, ibanLast4, currency = PRIMARY_CURRENCY } = body;
 
 	if (!displayName?.trim()) throw error(400, 'displayName is required');
 	if (!bankProfileId) throw error(400, 'bankProfileId is required');
