@@ -11,7 +11,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
-	import { TrendingUp, TrendingDown, Plus, Clock, MoreHorizontal, Landmark } from '@lucide/svelte';
+	import { TrendingUp, TrendingDown, Plus, Clock, MoreHorizontal, Landmark, BarChart2 } from '@lucide/svelte';
 	import type { PageData } from './$types';
 	import type { Granularity } from '$lib/server/db/queries.js';
 
@@ -85,26 +85,42 @@
 	</div>
 
 	<!-- Rolling balance chart -->
-	{#if data.balanceData.points.length > 0}
-		<div class="mb-10">
-			<Card.Root class="gap-2 border-border bg-surface px-2 py-4 shadow-sm">
-				<Card.Header class="flex flex-row items-center gap-2 space-y-0 border-b">
-					<div class="grid flex-1 gap-1 text-start">
-						<Card.Title>Rolling Balance</Card.Title>
-						<Card.Description>Showing the last 3 months</Card.Description>
-					</div>
+	<div class="mb-10">
+		<Card.Root class="gap-2 border-border bg-surface px-2 py-4 shadow-sm">
+			<Card.Header class="flex flex-row items-center gap-2 space-y-0 border-b">
+				<div class="grid flex-1 gap-1 text-start">
+					<Card.Title>Rolling Balance</Card.Title>
+					<Card.Description>Showing the last 3 months</Card.Description>
+				</div>
+				{#if data.balanceData.points.length > 0}
 					<GranularitySelector value={data.granularity} onchange={setGranularity} />
-				</Card.Header>
-				<Card.Content>
+				{/if}
+			</Card.Header>
+			<Card.Content>
+				{#if data.balanceData.points.length > 0}
 					<BalanceChart
 						points={data.balanceData.points}
 						{projectedPoints}
 						granularity={data.granularity}
 					/>
-				</Card.Content>
-			</Card.Root>
-		</div>
-	{/if}
+				{:else}
+					<div class="flex h-56 flex-col items-center justify-center gap-3 text-center md:h-64">
+						<div
+							class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-sunken text-text-tertiary"
+						>
+							<BarChart2 size={22} />
+						</div>
+						<div>
+							<p class="text-sm font-medium text-text-primary">No data yet</p>
+							<p class="mt-0.5 text-sm text-text-secondary">
+								Upload your first bank statement to see your balance history.
+							</p>
+						</div>
+					</div>
+				{/if}
+			</Card.Content>
+		</Card.Root>
+	</div>
 
 	<!-- Section heading -->
 	<div class="mb-4 flex items-center justify-between">
