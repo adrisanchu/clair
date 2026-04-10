@@ -1,13 +1,19 @@
 <script lang="ts">
 	import { formatDistanceToNow } from 'date-fns';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
+	import { buildProjection } from '$lib/chart-utils.js';
 	import Amount from '$lib/components/Amount.svelte';
 	import BankLogo from '$lib/components/BankLogo.svelte';
+	import BalanceChart from '$lib/components/BalanceChart.svelte';
+	import GranularitySelector from '$lib/components/GranularitySelector.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { TrendingUp, TrendingDown, Plus, Clock, MoreHorizontal, Landmark } from '@lucide/svelte';
 	import type { PageData } from './$types';
+	import type { Granularity } from '$lib/server/db/queries.js';
 
 	let { data }: { data: PageData } = $props();
 
@@ -22,6 +28,14 @@
 	);
 
 	const firstName = $derived(data.user.name.split(' ')[0]);
+
+	const projectedPoints = $derived(buildProjection(data.balanceData.points, data.granularity));
+
+	function setGranularity(g: Granularity) {
+		const url = new URL(page.url.href);
+		url.searchParams.set('g', g);
+		goto(url.toString(), { keepFocus: true, replaceState: true });
+	}
 
 	function formatLastUpdated(date: Date | string | null): string {
 		if (!date) return 'No uploads yet';
@@ -69,6 +83,27 @@
 			{/if}
 		</div>
 	</div>
+
+	<!-- Rolling balance chart -->
+	{#if data.balanceData.points.length > 0}
+		<div class="mb-10">
+			<div class="mb-4 flex items-center justify-between">
+				<p class="text-xs font-semibold tracking-widest text-text-tertiary uppercase">
+					Rolling Balance
+				</p>
+				<GranularitySelector value={data.granularity} onchange={setGranularity} />
+			</div>
+			<Card.Root class="border-border bg-surface shadow-sm">
+				<Card.Content class="px-4 pt-4 pb-2">
+					<BalanceChart
+						points={data.balanceData.points}
+						{projectedPoints}
+						granularity={data.granularity}
+					/>
+				</Card.Content>
+			</Card.Root>
+		</div>
+	{/if}
 
 	<!-- Section heading -->
 	<div class="mb-4 flex items-center justify-between">
