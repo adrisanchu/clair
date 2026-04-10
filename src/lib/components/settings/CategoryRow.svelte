@@ -3,6 +3,7 @@
 	import { DropdownMenu } from 'bits-ui';
 	import { EllipsisVertical, Pencil, Trash2, Plus } from '@lucide/svelte';
 	import CategoryFormSheet from './CategoryFormSheet.svelte';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import type { CategoryRow } from '$lib/types';
 
 	interface Props {
@@ -19,6 +20,7 @@
 	let renameValue = $state('');
 	let editOpen = $state(false);
 	let addSubOpen = $state(false);
+	let deleteOpen = $state(false);
 	let isDeleting = $state(false);
 
 	function startRename() {
@@ -39,24 +41,11 @@
 		await invalidateAll();
 	}
 
-	async function handleDelete() {
-		const msg =
-			childCount > 0
-				? `"${category.name}" has ${childCount} subcategor${childCount === 1 ? 'y' : 'ies'}. Delete them first.`
-				: `Delete "${category.name}"? Transactions using this category will keep the label.`;
-
-		if (childCount > 0) {
-			alert(msg);
-			return;
-		}
-		if (!confirm(msg)) return;
-
+	async function confirmDelete() {
+		deleteOpen = false;
 		isDeleting = true;
 		const res = await fetch(`/api/settings/categories/${category.id}`, { method: 'DELETE' });
-		if (!res.ok) {
-			const data = await res.json().catch(() => ({ message: 'Error deleting category' }));
-			alert(data.message ?? 'Error deleting category');
-		} else {
+		if (res.ok) {
 			await invalidateAll();
 		}
 		isDeleting = false;
@@ -143,7 +132,7 @@
 					<DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
 					<DropdownMenu.Item
 						class="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-danger-600 outline-none hover:bg-danger-50"
-						onclick={handleDelete}
+						onclick={() => (deleteOpen = true)}
 					>
 						<Trash2 size={13} />
 						Delete
@@ -161,3 +150,25 @@
 {#if !isChild}
 	<CategoryFormSheet bind:open={addSubOpen} mode="create" parentId={category.id} />
 {/if}
+
+<AlertDialog.Root bind:open={deleteOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete "{category.name}"?</AlertDialog.Title>
+			<AlertDialog.Description>
+				{#if childCount > 0}
+					This category has {childCount} subcategor{childCount === 1 ? 'y' : 'ies'}. Delete them
+					first before deleting this category.
+				{:else}
+					Transactions using this category will keep the label. This action cannot be undone.
+				{/if}
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			{#if childCount === 0}
+				<AlertDialog.Action onclick={confirmDelete}>Delete</AlertDialog.Action>
+			{/if}
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
