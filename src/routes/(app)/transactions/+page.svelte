@@ -363,7 +363,10 @@
 											</div>
 										{:else if isTransfer}
 											<div class="flex justify-center">
-												<Badge variant="outline" class="text-[11px] font-medium text-text-secondary">
+												<Badge
+													variant="outline"
+													class="text-[11px] font-medium text-text-secondary"
+												>
 													Transfer
 												</Badge>
 											</div>

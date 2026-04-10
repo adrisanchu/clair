@@ -12,7 +12,7 @@
 <AlertDialogPrimitive.Action
 	bind:ref
 	class={cn(
-		'inline-flex h-9 items-center justify-center rounded-lg bg-danger-600 px-4 text-sm font-medium text-white transition-colors hover:bg-danger-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-500',
+		'inline-flex h-9 items-center justify-center rounded-lg bg-danger-600 px-4 text-sm font-medium text-white transition-colors hover:bg-danger-700 focus-visible:ring-2 focus-visible:ring-danger-500 focus-visible:outline-none',
 		className
 	)}
 	{...restProps}
