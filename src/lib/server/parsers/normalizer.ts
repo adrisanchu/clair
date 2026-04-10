@@ -1,6 +1,7 @@
 import { parse as parseDate, isValid } from 'date-fns';
 import type { BankParserProfile, NormalizedTransaction } from './types.js';
 import { SEMANTIC_SYNONYMS } from './detector.js';
+import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 // ─── Optional column synonym lists (re-exported from detector for backward compat) ──
 
@@ -77,9 +78,9 @@ export function normalizeRow(
 		accountingDate,
 		valueDate,
 		amount,
-		currency: profile.currencyColumn ? raw[profile.currencyColumn]?.trim() || 'EUR' : 'EUR',
+		currency: profile.currencyColumn ? raw[profile.currencyColumn]?.trim() || PRIMARY_CURRENCY : PRIMARY_CURRENCY,
 		amountOriginal: localAmount ?? amount,
-		currencyOriginal: profile.currencyColumn ? raw[profile.currencyColumn]?.trim() || 'EUR' : 'EUR',
+		currencyOriginal: profile.currencyColumn ? raw[profile.currencyColumn]?.trim() || PRIMARY_CURRENCY : PRIMARY_CURRENCY,
 		description: raw[profile.descriptionColumn]?.trim() ?? '',
 		runningBalance,
 		status,

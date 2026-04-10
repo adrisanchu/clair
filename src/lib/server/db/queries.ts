@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, ilike, inArray, sql } from 'drizzle-orm';
 import { db } from './index.js';
 import { transactions, bankAccounts } from './schema.js';
+import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 export const TX_PAGE_SIZE = 25;
 
@@ -60,7 +61,7 @@ export async function queryRollingBalance(
 	const buckets = await db
 		.select({
 			bucket: bucketExpr,
-			netChange: sql<string>`SUM(CASE WHEN ${transactions.currency} = 'EUR' THEN ${transactions.amount}::numeric ELSE ${transactions.amountEur}::numeric END)`
+			netChange: sql<string>`SUM(CASE WHEN ${transactions.currency} = ${PRIMARY_CURRENCY} THEN ${transactions.amount}::numeric ELSE ${transactions.amountEur}::numeric END)`
 		})
 		.from(transactions)
 		.where(
@@ -230,7 +231,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 			...r,
 			amount: parseFloat(r.amount as string),
 			amountEur:
-				r.currency === 'EUR'
+				r.currency === PRIMARY_CURRENCY
 					? parseFloat(r.amount as string)
 					: r.amountEur != null
 						? parseFloat(r.amountEur as string)

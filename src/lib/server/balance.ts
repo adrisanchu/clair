@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from './db/index.js';
 import { transactions, bankAccounts } from './db/schema.js';
+import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 /**
  * Compute the synthetic opening balance needed so that:
@@ -50,7 +51,7 @@ export async function upsertOpeningBalance(
 			bankAccountId,
 			accountingDate: openingDate,
 			amount: openingAmount.toFixed(4),
-			currency: 'EUR',
+			currency: PRIMARY_CURRENCY,
 			description: 'Opening balance',
 			notes:
 				'This represents the opening status of the bank account in order to reconcile the balance with the ledger.',
