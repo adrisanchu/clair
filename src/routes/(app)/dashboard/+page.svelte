@@ -87,14 +87,15 @@
 	<!-- Rolling balance chart -->
 	{#if data.balanceData.points.length > 0}
 		<div class="mb-10">
-			<div class="mb-4 flex items-center justify-between">
-				<p class="text-xs font-semibold tracking-widest text-text-tertiary uppercase">
-					Rolling Balance
-				</p>
-				<GranularitySelector value={data.granularity} onchange={setGranularity} />
-			</div>
-			<Card.Root class="border-border bg-surface shadow-sm">
-				<Card.Content class="px-4 pt-4 pb-2">
+			<Card.Root class="gap-2 border-border bg-surface px-2 py-4 shadow-sm">
+				<Card.Header class="flex flex-row items-center gap-2 space-y-0 border-b">
+					<div class="grid flex-1 gap-1 text-start">
+						<Card.Title>Rolling Balance</Card.Title>
+						<Card.Description>Showing the last 3 months</Card.Description>
+					</div>
+					<GranularitySelector value={data.granularity} onchange={setGranularity} />
+				</Card.Header>
+				<Card.Content>
 					<BalanceChart
 						points={data.balanceData.points}
 						{projectedPoints}
