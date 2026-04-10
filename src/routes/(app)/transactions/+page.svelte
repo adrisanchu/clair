@@ -354,15 +354,22 @@
 									<!-- Category col: status label or CategorySelector -->
 									<td class="px-2 py-2 md:px-4 md:py-3">
 										{#if isReview}
-											<Badge
-												class="border-amber-200 bg-amber-100 text-[11px] font-medium text-amber-700"
-											>
-												Review Required
-											</Badge>
+											<div class="flex justify-center">
+												<Badge
+													class="border-amber-200 bg-amber-100 text-[11px] font-medium text-amber-700"
+												>
+													Review Required
+												</Badge>
+											</div>
 										{:else if isTransfer}
-											<Badge variant="outline" class="text-[11px] font-medium text-text-secondary">
-												Transfer
-											</Badge>
+											<div class="flex justify-center">
+												<Badge
+													variant="outline"
+													class="text-[11px] font-medium text-text-secondary"
+												>
+													Transfer
+												</Badge>
+											</div>
 										{:else}
 											<CategorySelector
 												txId={tx.id}

@@ -6,6 +6,7 @@
 	import BankLogo from '$lib/components/BankLogo.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import type { Account } from '$lib/types';
 
 	interface Props {
@@ -21,6 +22,7 @@
 
 	let isRenaming = $state(false);
 	let renameValue = $state('');
+	let deleteOpen = $state(false);
 
 	function startRename() {
 		isRenaming = true;
@@ -136,7 +138,7 @@
 								<DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
 								<DropdownMenu.Item
 									class="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-danger-600 outline-none hover:bg-danger-50"
-									onclick={ondelete}
+									onclick={() => (deleteOpen = true)}
 								>
 									<Trash2 size={13} />
 									Delete
@@ -177,3 +179,19 @@
 		</div>
 	</Card.Root>
 </div>
+
+<AlertDialog.Root bind:open={deleteOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete account?</AlertDialog.Title>
+			<AlertDialog.Description>
+				This will permanently delete <strong>{account.displayName}</strong> and all its transactions.
+				This action cannot be undone.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={ondelete}>Delete</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
