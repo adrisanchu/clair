@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, max, sql } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { categories } from '$lib/server/db/schema.js';
@@ -37,7 +37,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user.workspaceId) throw error(403, 'No workspace');
 
 	const body = await request.json();
-	const { name, color = '#6b7280', parentId = null, sortOrder = 0 } = body;
+	const { name, color = '#6b7280', parentId = null, sortOrder = undefined } = body;
 
 	if (!name?.trim()) throw error(400, 'name is required');
 	if (name.trim().length > 50) throw error(400, 'name must be 50 characters or fewer');
@@ -64,9 +64,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	});
 	if (sibling) throw error(409, `A category named "${name.trim()}" already exists at this level`);
 
+	// Compute sortOrder: use provided value if explicitly set, otherwise append at end
+	const scopeFilter = and(
+		eq(categories.workspaceId, workspaceId),
+		parentId === null ? isNull(categories.parentId) : eq(categories.parentId, parentId)
+	);
+	const [{ maxOrder }] = await db
+		.select({ maxOrder: max(categories.sortOrder) })
+		.from(categories)
+		.where(scopeFilter);
+	const resolvedSortOrder = sortOrder ?? (maxOrder != null ? maxOrder + 1 : 0);
+
 	const [created] = await db
 		.insert(categories)
-		.values({ workspaceId, name: name.trim(), color, parentId, sortOrder })
+		.values({ workspaceId, name: name.trim(), color, parentId, sortOrder: resolvedSortOrder })
 		.returning();
 
 	return json(created, { status: 201 });
