@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { AlertTriangle, Plus, Landmark } from '@lucide/svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import ResolveFxDialog from '$lib/components/accounts/ResolveFxDialog.svelte';
 	import AddAccountSheet from '$lib/components/accounts/AddAccountSheet.svelte';
 	import BankCard from '$lib/components/accounts/BankCard.svelte';
@@ -77,19 +78,16 @@
 
 	{#if data.accounts.length === 0}
 		<!-- Empty state -->
-		<div class="flex flex-col items-center justify-center px-4 py-24 text-center">
-			<div
-				class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-surface-sunken text-text-tertiary"
-			>
-				<Landmark size={24} />
-			</div>
-			<p class="mb-1 text-sm font-medium text-text-primary">No bank accounts yet</p>
-			<p class="mb-6 text-sm text-text-secondary">Add your first account to get started.</p>
+		<EmptyState
+			icon={Landmark}
+			title="No bank accounts yet"
+			description="Add your first account to get started."
+		>
 			<Button size="sm" onclick={() => (addOpen = true)}>
 				<Plus size={15} />
 				Add bank account
 			</Button>
-		</div>
+		</EmptyState>
 	{:else}
 		<!-- Account cards grid -->
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-3">
