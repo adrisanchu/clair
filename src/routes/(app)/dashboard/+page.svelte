@@ -12,12 +12,14 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { TrendingUp, TrendingDown, Plus, Clock, MoreHorizontal, Landmark, BarChart2 } from '@lucide/svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import type { PageData } from './$types';
 	import type { Granularity } from '$lib/server/db/queries.js';
 
 	let { data }: { data: PageData } = $props();
 
 	const totalBalance = $derived(data.accounts.reduce((sum, a) => sum + a.currentBalance, 0));
+	const totalTxCount = $derived(data.accounts.reduce((sum, a) => sum + a.txCount, 0));
 
 	const formattedTotal = $derived(
 		new Intl.NumberFormat('es-ES', {
@@ -82,6 +84,11 @@
 				{/if}
 			{/if}
 		</div>
+		{#if data.accounts.length > 0 && totalTxCount === 0}
+			<p class="mt-3 text-sm text-text-secondary">
+				Upload a CSV to see your spending summary.
+			</p>
+		{/if}
 	</div>
 
 	<!-- Rolling balance chart -->
@@ -104,19 +111,12 @@
 						granularity={data.granularity}
 					/>
 				{:else}
-					<div class="flex h-56 flex-col items-center justify-center gap-3 text-center md:h-64">
-						<div
-							class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-sunken text-text-tertiary"
-						>
-							<BarChart2 size={22} />
-						</div>
-						<div>
-							<p class="text-sm font-medium text-text-primary">No data yet</p>
-							<p class="mt-0.5 text-sm text-text-secondary">
-								Upload your first bank statement to see your balance history.
-							</p>
-						</div>
-					</div>
+					<EmptyState
+						icon={BarChart2}
+						title="No data yet"
+						description="Upload your first bank statement to see your balance history."
+						compact
+					/>
 				{/if}
 			</Card.Content>
 		</Card.Root>
@@ -137,19 +137,16 @@
 
 	{#if data.accounts.length === 0}
 		<!-- Empty state -->
-		<div class="flex flex-col items-center justify-center px-4 py-24 text-center">
-			<div
-				class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-surface-sunken text-text-tertiary"
-			>
-				<Landmark size={24} />
-			</div>
-			<p class="mb-1 text-sm font-medium text-text-primary">No bank accounts yet</p>
-			<p class="mb-6 text-sm text-text-secondary">Add your first account to get started.</p>
+		<EmptyState
+			icon={Landmark}
+			title="No bank accounts yet"
+			description="Add your first account to get started."
+		>
 			<Button size="sm" href="/accounts">
 				<Plus size={15} />
 				Add bank account
 			</Button>
-		</div>
+		</EmptyState>
 	{:else}
 		<!-- Account cards grid -->
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-3">
