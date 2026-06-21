@@ -12,7 +12,9 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import Amount from '$lib/components/Amount.svelte';
+	import CategoryMappingSheet from '$lib/components/upload/CategoryMappingSheet.svelte';
 	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
+	import type { CategoryRow } from '$lib/types';
 
 	interface Props {
 		open: boolean;
@@ -32,7 +34,7 @@
 		isFirstUpload
 	}: Props = $props();
 
-	type Step = 'upload' | 'preview' | 'columns' | 'importing' | 'done';
+	type Step = 'upload' | 'preview' | 'columns' | 'categories' | 'importing' | 'done';
 	let step = $state<Step>('upload');
 	let loading = $state(false);
 	let err = $state<string | null>(null);
@@ -41,6 +43,12 @@
 	let balanceInput = $state('');
 
 	type ColumnMapping = { csvHeader: string; field: 'category' | 'city' | 'notes'; label: string };
+
+	type CategoryMappingEntry = {
+		csvCategory: string;
+		suggestedMatch: string | null;
+		confidence: number;
+	};
 
 	type PreviewData = {
 		filename: string;
@@ -52,6 +60,8 @@
 		columnMappings: ColumnMapping[];
 		unusedColumns: string[];
 		savedMappings: Array<{ field: string; csvHeader: string; enabled: boolean }>;
+		categoryMappings: CategoryMappingEntry[] | null;
+		workspaceCategories: CategoryRow[];
 	};
 
 	type DetectedConversion = {
@@ -96,6 +106,7 @@
 		detectedConversions: DetectedConversion[];
 		unresolvedTransfers: TransferMatch[];
 		newCategories: Array<{ name: string; color: string }>;
+		aiTagged: number;
 	};
 
 	let preview = $state<PreviewData | null>(null);
@@ -105,6 +116,7 @@
 		city: true,
 		notes: true
 	});
+	let categoryDecisions = $state<Record<string, string | null>>({});
 	// Per-match state: sourceId → 'linked' | 'skipped' | selectedCandidateId | null (pending)
 	let transferDecisions = $state<Record<string, string | null>>({});
 	let transferLinking = $state<Record<string, boolean>>({});
@@ -121,6 +133,7 @@
 		transferDecisions = {};
 		transferLinking = {};
 		columnConfirm = { category: true, city: true, notes: true };
+		categoryDecisions = {};
 	}
 
 	function handleOpenChange(v: boolean) {
@@ -180,6 +193,15 @@
 			if (data.openingBalance !== null) {
 				balanceInput = data.openingBalance.toFixed(2);
 			}
+			// Pre-populate category mapping decisions from AI suggestions
+			if (data.categoryMappings) {
+				categoryDecisions = Object.fromEntries(
+					data.categoryMappings.map((m: CategoryMappingEntry) => [
+						m.csvCategory,
+						m.suggestedMatch
+					])
+				);
+			}
 			// Pre-apply saved workspace mappings to confirm toggles
 			columnConfirm = { category: true, city: true, notes: true };
 			for (const saved of data.savedMappings ?? []) {
@@ -202,6 +224,13 @@
 		formData.append('file', file);
 		if (balanceInput.trim()) {
 			formData.append('openingBalance', balanceInput.replace(',', '.'));
+		}
+		// Send confirmed category mappings if any decisions were made
+		if (Object.keys(categoryDecisions).length > 0) {
+			const confirmedMappings = Object.entries(categoryDecisions).map(
+				([csvCategory, mappedTo]) => ({ csvCategory, mappedTo })
+			);
+			formData.append('categoryMappings', JSON.stringify(confirmedMappings));
 		}
 		// Send user-confirmed column overrides if there were any detected mappings
 		if (preview && preview.columnMappings.length > 0) {
@@ -256,11 +285,30 @@
 	const hasColumnsStep = $derived(
 		!!preview && (preview.columnMappings.length > 0 || preview.unusedColumns.length > 0)
 	);
-	const steps = $derived(
-		hasColumnsStep ? ['Upload', 'Preview', 'Columns', 'Done'] : ['Upload', 'Preview', 'Done']
+	// Show the categories step when there are non-exact category mappings to review
+	const hasCategoriesStep = $derived(
+		!!preview &&
+			!!preview.categoryMappings &&
+			preview.categoryMappings.length > 0 &&
+			preview.categoryMappings.some((m) => m.confidence < 1.0)
 	);
+	const steps = $derived(() => {
+		const s = ['Upload', 'Preview'];
+		if (hasColumnsStep) s.push('Columns');
+		if (hasCategoriesStep) s.push('Categories');
+		s.push('Done');
+		return s;
+	});
 	const stepIndex = $derived(
-		step === 'upload' ? 0 : step === 'preview' ? 1 : step === 'columns' ? 2 : steps.length - 1
+		step === 'upload'
+			? 0
+			: step === 'preview'
+				? 1
+				: step === 'columns'
+					? 2
+					: step === 'categories'
+						? (hasColumnsStep ? 3 : 2)
+						: steps().length - 1
 	);
 </script>
 
@@ -272,7 +320,7 @@
 		</Dialog.Header>
 
 		<div class="mb-4 flex shrink-0 gap-1.5">
-			{#each steps as _, i}
+			{#each steps() as _, i}
 				<div
 					class="h-1 flex-1 rounded-full transition-colors duration-300 {i <= stepIndex
 						? 'bg-primary-500'
@@ -481,6 +529,14 @@
 					</div>
 				{/if}
 
+				<!-- ── Step: Categories ── -->
+			{:else if step === 'categories' && preview?.categoryMappings}
+				<CategoryMappingSheet
+					mappings={preview.categoryMappings}
+					workspaceCategories={preview.workspaceCategories}
+					bind:decisions={categoryDecisions}
+				/>
+
 				<!-- ── Step: Importing ── -->
 			{:else if step === 'importing'}
 				<div class="flex flex-col items-center gap-3 py-12">
@@ -545,6 +601,16 @@
 										</span>
 									{/each}
 								</div>
+							</div>
+						{/if}
+
+						<!-- AI auto-tagging summary -->
+						{#if importResult.aiTagged > 0}
+							<div class="mb-3 w-full rounded-lg border border-primary-200 bg-primary-50 p-3 text-left">
+								<p class="text-xs font-medium text-primary-700">
+									AI auto-tagged {importResult.aiTagged}
+									{importResult.aiTagged === 1 ? 'transaction' : 'transactions'}
+								</p>
 							</div>
 						{/if}
 
@@ -767,6 +833,11 @@
 						Review columns
 						<ArrowRight size={14} />
 					</Button>
+				{:else if hasCategoriesStep}
+					<Button onclick={() => (step = 'categories')} disabled={loading}>
+						Review categories
+						<ArrowRight size={14} />
+					</Button>
 				{:else}
 					<Button onclick={submitImport} disabled={loading}>
 						Import {preview?.totalParsed ?? ''} transactions
@@ -775,6 +846,21 @@
 				{/if}
 			{:else if step === 'columns'}
 				<Button variant="outline" onclick={() => (step = 'preview')}>Back</Button>
+				{#if hasCategoriesStep}
+					<Button onclick={() => (step = 'categories')}>
+						Review categories
+						<ArrowRight size={14} />
+					</Button>
+				{:else}
+					<Button onclick={submitImport}>
+						Import {preview?.totalParsed ?? ''} transactions
+						<ArrowRight size={14} />
+					</Button>
+				{/if}
+			{:else if step === 'categories'}
+				<Button variant="outline" onclick={() => (step = hasColumnsStep ? 'columns' : 'preview')}>
+					Back
+				</Button>
 				<Button onclick={submitImport}>
 					Import {preview?.totalParsed ?? ''} transactions
 					<ArrowRight size={14} />
