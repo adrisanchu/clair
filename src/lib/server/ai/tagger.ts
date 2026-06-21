@@ -1,6 +1,6 @@
 import { env } from '$env/dynamic/private';
 import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODEL } from '$lib/constants/ai.js';
+import { AI_MODEL, TAG_MAX_TOKENS } from '$lib/constants/ai.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -85,23 +85,41 @@ Consider:
 Workspace categories: ${JSON.stringify(workspaceCategories)}
 CSV categories to match: ${JSON.stringify(csvCategories)}
 
-Return ONLY a valid JSON array. No explanation, no markdown.
-Each item: {"csv":"<original csv value>","match":"<workspace category name or null>","confidence":0.00}
-
 Set match to null if no good match exists (confidence < 0.5).
-Confidence should reflect how certain you are: 1.0 for exact/trivial matches, 0.85+ for clear semantic matches, 0.6-0.84 for plausible but uncertain matches.`
+Confidence: 1.0 for exact/trivial matches, 0.85+ for clear semantic matches, 0.6-0.84 for plausible but uncertain.`
 				}
-			]
+			],
+			output_config: {
+				format: {
+					type: 'json_schema',
+					schema: {
+						type: 'object',
+						properties: {
+							mappings: {
+								type: 'array',
+								items: {
+									type: 'object',
+									properties: {
+										csv: { type: 'string' },
+										match: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+										confidence: { type: 'number' }
+									},
+									required: ['csv', 'match', 'confidence'],
+									additionalProperties: false
+								}
+							}
+						},
+						required: ['mappings'],
+						additionalProperties: false
+					}
+				}
+			}
 		});
 
 		logUsage('matchCategories', res.usage);
 
-		const text = res.content[0].type === 'text' ? res.content[0].text : '[]';
-		const parsed = JSON.parse(text) as Array<{
-			csv: string;
-			match: string | null;
-			confidence: number;
-		}>;
+		const raw = res.content[0].type === 'text' ? res.content[0].text : '{"mappings":[]}';
+		const parsed = (JSON.parse(raw) as { mappings: Array<{ csv: string; match: string | null; confidence: number }> }).mappings;
 
 		// Validate: only return matches that are in the workspace categories list
 		const validNames = new Set(workspaceCategories);
@@ -142,25 +160,49 @@ export async function tagBatch(
 	try {
 		const res = await client.messages.create({
 			model: AI_MODEL,
-			max_tokens: 1024,
+			max_tokens: TAG_MAX_TOKENS,
 			messages: [
 				{
 					role: 'user',
 					content: `You are a personal finance transaction classifier for a Spanish user.
-Return ONLY a valid JSON array. No explanation, no markdown.
 ${fewShot ? `\nKnown corrections:\n${fewShot}\n` : ''}
 Categories: ${categories.join(', ')}
 Classify these ${items.length} transactions:
-${JSON.stringify(items)}
-Each item: {"id":"...","category":"...","confidence":0.00,"isTransfer":false}`
+${JSON.stringify(items)}`
 				}
-			]
+			],
+			output_config: {
+				format: {
+					type: 'json_schema',
+					schema: {
+						type: 'object',
+						properties: {
+							classifications: {
+								type: 'array',
+								items: {
+									type: 'object',
+									properties: {
+										id: { type: 'string' },
+										category: { type: 'string' },
+										confidence: { type: 'number' },
+										isTransfer: { type: 'boolean' }
+									},
+									required: ['id', 'category', 'confidence', 'isTransfer'],
+									additionalProperties: false
+								}
+							}
+						},
+						required: ['classifications'],
+						additionalProperties: false
+					}
+				}
+			}
 		});
 
 		logUsage('tagBatch', res.usage);
 
-		const text = res.content[0].type === 'text' ? res.content[0].text : '[]';
-		const parsed = JSON.parse(text) as TagResult[];
+		const raw = res.content[0].type === 'text' ? res.content[0].text : '{"classifications":[]}';
+		const parsed = (JSON.parse(raw) as { classifications: TagResult[] }).classifications;
 
 		// Validate: only accept categories from the provided list
 		const validNames = new Set(categories);

@@ -19,8 +19,8 @@
 
 	let { mappings, workspaceCategories, decisions = $bindable() }: Props = $props();
 
-	// Track which rows have an open popover
-	let openPopovers = $state<Record<string, boolean>>({});
+	// Only one popover can be open at a time
+	let openPopover = $state<string | null>(null);
 
 	// Build grouped category list (parents + children)
 	const grouped = $derived(
@@ -34,7 +34,7 @@
 
 	function selectCategory(csvCategory: string, categoryName: string | null) {
 		decisions[csvCategory] = categoryName;
-		openPopovers[csvCategory] = false;
+		openPopover = null;
 	}
 
 	function confidenceColor(confidence: number): string {
@@ -98,7 +98,10 @@
 
 				<!-- Category picker -->
 				<div class="flex-1">
-					<Popover.Root bind:open={openPopovers[mapping.csvCategory]}>
+					<Popover.Root
+						open={openPopover === mapping.csvCategory}
+						onOpenChange={(v) => (openPopover = v ? mapping.csvCategory : null)}
+					>
 						<Popover.Trigger
 							class={cn(
 								'flex w-full cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-left text-xs outline-none transition-colors',

@@ -16,6 +16,18 @@ export async function autoTagUpload(
 ): Promise<{ tagged: number; skipped: number }> {
 	if (!isAiAvailable()) return { tagged: 0, skipped: 0 };
 
+	try {
+		return await _autoTagUpload(csvUploadId, workspaceId);
+	} catch (err) {
+		console.error('[AI] autoTagUpload failed — import still succeeded:', err);
+		return { tagged: 0, skipped: 0 };
+	}
+}
+
+async function _autoTagUpload(
+	csvUploadId: string,
+	workspaceId: string
+): Promise<{ tagged: number; skipped: number }> {
 	// Find uncategorised transactions from this upload
 	const uncategorised = await db
 		.select({
