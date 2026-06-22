@@ -2,8 +2,9 @@ import { error, json } from '@sveltejs/kit';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { bankAccounts, csvColumnMappings } from '$lib/server/db/schema.js';
+import { bankAccounts, categories, csvColumnMappings } from '$lib/server/db/schema.js';
 import { uploadAndParse, detectFileDirection } from '$lib/server/parsers/index.js';
+import { matchCategories } from '$lib/server/ai/tagger.js';
 
 // ─── POST /api/accounts/[id]/preview ──────────────────────────────────────────
 // Parse a CSV for the given bank account and return a preview — no DB writes.
@@ -59,6 +60,37 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		where: eq(csvColumnMappings.workspaceId, account.workspaceId)
 	});
 
+	// AI-powered category matching: if the CSV has category values, match against workspace categories
+	const csvCategoryValues = [
+		...new Set(rows.map((r) => r.category?.trim()).filter(Boolean) as string[])
+	];
+
+	let categoryMappings: Array<{
+		csvCategory: string;
+		suggestedMatch: string | null;
+		confidence: number;
+	}> | null = null;
+
+	const workspaceCategories = await db
+		.select({
+			id: categories.id,
+			name: categories.name,
+			color: categories.color,
+			parentId: categories.parentId
+		})
+		.from(categories)
+		.where(eq(categories.workspaceId, account.workspaceId));
+
+	if (csvCategoryValues.length > 0) {
+		const workspaceCategoryNames = workspaceCategories.map((c) => c.name);
+		const aiMappings = await matchCategories(csvCategoryValues, workspaceCategoryNames);
+		categoryMappings = aiMappings.map((m) => ({
+			csvCategory: m.csvCategory,
+			suggestedMatch: m.matchedCategory,
+			confidence: m.confidence
+		}));
+	}
+
 	return json({
 		filename: file.name,
 		profile: account.bankProfileId,
@@ -74,6 +106,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			csvHeader: m.columnLabel,
 			enabled: m.enabled
 		})),
+		categoryMappings,
+		workspaceCategories,
 		// Adaptive detection metadata — null when the strict profile was used successfully
 		detection: result.detectionMeta
 			? {

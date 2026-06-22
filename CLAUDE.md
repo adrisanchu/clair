@@ -73,7 +73,8 @@ const { data: session } = authClient.useSession();
 | `src/hooks.server.ts`              | Sets `locals.user` + `locals.session` via `svelteKitHandler`      |
 | `src/app.d.ts`                     | TypeScript types for `App.Locals`                                 |
 | `src/routes/layout.css`            | Global CSS + Tailwind v4 `@theme` design tokens                   |
-| `compose.yaml`                     | Docker Compose for local Postgres                                 |
+| `compose.yaml`                     | Docker Compose for local dev Postgres                             |
+| `compose.test.yaml`                | Docker Compose for isolated test Postgres (empty DB)              |
 | `scripts/seed-owner.ts`            | Creates first owner account (run once after first migration)      |
 
 ## Better Auth Patterns
@@ -120,6 +121,52 @@ npm run db:migrate    # applies migration to DB
 
 ## Development Setup
 
+### Local database environments
+
+Two independent Postgres containers share the same image (`postgres:16-alpine`) but use separate volumes:
+
+| Environment | Compose file | Container | Host port | Volume | Purpose |
+|-------------|-------------|-----------|-----------|--------|---------|
+| **Dev** | `compose.yaml` | `clair_db` | 5432 | `clair_clair_pgdata` | Primary workspace with real data (close-to-prod) |
+| **Test** | `compose.test.yaml` | `clair_db_test` | 5433 | `clair_test_clair_test_pgdata` | Empty DB for testing new features / breaking changes |
+
+Both can run side by side. The dev server connects to whichever you specify via `DATABASE_URL`.
+
+#### Running against dev (default)
+
+```bash
+docker compose up -d        # start dev DB on :5432
+npm run dev                 # uses DATABASE_URL from .env (port 5432)
+```
+
+#### Running against test
+
+```bash
+docker compose -f compose.test.yaml up -d   # start test DB on :5433
+DATABASE_URL="postgres://root:mysecretpassword@localhost:5433/local" npm run dev
+```
+
+#### First-time test DB setup
+
+```bash
+docker compose -f compose.test.yaml up -d
+
+# Apply migrations (drizzle-kit migrate doesn't support env override — apply SQL directly)
+for f in drizzle/migrations/0*.sql; do
+  sed 's/--> statement-breakpoint//g' "$f" | docker exec -i clair_db_test psql -U root -d local
+done
+
+# Seed a test user
+DATABASE_URL="postgres://root:mysecretpassword@localhost:5433/local" \
+  npx tsx scripts/seed-owner.ts --email=test@test.com --name="Test" --password=test1234
+```
+
+#### Tear down (without affecting dev)
+
+```bash
+docker compose -f compose.test.yaml down -v   # destroy test DB + data only
+```
+
 ### First time (fresh clone)
 
 ```bash
@@ -144,7 +191,7 @@ npm run db:studio        # open Drizzle Studio (DB GUI at localhost:4983)
 npm run auth:schema      # after editing auth.ts
 npm run db:generate      # after editing schema.ts
 npm run db:migrate       # apply pending migrations
-docker compose down -v   # destroy DB + data (full reset)
+docker compose down -v   # destroy dev DB + data (full reset)
 ```
 
 ## Environment Variables
@@ -209,6 +256,26 @@ src/routes/
 | 5     | AI tagging via Claude Haiku                                | Pending      |
 | 6     | CSV export streaming                                       | Pending      |
 | 7     | Settings, upload history, mobile polish, empty states      | Pending      |
+
+## Design Decisions
+
+### Constants and magic numbers
+
+All shared constants live in `src/lib/constants/` as separate files grouped by domain (e.g. `colors.ts`, `ai.ts`). This path is available to both server and client code, so a single file can be imported by server modules (`$lib/server/`) and Svelte components alike — no duplication needed.
+
+- Do **not** define magic numbers inline in a module and re-export them as if they were that module's API.
+- Do **not** duplicate constants in a sibling `constants.ts` inside a component folder — import from `$lib/constants/` instead.
+- Server-only constants (e.g. a model ID, a batch size) can still live in `$lib/constants/` — being importable from the client doesn't mean the client must use them.
+
+### AI availability check
+
+`isAiAvailable()` in `src/lib/server/ai/tagger.ts` checks only that `ANTHROPIC_API_KEY` is set. A more accurate name would be `isAiConfigured()`. It does **not** guarantee the key is valid, that the account has credits, or that Anthropic's API is reachable.
+
+The real runtime guard is the `try/catch` inside each function in `tagger.ts`: on any failure, AI functions return graceful fallbacks (empty array / exact-match fallback) so the upload flow never breaks.
+
+**Things to improve later:**
+- Rename `isAiAvailable` → `isAiConfigured` for accuracy, or introduce a lightweight `/api/ai/status` health-check endpoint that caches the result of a real test call.
+- The `aiAvailable` flag passed from `+layout.server.ts` to the frontend is a weak signal — consider gating UI elements on observed AI results rather than the presence of a key.
 
 ## Coding Rules
 

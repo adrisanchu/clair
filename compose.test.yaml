@@ -1,0 +1,16 @@
+name: clair_test
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: clair_db_test
+    restart: unless-stopped
+    ports:
+      - 5433:5432
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: local
+    volumes:
+      - clair_test_pgdata:/var/lib/postgresql/data
+volumes:
+  clair_test_pgdata:

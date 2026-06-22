@@ -55,6 +55,50 @@ docker compose up -d   # ensure DB is running
 npm run dev
 ```
 
+## Local database environments
+
+Two independent Postgres containers share the same image but use separate volumes so they can run side by side:
+
+| Environment | Compose file | Container | Host port | Purpose |
+|-------------|-------------|-----------|-----------|---------|
+| **Dev** | `compose.yaml` | `clair_db` | 5432 | Primary workspace with real data (close-to-prod) |
+| **Test** | `compose.test.yaml` | `clair_db_test` | 5433 | Empty DB for testing new features / breaking changes |
+
+### Running against dev (default)
+
+```bash
+docker compose up -d
+npm run dev                 # uses DATABASE_URL from .env (port 5432)
+```
+
+### Running against test
+
+```bash
+docker compose -f compose.test.yaml up -d
+DATABASE_URL="postgres://root:mysecretpassword@localhost:5433/local" npm run dev
+```
+
+### First-time test DB setup
+
+```bash
+docker compose -f compose.test.yaml up -d
+
+# Apply migrations
+for f in drizzle/migrations/0*.sql; do
+  sed 's/--> statement-breakpoint//g' "$f" | docker exec -i clair_db_test psql -U root -d local
+done
+
+# Seed a test user
+DATABASE_URL="postgres://root:mysecretpassword@localhost:5433/local" \
+  npx tsx scripts/seed-owner.ts --email=test@test.com --name="Test" --password=test1234
+```
+
+### Tear down test (without affecting dev)
+
+```bash
+docker compose -f compose.test.yaml down -v
+```
+
 ## Useful commands
 
 | Command                  | Description                                           |
@@ -66,7 +110,7 @@ npm run dev
 | `npm run db:generate`    | Generate a new Drizzle migration after schema changes |
 | `npm run db:migrate`     | Apply pending migrations to the database              |
 | `npm run db:studio`      | Open Drizzle Studio (DB GUI) at `localhost:4983`      |
-| `docker compose down -v` | Destroy the local DB and all data (full reset)        |
+| `docker compose down -v` | Destroy the dev DB and all data (full reset)          |
 
 ## Environment variables
 

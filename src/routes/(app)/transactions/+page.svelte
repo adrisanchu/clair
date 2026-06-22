@@ -12,9 +12,11 @@
 		ChevronLeft,
 		ChevronRight,
 		Info,
-		CircleAlert
+		CircleAlert,
+		ReceiptText
 	} from '@lucide/svelte';
 	import Amount from '$lib/components/Amount.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
@@ -249,15 +251,23 @@
 	<!-- ── Transactions table ──────────────────────────────────────────────────── -->
 	<div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
 		{#if data.rows.length === 0}
-			<div class="flex h-full flex-col items-center justify-center px-4 py-24 text-center">
-				<p class="mb-1 text-sm font-medium text-text-primary">No transactions found</p>
-				<p class="text-sm text-text-secondary">
-					{hasFilters ? 'Try adjusting your filters.' : 'Upload a CSV to get started.'}
-				</p>
+			<div class="flex h-full items-center justify-center">
 				{#if hasFilters}
-					<Button variant="link" onclick={clearFilters} class="mt-3 text-primary-500">
-						Clear all filters
-					</Button>
+					<EmptyState
+						icon={Search}
+						title="No transactions match your filters"
+						description="Try adjusting your filters."
+					>
+						<Button variant="link" onclick={clearFilters} class="text-primary-500">
+							Clear all filters
+						</Button>
+					</EmptyState>
+				{:else}
+					<EmptyState
+						icon={ReceiptText}
+						title="No transactions yet"
+						description="Upload a CSV from your bank account to get started."
+					/>
 				{/if}
 			</div>
 		{:else}

@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, max } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import {
@@ -19,6 +19,7 @@ import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { detectAndLinkTransfers } from '$lib/server/transfer-detector.js';
 import { detectAndCreateConversions } from '$lib/server/currency-converter.js';
+import { autoTagUpload } from '$lib/server/ai/auto-tag.js';
 import type { NormalizedTransaction } from '$lib/server/parsers/types.js';
 
 // ─── POST /api/accounts/[id]/import ───────────────────────────────────────────
@@ -43,6 +44,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const columnMappingsRaw = formData.get('columnMappings') as string | null;
 	const columnOverrides: ColumnOverrides = columnMappingsRaw ? JSON.parse(columnMappingsRaw) : null;
 
+	// User-confirmed category mappings from the preview step
+	const categoryMappingsRaw = formData.get('categoryMappings') as string | null;
+	const confirmedCategoryMappings: Array<{ csvCategory: string; mappedTo: string | null }> | null =
+		categoryMappingsRaw ? JSON.parse(categoryMappingsRaw) : null;
+
 	let rows: Awaited<ReturnType<typeof uploadAndParse>>['result']['rows'];
 	let skippedCount: number;
 
@@ -52,6 +58,20 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		} = await uploadAndParse(file, account.bankProfileId, columnOverrides));
 	} catch (e) {
 		throw error(400, e instanceof Error ? e.message : 'Could not parse file');
+	}
+
+	// Apply confirmed category mappings to parsed rows
+	if (confirmedCategoryMappings && confirmedCategoryMappings.length > 0) {
+		const categoryMap = new Map(
+			confirmedCategoryMappings
+				.filter((m) => m.mappedTo !== null)
+				.map((m) => [m.csvCategory, m.mappedTo!])
+		);
+		for (const row of rows) {
+			if (row.category && categoryMap.has(row.category)) {
+				row.category = categoryMap.get(row.category)!;
+			}
+		}
 	}
 
 	// Create the upload record first (transactions reference it)
@@ -169,6 +189,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		detectAndCreateConversions(insertedIds, account.workspaceId, account.currency)
 	]);
 
+	// AI auto-tag uncategorised transactions (gracefully skips if no API key)
+	const aiTagResult = await autoTagUpload(upload.id, account.workspaceId);
+
 	return json({
 		imported: importedCount,
 		flagged: flaggedCount,
@@ -176,7 +199,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		duplicates: duplicateCount,
 		unresolvedTransfers,
 		detectedConversions,
-		newCategories
+		newCategories,
+		aiTagged: aiTagResult.tagged
 	});
 };
 
@@ -212,14 +236,21 @@ async function upsertNewCategories(
 	const toCreate = csvCategories.filter((name) => !existingNames.has(name.toLowerCase()));
 	if (toCreate.length === 0) return [];
 
+	// Compute next sortOrder for top-level categories in this workspace
+	const [{ maxOrder }] = await db
+		.select({ maxOrder: max(categories.sortOrder) })
+		.from(categories)
+		.where(and(eq(categories.workspaceId, workspaceId), isNull(categories.parentId)));
+	const startOrder = maxOrder != null ? maxOrder + 1 : 0;
+
 	const inserted = await db
 		.insert(categories)
 		.values(
-			toCreate.map((name) => ({
+			toCreate.map((name, i) => ({
 				workspaceId,
 				name,
 				color: randomCategoryColor(),
-				sortOrder: 0
+				sortOrder: startOrder + i
 			}))
 		)
 		.returning({ name: categories.name, color: categories.color });
