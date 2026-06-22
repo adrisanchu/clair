@@ -157,6 +157,18 @@ export async function tagBatch(
 	const client = getClient();
 	if (!client) return [];
 
+	// Map UUIDs to compact numeric IDs before sending to the model.
+	// UUIDs tokenize at ~1 token/char (36 tokens each) vs 1-2 tokens for a number,
+	// saving ~1700 tokens per 50-item batch. The model only echoes IDs back, so
+	// there is no semantic value in sending the full UUID.
+	const indexToId = new Map<string, string>(items.map((item, i) => [String(i), item.id]));
+	const remappedItems = items.map((item, i) => ({
+		id: String(i),
+		description: item.description,
+		amount: item.amount,
+		currency: item.currency
+	}));
+
 	try {
 		const res = await client.messages.create({
 			model: AI_MODEL,
@@ -168,7 +180,7 @@ export async function tagBatch(
 ${fewShot ? `\nKnown corrections:\n${fewShot}\n` : ''}
 Categories: ${categories.join(', ')}
 Classify these ${items.length} transactions:
-${JSON.stringify(items)}`
+${JSON.stringify(remappedItems)}`
 				}
 			],
 			output_config: {
@@ -204,11 +216,17 @@ ${JSON.stringify(items)}`
 		const raw = res.content[0].type === 'text' ? res.content[0].text : '{"classifications":[]}';
 		const parsed = (JSON.parse(raw) as { classifications: TagResult[] }).classifications;
 
-		// Validate: only accept categories from the provided list
+		// Remap numeric IDs back to the original UUIDs before returning.
+		// Drop any result whose ID the model hallucinated (not in indexToId).
 		const validNames = new Set(categories);
-		return parsed.filter(
-			(r) => r.id && validNames.has(r.category) && typeof r.confidence === 'number'
-		);
+		return parsed
+			.filter(
+				(r) =>
+					indexToId.has(r.id) &&
+					validNames.has(r.category) &&
+					typeof r.confidence === 'number'
+			)
+			.map((r) => ({ ...r, id: indexToId.get(r.id)! }));
 	} catch (err) {
 		console.error('[AI] tagBatch failed:', err);
 		return [];

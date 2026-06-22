@@ -11,7 +11,7 @@ export const AI_MODEL = 'claude-haiku-4-5-20251001';
 
 // ─── Batching ────────────────────────────────────────────────────────────────
 // TAG_BATCH_SIZE controls how many transactions per AI call.
-// TAG_MAX_TOKENS must be large enough for TAG_BATCH_SIZE outputs: UUIDs tokenize
-// at ~1 char/token, so 50 items × ~60 tokens each ≈ 3000 tokens needed.
+// TAG_MAX_TOKENS covers the output for a full batch: with numeric IDs (not UUIDs)
+// each item costs ~10 tokens, so 50 items ≈ 500 tokens — 2048 gives safe headroom.
 export const TAG_BATCH_SIZE = 50;
-export const TAG_MAX_TOKENS = 4096;
+export const TAG_MAX_TOKENS = 2048;
