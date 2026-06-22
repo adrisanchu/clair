@@ -257,6 +257,26 @@ src/routes/
 | 6     | CSV export streaming                                       | Pending      |
 | 7     | Settings, upload history, mobile polish, empty states      | Pending      |
 
+## Design Decisions
+
+### Constants and magic numbers
+
+All shared constants live in `src/lib/constants/` as separate files grouped by domain (e.g. `colors.ts`, `ai.ts`). This path is available to both server and client code, so a single file can be imported by server modules (`$lib/server/`) and Svelte components alike — no duplication needed.
+
+- Do **not** define magic numbers inline in a module and re-export them as if they were that module's API.
+- Do **not** duplicate constants in a sibling `constants.ts` inside a component folder — import from `$lib/constants/` instead.
+- Server-only constants (e.g. a model ID, a batch size) can still live in `$lib/constants/` — being importable from the client doesn't mean the client must use them.
+
+### AI availability check
+
+`isAiAvailable()` in `src/lib/server/ai/tagger.ts` checks only that `ANTHROPIC_API_KEY` is set. A more accurate name would be `isAiConfigured()`. It does **not** guarantee the key is valid, that the account has credits, or that Anthropic's API is reachable.
+
+The real runtime guard is the `try/catch` inside each function in `tagger.ts`: on any failure, AI functions return graceful fallbacks (empty array / exact-match fallback) so the upload flow never breaks.
+
+**Things to improve later:**
+- Rename `isAiAvailable` → `isAiConfigured` for accuracy, or introduce a lightweight `/api/ai/status` health-check endpoint that caches the result of a real test call.
+- The `aiAvailable` flag passed from `+layout.server.ts` to the frontend is a weak signal — consider gating UI elements on observed AI results rather than the presence of a key.
+
 ## Coding Rules
 
 1. `$props()` with inline interface — never `export let`
