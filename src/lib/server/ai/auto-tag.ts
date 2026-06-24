@@ -45,6 +45,7 @@ async function _autoTagUpload(
 			)
 		);
 
+	console.info(`[AI] autoTagUpload: upload=${csvUploadId} uncategorised=${uncategorised.length}`);
 	if (uncategorised.length === 0) return { tagged: 0, skipped: 0 };
 
 	// Load workspace category names
@@ -54,6 +55,7 @@ async function _autoTagUpload(
 		.where(eq(categories.workspaceId, workspaceId));
 
 	const categoryNames = workspaceCategories.map((c) => c.name);
+	console.info(`[AI] autoTagUpload: workspace=${workspaceId} categories=${categoryNames.length}`);
 	if (categoryNames.length === 0) return { tagged: 0, skipped: uncategorised.length };
 
 	// Build few-shot examples from recent user corrections
@@ -72,7 +74,9 @@ async function _autoTagUpload(
 			currency: tx.currency
 		}));
 
+		console.info(`[AI] tagBatch: sending batch of ${batch.length} transactions`);
 		const results = await tagBatch(items, categoryNames, fewShot);
+		console.info(`[AI] tagBatch: received ${results.length} results`);
 		const resultMap = new Map<string, TagResult>(results.map((r) => [r.id, r]));
 
 		for (const tx of batch) {
