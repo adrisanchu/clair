@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, sql } from 'drizzle-orm';
 import { db } from './index.js';
 import { transactions, bankAccounts } from './schema.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
@@ -125,6 +125,69 @@ export interface TxQueryResult {
 	counts: { all: number; expenses: number; transfers: number; review: number };
 	page: number;
 	limit: number;
+}
+
+// ---------------------------------------------------------------------------
+// Export query (no pagination) — round-trip-safe subset for CSV download
+// ---------------------------------------------------------------------------
+
+export interface ExportTxRow {
+	accountingDate: Date;
+	amount: number;
+	description: string;
+	currency: string;
+	accountName: string | null;
+	category: string | null; // AI-tagged category
+	categoryOverride: string | null; // user correction (takes precedence on export)
+	notes: string | null;
+	city: string | null;
+}
+
+/**
+ * Fetch every accessible transaction for CSV export.
+ *
+ * No pagination. Ordered accountingDate ASC then originalOrder ASC so a re-import
+ * lands rows in their original file sequence. Opening-balance rows are synthetic
+ * and excluded — they are not real transactions and would re-import oddly.
+ *
+ * @param accessibleIds account IDs the user may view (from getFullAccessAccountIds)
+ * @param accountIds optional subset to export; ignored entries outside accessibleIds
+ */
+export async function queryTransactionsForExport(
+	accessibleIds: string[],
+	accountIds?: string[]
+): Promise<ExportTxRow[]> {
+	if (accessibleIds.length === 0) return [];
+
+	// Intersect the requested subset with what the user is actually allowed to see.
+	const requested = accountIds?.length
+		? accountIds.filter((id) => accessibleIds.includes(id))
+		: accessibleIds;
+	if (requested.length === 0) return [];
+
+	const rows = await db
+		.select({
+			accountingDate: transactions.accountingDate,
+			amount: transactions.amount,
+			description: transactions.description,
+			currency: transactions.currency,
+			accountName: bankAccounts.displayName,
+			category: transactions.category,
+			categoryOverride: transactions.categoryOverride,
+			notes: transactions.notes,
+			city: transactions.city
+		})
+		.from(transactions)
+		.leftJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
+		.where(
+			and(inArray(transactions.bankAccountId, requested), eq(transactions.isOpeningBalance, false))
+		)
+		.orderBy(asc(transactions.accountingDate), asc(transactions.originalOrder));
+
+	return rows.map((r) => ({
+		...r,
+		amount: parseFloat(r.amount as string)
+	}));
 }
 
 export async function queryTransactions(params: TxQueryParams): Promise<TxQueryResult> {
