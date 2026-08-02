@@ -54,6 +54,10 @@
 		filename: string;
 		totalParsed: number;
 		skippedCount: number;
+		newCount: number;
+		duplicateCount: number;
+		updateCount: number;
+		reviewCount: number;
 		preview: Array<{ date: string; description: string; amount: number; currency: string }>;
 		openingBalance: number | null;
 		closingBalance: number | null;
@@ -196,10 +200,7 @@
 			// Pre-populate category mapping decisions from AI suggestions
 			if (data.categoryMappings) {
 				categoryDecisions = Object.fromEntries(
-					data.categoryMappings.map((m: CategoryMappingEntry) => [
-						m.csvCategory,
-						m.suggestedMatch
-					])
+					data.categoryMappings.map((m: CategoryMappingEntry) => [m.csvCategory, m.suggestedMatch])
 				);
 			}
 			// Pre-apply saved workspace mappings to confirm toggles
@@ -307,9 +308,45 @@
 				: step === 'columns'
 					? 2
 					: step === 'categories'
-						? (hasColumnsStep ? 3 : 2)
+						? hasColumnsStep
+							? 3
+							: 2
 						: steps().length - 1
 	);
+
+	// ── Preview headline / labels driven by the dedup projection ────────────────
+	const hasChanges = $derived(
+		!!preview && (preview.newCount > 0 || preview.updateCount > 0 || preview.reviewCount > 0)
+	);
+
+	const previewHeadline = $derived(
+		!preview || preview.newCount > 0
+			? 'Ready to import'
+			: preview.updateCount > 0 || preview.reviewCount > 0
+				? 'Ready to update'
+				: 'Nothing new to import'
+	);
+
+	const importActionLabel = $derived.by(() => {
+		if (!preview) return 'Import';
+		if (preview.newCount > 0)
+			return `Import ${preview.newCount} ${preview.newCount === 1 ? 'transaction' : 'transactions'}`;
+		if (preview.updateCount > 0 || preview.reviewCount > 0) return 'Apply updates';
+		return 'Import anyway';
+	});
+
+	// Secondary detail line: updates / review / unreadable rows (shown only when non-zero)
+	const previewDetail = $derived.by(() => {
+		if (!preview) return '';
+		const parts: string[] = [];
+		if (preview.updateCount > 0) parts.push(`${preview.updateCount} updated`);
+		if (preview.reviewCount > 0) parts.push(`${preview.reviewCount} need review`);
+		if (preview.skippedCount > 0)
+			parts.push(
+				`${preview.skippedCount} unreadable ${preview.skippedCount === 1 ? 'row' : 'rows'}`
+			);
+		return parts.join(' · ');
+	});
 </script>
 
 <Dialog.Root bind:open onOpenChange={handleOpenChange}>
@@ -370,32 +407,37 @@
 				<!-- Status banner -->
 				<div class="mb-5 flex items-center gap-3">
 					<div
-						class="bg-success-100 flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+						class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full {hasChanges
+							? 'bg-success-100'
+							: 'bg-surface-sunken'}"
 					>
-						<CheckCircle2 size={18} class="text-success-600" />
+						<CheckCircle2
+							size={18}
+							class={hasChanges ? 'text-success-600' : 'text-text-tertiary'}
+						/>
 					</div>
 					<div class="min-w-0">
-						<p class="text-sm font-semibold text-text-primary">Ready to import</p>
+						<p class="text-sm font-semibold text-text-primary">{previewHeadline}</p>
 						<p class="truncate text-xs text-text-secondary">
 							We've processed '{preview.filename}'
 						</p>
 					</div>
 				</div>
 
-				<!-- Stats grid -->
-				<div class="mb-5 grid grid-cols-3 gap-3">
+				<!-- Stats grid — projected dedup outcome (matches the import result) -->
+				<div class="mb-2 grid grid-cols-3 gap-3">
 					<div class="rounded-lg border border-border p-3">
 						<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">New</p>
 						<p class="mt-1 font-mono text-2xl font-bold text-text-primary tabular-nums">
-							{preview.totalParsed}
+							{preview.newCount}
 						</p>
 					</div>
 					<div class="rounded-lg border border-border p-3">
 						<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">
-							Skipped
+							Duplicates
 						</p>
 						<p class="mt-1 font-mono text-2xl font-bold text-text-primary tabular-nums">
-							{preview.skippedCount}
+							{preview.duplicateCount}
 						</p>
 					</div>
 					<div class="rounded-lg border border-border-strong bg-surface-sunken p-3">
@@ -405,6 +447,9 @@
 						<p class="mt-1 truncate text-sm font-semibold text-text-primary">{accountName}</p>
 					</div>
 				</div>
+
+				<!-- Secondary detail: updates / review / unreadable rows -->
+				<p class="mb-5 h-4 text-xs text-text-tertiary">{previewDetail}</p>
 
 				<!-- Transaction preview table -->
 				<div class="mb-5 overflow-hidden rounded-lg border border-border">
@@ -606,7 +651,9 @@
 
 						<!-- AI auto-tagging summary -->
 						{#if importResult.aiTagged > 0}
-							<div class="mb-3 w-full rounded-lg border border-primary-200 bg-primary-50 p-3 text-left">
+							<div
+								class="mb-3 w-full rounded-lg border border-primary-200 bg-primary-50 p-3 text-left"
+							>
 								<p class="text-xs font-medium text-primary-700">
 									AI auto-tagged {importResult.aiTagged}
 									{importResult.aiTagged === 1 ? 'transaction' : 'transactions'}
@@ -840,7 +887,7 @@
 					</Button>
 				{:else}
 					<Button onclick={submitImport} disabled={loading}>
-						Import {preview?.totalParsed ?? ''} transactions
+						{importActionLabel}
 						<ArrowRight size={14} />
 					</Button>
 				{/if}
@@ -853,7 +900,7 @@
 					</Button>
 				{:else}
 					<Button onclick={submitImport}>
-						Import {preview?.totalParsed ?? ''} transactions
+						{importActionLabel}
 						<ArrowRight size={14} />
 					</Button>
 				{/if}

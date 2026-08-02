@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from './db/index.js';
 import { transactions } from './db/schema.js';
-import type { NormalizedTransaction, DedupAction, DedupResult } from './parsers/types.js';
+import type { NormalizedTransaction, DedupResult } from './parsers/types.js';
 
 /**
  * Classify a normalised row before writing to the DB.
@@ -69,6 +69,44 @@ export async function classifyRow(
 	if (sameAmountDate.length > 1) return { action: 'review' };
 
 	return { action: 'insert' };
+}
+
+/**
+ * Dry-run classification summary used by the preview step so it can show the
+ * same New / Duplicates / Updates / Review breakdown the import will produce —
+ * without writing anything.
+ *
+ * The action → bucket mapping MUST stay in sync with the import loop in
+ * routes/api/accounts/[id]/import/+server.ts:
+ *   insert → new · review → review · update_status|update_desc → update · skip → duplicate
+ */
+export interface ClassificationSummary {
+	newCount: number;
+	duplicateCount: number;
+	updateCount: number;
+	reviewCount: number;
+}
+
+export async function summarizeClassification(
+	rows: NormalizedTransaction[],
+	bankAccountId: string
+): Promise<ClassificationSummary> {
+	const summary: ClassificationSummary = {
+		newCount: 0,
+		duplicateCount: 0,
+		updateCount: 0,
+		reviewCount: 0
+	};
+
+	for (const row of rows) {
+		const { action } = await classifyRow(row, bankAccountId);
+		if (action === 'insert') summary.newCount++;
+		else if (action === 'review') summary.reviewCount++;
+		else if (action === 'update_status' || action === 'update_desc') summary.updateCount++;
+		else summary.duplicateCount++; // 'skip'
+	}
+
+	return summary;
 }
 
 /**

@@ -4,6 +4,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, categories, csvColumnMappings } from '$lib/server/db/schema.js';
 import { uploadAndParse, detectFileDirection } from '$lib/server/parsers/index.js';
+import { summarizeClassification } from '$lib/server/dedup.js';
 import { matchCategories } from '$lib/server/ai/tagger.js';
 
 // ─── POST /api/accounts/[id]/preview ──────────────────────────────────────────
@@ -31,6 +32,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	}
 
 	const { rows, skippedCount } = result;
+
+	// Dry-run dedup so the preview shows the same New / Duplicates / Updates / Review
+	// breakdown the import will produce (dedup keys on date+amount+description, which
+	// are unaffected by category/city/notes column overrides — so this matches import).
+	const classification = await summarizeClassification(rows, account.id);
 
 	const preview = rows.slice(0, 5).map((r) => ({
 		date: r.accountingDate.toISOString().split('T')[0],
@@ -96,6 +102,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		profile: account.bankProfileId,
 		totalParsed: rows.length,
 		skippedCount,
+		// Dedup projection (matches the import outcome)
+		newCount: classification.newCount,
+		duplicateCount: classification.duplicateCount,
+		updateCount: classification.updateCount,
+		reviewCount: classification.reviewCount,
 		preview,
 		openingBalance,
 		closingBalance,
