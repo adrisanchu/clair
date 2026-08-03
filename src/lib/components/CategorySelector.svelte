@@ -6,17 +6,18 @@
 
 	interface Props {
 		txId: string;
-		category: string | null;
-		categoryOverride: string | null;
+		category: string | null; // raw bank-file value
+		categoryAI?: string | null; // AI guess
+		categoryOverride: string | null; // human decision
 		categories: CategoryRow[];
 	}
-	let { txId, category, categoryOverride, categories }: Props = $props();
+	let { txId, category, categoryAI = null, categoryOverride, categories }: Props = $props();
 
 	let open = $state(false);
 	let pending = $state(false);
 	let localOverride = $state(categoryOverride);
 
-	const effective = $derived(localOverride ?? category);
+	const effective = $derived(localOverride ?? category ?? categoryAI);
 
 	const effectiveCat = $derived(categories.find((c) => c.name === effective) ?? null);
 

@@ -7,7 +7,9 @@ import {
 	getUsedColumns,
 	CATEGORY_SYNONYMS,
 	CITY_SYNONYMS,
-	NOTES_SYNONYMS
+	NOTES_SYNONYMS,
+	ID_SYNONYMS,
+	type OptionalColumns
 } from './normalizer.js';
 import { preCategorize } from './pre-categorize.js';
 import { detectAdaptiveProfile, detectEncoding } from './detector.js';
@@ -121,6 +123,7 @@ export type ColumnOverrides = {
 	categoryColumn: string | null;
 	cityColumn: string | null;
 	notesColumn: string | null;
+	idColumn?: string | null;
 } | null;
 
 const FIELD_LABELS: Record<'category' | 'city' | 'notes', string> = {
@@ -129,28 +132,27 @@ const FIELD_LABELS: Record<'category' | 'city' | 'notes', string> = {
 	notes: 'Notes'
 };
 
-function buildOptionalColumns(
-	headers: string[],
-	overrides: ColumnOverrides
-): { categoryColumn: string | null; cityColumn: string | null; notesColumn: string | null } {
-	if (overrides) return overrides;
+function buildOptionalColumns(headers: string[], overrides: ColumnOverrides): OptionalColumns {
+	// The id column is authoritative (not a user-chosen enrichment mapping), so it is
+	// always auto-detected from the headers even when explicit overrides are supplied.
+	const idColumn = detectOptionalColumn(headers, ID_SYNONYMS);
+	if (overrides) return { ...overrides, idColumn: overrides.idColumn ?? idColumn };
 	return {
 		categoryColumn: detectOptionalColumn(headers, CATEGORY_SYNONYMS),
 		cityColumn: detectOptionalColumn(headers, CITY_SYNONYMS),
-		notesColumn: detectOptionalColumn(headers, NOTES_SYNONYMS)
+		notesColumn: detectOptionalColumn(headers, NOTES_SYNONYMS),
+		idColumn
 	};
 }
 
 function buildColumnMeta(
 	headers: string[],
 	profile: BankParserProfile,
-	optionalColumns: {
-		categoryColumn: string | null;
-		cityColumn: string | null;
-		notesColumn: string | null;
-	}
+	optionalColumns: OptionalColumns
 ): { columnMappings: ParseResult['columnMappings']; unusedColumns: string[] } {
 	const usedByProfile = getUsedColumns(profile);
+	// Includes idColumn — the id header is consumed (not surfaced as "unused") even
+	// though it is not offered as a user-facing enrichment mapping below.
 	const optionalValues = Object.values(optionalColumns).filter(Boolean) as string[];
 
 	const unusedColumns = headers.filter(

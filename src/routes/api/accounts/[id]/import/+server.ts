@@ -14,7 +14,12 @@ import {
 	detectFileDirection,
 	type ColumnOverrides
 } from '$lib/server/parsers/index.js';
-import { classifyRow, applyStatusUpdate, applyDescUpdate } from '$lib/server/dedup.js';
+import {
+	classifyRow,
+	applyStatusUpdate,
+	applyDescUpdate,
+	applyEnrichmentUpdate
+} from '$lib/server/dedup.js';
 import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { detectAndLinkTransfers } from '$lib/server/transfer-detector.js';
@@ -92,7 +97,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	let importedCount = 0;
 	let duplicateCount = 0;
+	// Counts every matched-row update (status upgrade, description change, and/or
+	// enrichment edit). Surfaced to the user as the "Updated" tile.
 	let statusUpdatesCount = 0;
+	// Subset of the above where edited Category/Notes/City were applied — for telemetry.
+	let enrichmentUpdatesCount = 0;
 	let flaggedCount = 0;
 
 	const toInsert: (typeof transactions.$inferInsert)[] = [];
@@ -108,9 +117,21 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			flaggedCount++;
 		} else if (dedup.action === 'update_status' && dedup.existingId) {
 			await applyStatusUpdate(dedup.existingId, row);
+			if (dedup.enrichment) {
+				await applyEnrichmentUpdate(dedup.existingId, dedup.enrichment, locals.user.id);
+				enrichmentUpdatesCount++;
+			}
 			statusUpdatesCount++;
 		} else if (dedup.action === 'update_desc' && dedup.existingId) {
 			await applyDescUpdate(dedup.existingId, row);
+			if (dedup.enrichment) {
+				await applyEnrichmentUpdate(dedup.existingId, dedup.enrichment, locals.user.id);
+				enrichmentUpdatesCount++;
+			}
+			statusUpdatesCount++;
+		} else if (dedup.action === 'update_enrichment' && dedup.existingId && dedup.enrichment) {
+			await applyEnrichmentUpdate(dedup.existingId, dedup.enrichment, locals.user.id);
+			enrichmentUpdatesCount++;
 			statusUpdatesCount++;
 		} else {
 			duplicateCount++;
@@ -196,6 +217,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		imported: importedCount,
 		flagged: flaggedCount,
 		statusUpdates: statusUpdatesCount,
+		enrichmentUpdates: enrichmentUpdatesCount,
 		duplicates: duplicateCount,
 		unresolvedTransfers,
 		detectedConversions,

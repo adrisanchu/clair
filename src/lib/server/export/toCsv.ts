@@ -8,8 +8,14 @@ import type { ExportTxRow } from '$lib/server/db/queries.js';
  * (see SEMANTIC_SYNONYMS in parsers/detector.ts), so a re-imported export is
  * mapped back to the right fields. `Account` is intentionally not a parser field:
  * it is human-readable context only and is ignored on re-import.
+ *
+ * `Id` carries the internal transaction id. It is optional on re-import: when the
+ * user keeps it, the dedup engine matches on it exactly (even for identical bank
+ * rows); when they delete it, the file still re-imports via the date+amount+
+ * description baseline key.
  */
 export const EXPORT_HEADERS = [
+	'Id',
 	'Date',
 	'Amount',
 	'Description',
@@ -39,17 +45,18 @@ function toIsoDateUTC(d: Date): string {
  *
  * - Date → `yyyy-MM-dd` (UTC), a format the parser recognises and the dedup keys on.
  * - Amount → plain dot-decimal, no thousands separators (parseAmount-friendly).
- * - Category → effective value: user override takes precedence over the AI tag,
+ * - Category → effective value: human override, else raw bank value, else AI guess,
  *   matching what the /transactions page shows.
  */
 export function toCsv(rows: ExportTxRow[]): string {
 	const records = rows.map((r) => ({
+		Id: r.id,
 		Date: toIsoDateUTC(r.accountingDate),
 		Amount: String(r.amount),
 		Description: r.description,
 		Currency: r.currency,
 		Account: r.accountName ?? '',
-		Category: r.categoryOverride ?? r.category ?? '',
+		Category: r.categoryOverride ?? r.category ?? r.categoryAI ?? '',
 		Notes: r.notes ?? '',
 		City: r.city ?? ''
 	}));

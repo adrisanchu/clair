@@ -17,8 +17,9 @@ async function getOwnedCategory(categoryId: string, workspaceId: string) {
 
 // ─── PATCH /api/settings/categories/[id] ─────────────────────────────────────
 // Update name, color, sortOrder, or parentId. Owner only.
-// When name changes: propagates to transactions.category, transactions.category_override,
-// and transaction_overrides.category within the workspace (atomic DB transaction).
+// When name changes: propagates to transactions.category, transactions.category_ai,
+// transactions.category_override, and transaction_overrides.category within the
+// workspace (atomic DB transaction).
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (!locals.user) throw error(401, 'Unauthorized');
@@ -105,6 +106,16 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 				SET "category_override" = ${newName}
 				FROM "core"."bank_accounts" ba
 				WHERE t."category_override" = ${oldName}
+				  AND t."bank_account_id" = ba."id"
+				  AND ba."workspace_id" = ${workspaceId}
+			`);
+
+			// Propagate to transactions.category_ai
+			await tx.execute(sql`
+				UPDATE "core"."transactions" t
+				SET "category_ai" = ${newName}
+				FROM "core"."bank_accounts" ba
+				WHERE t."category_ai" = ${oldName}
 				  AND t."bank_account_id" = ba."id"
 				  AND ba."workspace_id" = ${workspaceId}
 			`);

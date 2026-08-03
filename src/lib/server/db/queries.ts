@@ -112,8 +112,9 @@ export interface TxRow {
 	isTransfer: boolean;
 	isOpeningBalance: boolean;
 	notes: string | null;
-	category: string | null;
-	categoryOverride: string | null;
+	category: string | null; // raw bank-file value
+	categoryAI: string | null; // AI guess
+	categoryOverride: string | null; // human decision
 	bankAccountId: string;
 	accountName: string | null;
 	bankProfileId: string | null;
@@ -132,13 +133,15 @@ export interface TxQueryResult {
 // ---------------------------------------------------------------------------
 
 export interface ExportTxRow {
+	id: string; // internal transaction id — emitted as the optional Id column for exact round-trip
 	accountingDate: Date;
 	amount: number;
 	description: string;
 	currency: string;
 	accountName: string | null;
-	category: string | null; // AI-tagged category
-	categoryOverride: string | null; // user correction (takes precedence on export)
+	category: string | null; // raw bank-file value
+	categoryAI: string | null; // AI guess
+	categoryOverride: string | null; // human decision (takes precedence on export)
 	notes: string | null;
 	city: string | null;
 }
@@ -167,12 +170,14 @@ export async function queryTransactionsForExport(
 
 	const rows = await db
 		.select({
+			id: transactions.id,
 			accountingDate: transactions.accountingDate,
 			amount: transactions.amount,
 			description: transactions.description,
 			currency: transactions.currency,
 			accountName: bankAccounts.displayName,
 			category: transactions.category,
+			categoryAI: transactions.categoryAI,
 			categoryOverride: transactions.categoryOverride,
 			notes: transactions.notes,
 			city: transactions.city
@@ -245,6 +250,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				isOpeningBalance: transactions.isOpeningBalance,
 				notes: transactions.notes,
 				category: transactions.category,
+				categoryAI: transactions.categoryAI,
 				categoryOverride: transactions.categoryOverride,
 				bankAccountId: transactions.bankAccountId,
 				accountName: bankAccounts.displayName,

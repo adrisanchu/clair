@@ -165,6 +165,21 @@ export const SEMANTIC_SYNONYMS: Record<SemanticField, string[]> = {
 	]
 };
 
+/**
+ * Synonyms for the optional internal-id column carried by a Clair export.
+ * Kept separate from SEMANTIC_SYNONYMS (it is not a bank-originated field that
+ * feeds normalizeRow's core mapping) and matched exactly, so a generic "id" header
+ * only maps here when it stands alone.
+ */
+export const ID_SYNONYMS = [
+	'id',
+	'transaction id',
+	'transactionid',
+	'transaction_id',
+	'tx id',
+	'txid'
+];
+
 // Priority order for field assignment (earlier = higher priority when two fields compete).
 const FIELD_PRIORITY: SemanticField[] = [
 	'date',

@@ -32,23 +32,27 @@ console.log('══════════════════════�
 // Sample rows mirroring the shape of queryTransactionsForExport() output.
 const rows = [
 	{
+		id: 'tx-0001',
 		accountingDate: new Date(Date.UTC(2024, 5, 24)), // 2024-06-24
 		amount: -12.5,
 		description: 'Café La Cabra',
 		currency: 'EUR',
 		accountName: 'Revolut EUR',
-		category: 'Groceries', // AI tag
+		category: null, // no raw bank value
+		categoryAI: 'Groceries', // AI tag
 		categoryOverride: 'Coffee', // user override → wins on export
 		notes: 'CPH Day 1',
 		city: 'Copenhagen'
 	},
 	{
+		id: 'tx-0002',
 		accountingDate: new Date(Date.UTC(2024, 5, 25)), // 2024-06-25
 		amount: 1500,
 		description: 'Salary, June',
 		currency: 'EUR',
 		accountName: 'Bankinter',
 		category: null,
+		categoryAI: null,
 		categoryOverride: null,
 		notes: null,
 		city: null
@@ -71,7 +75,8 @@ assert(
 	lines.length === rows.length + 1,
 	`got: ${lines.length} lines`
 );
-assert('date formatted yyyy-MM-dd', lines[1].startsWith('2024-06-24,'), `got: ${lines[1]}`);
+assert('id column emitted first', lines[1].startsWith('tx-0001,'), `got: ${lines[1]}`);
+assert('date formatted yyyy-MM-dd', lines[1].startsWith('tx-0001,2024-06-24,'), `got: ${lines[1]}`);
 assert('amount is dot-decimal', lines[1].includes(',-12.5,'), `got: ${lines[1]}`);
 assert('effective category uses user override', lines[1].includes(',Coffee,'), `got: ${lines[1]}`);
 assert(
@@ -110,6 +115,8 @@ assert('row 0 currency round-trips', r0?.currency === 'EUR', `got: ${r0?.currenc
 assert('row 0 category = override value', r0?.category === 'Coffee', `got: ${r0?.category}`);
 assert('row 0 notes round-trips', r0?.notes === 'CPH Day 1', `got: ${r0?.notes}`);
 assert('row 0 city round-trips', r0?.city === 'Copenhagen', `got: ${r0?.city}`);
+assert('row 0 internal id round-trips', r0?.internalId === 'tx-0001', `got: ${r0?.internalId}`);
+assert('row 1 internal id round-trips', result.rows[1]?.internalId === 'tx-0002', `got: ${result.rows[1]?.internalId}`);
 
 console.log(`\n  Parsed ${result.rows.length} rows, skipped ${result.skippedCount}`);
 console.log(

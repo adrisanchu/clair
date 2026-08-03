@@ -83,14 +83,35 @@ export interface NormalizedTransaction {
 	category: string | null; // from CSV if user pre-filled a category column; null otherwise
 	city: string | null; // from CSV if user pre-filled a city column; null otherwise
 	notes: string | null; // from CSV if user pre-filled a notes column; null otherwise
+	internalId: string | null; // Clair transaction id echoed back by an exported+re-imported file; null otherwise
 	sourceIndex: number; // 0-based position in original file (after skipRows); used for ordering
 }
 
-export type DedupAction = 'insert' | 'update_status' | 'update_desc' | 'skip' | 'review';
+export type DedupAction =
+	| 'insert'
+	| 'update_status'
+	| 'update_desc'
+	| 'update_enrichment'
+	| 'skip'
+	| 'review';
+
+/**
+ * Enrichment delta applied on a matched row when the re-imported file carries
+ * edited Category / Notes / City values. Only non-empty incoming values that
+ * differ from the stored value are present; an absent key means "leave unchanged".
+ */
+export interface EnrichmentDelta {
+	categoryOverride?: string; // effective category changed → written as a human override
+	notes?: string;
+	city?: string;
+}
 
 export interface DedupResult {
 	action: DedupAction;
 	existingId?: string;
+	// Present when a matched row also carries edited enrichment to apply. Attached to
+	// any matching action (skip/update_status/update_desc) — the import loop applies it.
+	enrichment?: EnrichmentDelta;
 }
 
 export interface UploadSummary {

@@ -385,6 +385,7 @@
 											<CategorySelector
 												txId={tx.id}
 												category={tx.category}
+												categoryAI={tx.categoryAI}
 												categoryOverride={tx.categoryOverride}
 												categories={data.categories}
 											/>
