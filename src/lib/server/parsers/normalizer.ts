@@ -1,6 +1,6 @@
 import { parse as parseDate, isValid } from 'date-fns';
 import type { BankParserProfile, NormalizedTransaction } from './types.js';
-import { SEMANTIC_SYNONYMS } from './detector.js';
+import { SEMANTIC_SYNONYMS, ID_SYNONYMS } from './detector.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 // ─── Optional column synonym lists (re-exported from detector for backward compat) ──
@@ -8,6 +8,15 @@ import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 export const CATEGORY_SYNONYMS = SEMANTIC_SYNONYMS.category;
 export const CITY_SYNONYMS = SEMANTIC_SYNONYMS.city;
 export const NOTES_SYNONYMS = SEMANTIC_SYNONYMS.notes;
+export { ID_SYNONYMS };
+
+/** Shape of the optional (non-bank) columns detected from a file's headers. */
+export interface OptionalColumns {
+	categoryColumn: string | null;
+	cityColumn: string | null;
+	notesColumn: string | null;
+	idColumn: string | null;
+}
 
 /** Returns the first header that matches any synonym (case- and accent-insensitive). */
 export function detectOptionalColumn(headers: string[], synonyms: string[]): string | null {
@@ -44,11 +53,12 @@ export function getUsedColumns(profile: BankParserProfile): string[] {
 export function normalizeRow(
 	raw: Record<string, string>,
 	profile: BankParserProfile,
-	optionalColumns: {
-		categoryColumn: string | null;
-		cityColumn: string | null;
-		notesColumn: string | null;
-	} = { categoryColumn: null, cityColumn: null, notesColumn: null }
+	optionalColumns: OptionalColumns = {
+		categoryColumn: null,
+		cityColumn: null,
+		notesColumn: null,
+		idColumn: null
+	}
 ): NormalizedTransaction | null {
 	const amount = profile.amountColumn
 		? parseAmount(raw[profile.amountColumn])
@@ -96,6 +106,7 @@ export function normalizeRow(
 			: null,
 		city: optionalColumns.cityColumn ? raw[optionalColumns.cityColumn]?.trim() || null : null,
 		notes: optionalColumns.notesColumn ? raw[optionalColumns.notesColumn]?.trim() || null : null,
+		internalId: optionalColumns.idColumn ? raw[optionalColumns.idColumn]?.trim() || null : null,
 		sourceIndex: 0 // placeholder; always overwritten by the caller
 	};
 }

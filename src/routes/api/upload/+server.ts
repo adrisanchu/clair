@@ -2,7 +2,12 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { uploadAndParse } from '$lib/server/parsers/index.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
-import { classifyRow, applyStatusUpdate, applyDescUpdate } from '$lib/server/dedup.js';
+import {
+	classifyRow,
+	applyStatusUpdate,
+	applyDescUpdate,
+	applyEnrichmentUpdate
+} from '$lib/server/dedup.js';
 import {
 	computeOpeningBalance,
 	upsertOpeningBalance,
@@ -61,7 +66,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const insertedIds: string[] = [];
 
 	for (const row of rows) {
-		const { action, existingId } = await classifyRow(row, bankAccountId);
+		const { action, existingId, enrichment } = await classifyRow(row, bankAccountId);
 
 		switch (action) {
 			case 'insert': {
@@ -94,13 +99,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 			case 'update_status': {
 				await applyStatusUpdate(existingId!, row);
+				if (enrichment) await applyEnrichmentUpdate(existingId!, enrichment, locals.user.id);
 				statusUpdateCount++;
 				break;
 			}
 
 			case 'update_desc': {
 				await applyDescUpdate(existingId!, row);
+				if (enrichment) await applyEnrichmentUpdate(existingId!, enrichment, locals.user.id);
 				duplicateCount++; // counts as a soft duplicate (no net-new row)
+				break;
+			}
+
+			case 'update_enrichment': {
+				await applyEnrichmentUpdate(existingId!, enrichment!, locals.user.id);
+				statusUpdateCount++;
 				break;
 			}
 
