@@ -106,6 +106,7 @@
 		imported: number;
 		flagged: number;
 		statusUpdates: number;
+		enrichmentUpdates: number;
 		duplicates: number;
 		detectedConversions: DetectedConversion[];
 		unresolvedTransfers: TransferMatch[];
@@ -615,7 +616,7 @@
 								<p class="font-mono text-xl font-bold text-text-primary">
 									{importResult.statusUpdates}
 								</p>
-								<p class="text-xs text-text-secondary">Status updates</p>
+								<p class="text-xs text-text-secondary">Updated</p>
 							</div>
 						{/if}
 						{#if importResult.flagged > 0}
