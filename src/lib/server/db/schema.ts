@@ -142,8 +142,11 @@ export const transactions = coreSchema.table(
 		creditorName: text('creditor_name'),
 		debtorName: text('debtor_name'),
 
-		// AI tagging — never overwritten on re-upload
+		// Bank-file value exactly as imported (immutable raw); null when the file had no category
 		category: text('category'),
+		// AI guess — the only auto-generated category. Written by autoTagUpload; never touched on re-upload
+		categoryAI: text('category_ai'),
+		// Pairs with categoryAI — the AI's confidence in that guess
 		categoryConfidence: numeric('category_confidence', { precision: 4, scale: 3 }),
 
 		// User corrections — never overwritten on re-upload

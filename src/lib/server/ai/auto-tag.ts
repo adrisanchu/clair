@@ -6,7 +6,9 @@ import { CONFIDENCE_LOW, TAG_BATCH_SIZE } from '$lib/constants/ai.js';
 
 /**
  * Auto-tags uncategorised transactions from a specific CSV upload.
- * Only processes transactions where both `category` and `categoryOverride` are null.
+ * Only processes transactions where `categoryOverride`, `category` (raw bank value)
+ * and `categoryAI` are all null — so a row that already carries any category value
+ * (human, bank-file, or a previous AI guess) is never re-tagged.
  *
  * Returns { tagged, skipped } counts. Gracefully returns zeros when AI is unavailable.
  */
@@ -40,8 +42,9 @@ async function _autoTagUpload(
 		.where(
 			and(
 				eq(transactions.csvUploadId, csvUploadId),
+				isNull(transactions.categoryOverride),
 				isNull(transactions.category),
-				isNull(transactions.categoryOverride)
+				isNull(transactions.categoryAI)
 			)
 		);
 
@@ -89,7 +92,7 @@ async function _autoTagUpload(
 			await db
 				.update(transactions)
 				.set({
-					category: result.category,
+					categoryAI: result.category,
 					categoryConfidence: result.confidence.toFixed(3),
 					...(result.isTransfer && result.confidence >= CONFIDENCE_LOW
 						? { isTransfer: true }
