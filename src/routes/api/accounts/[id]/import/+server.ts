@@ -37,7 +37,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		where: and(eq(bankAccounts.id, params.id), isNull(bankAccounts.deletedAt))
 	});
 	if (!account) throw error(404, 'Account not found');
-	if (account.ownerUserId !== locals.user.id) throw error(403, 'Forbidden');
+	const accessibleIds = await getAccessibleAccountIds(locals.user.id);
+	if (!accessibleIds.includes(account.id)) throw error(403, 'Access denied to this account');
 
 	const formData = await request.formData();
 	const file = formData.get('file') as File | null;
@@ -204,7 +205,6 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const newCategories = await upsertNewCategories(rows, account.workspaceId);
 
 	// Transfer auto-detection and cross-currency conversion detection
-	const accessibleIds = await getAccessibleAccountIds(locals.user.id);
 	const [unresolvedTransfers, detectedConversions] = await Promise.all([
 		detectAndLinkTransfers(insertedIds, accessibleIds, locals.user.id),
 		detectAndCreateConversions(insertedIds, account.workspaceId, account.currency)
