@@ -7,6 +7,7 @@
 		LayoutDashboard,
 		Landmark,
 		ArrowLeftRight,
+		Upload,
 		Download,
 		Settings,
 		LogOut
@@ -28,6 +29,7 @@
 		{ href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
 		{ href: '/accounts', label: 'Accounts', Icon: Landmark },
 		{ href: '/transactions', label: 'Transactions', Icon: ArrowLeftRight },
+		{ href: '/upload', label: 'Upload', Icon: Upload },
 		{ href: '/export', label: 'Export', Icon: Download }
 	];
 
