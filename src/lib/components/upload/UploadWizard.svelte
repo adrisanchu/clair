@@ -164,6 +164,29 @@
 		step = 'upload';
 	}
 
+	// Restore the wizard to its initial state so it can be reused without a remount
+	// (page flow) or a dialog close/reopen (dialog flow).
+	function reset() {
+		step = pickerMode ? 'account' : 'upload';
+		loading = false;
+		err = null;
+		file = null;
+		dragging = false;
+		balanceInput = '';
+		currentAccountId = accountId ?? '';
+		showNewAccountForm = false;
+		newName = '';
+		newProfileId = profiles[0]?.id ?? '';
+		newIbanLast4 = '';
+		newCurrency = PRIMARY_CURRENCY;
+		preview = null;
+		importResult = null;
+		columnConfirm = { category: true, city: true, notes: true };
+		categoryDecisions = {};
+		transferDecisions = {};
+		transferLinking = {};
+	}
+
 	async function createAccount(e: Event) {
 		e.preventDefault();
 		err = null;
@@ -1070,11 +1093,12 @@
 		<div></div>
 		<Button variant="outline" disabled>Importing…</Button>
 	{:else if step === 'done'}
-		<div></div>
 		{#if onClose}
+			<Button variant="outline" onclick={reset}>Upload another</Button>
 			<Button onclick={onClose}>Done</Button>
 		{:else}
 			<div></div>
+			<Button onclick={reset}>Upload another file</Button>
 		{/if}
 	{/if}
 </div>
