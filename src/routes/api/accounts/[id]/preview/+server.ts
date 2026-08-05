@@ -6,6 +6,7 @@ import { bankAccounts, categories, csvColumnMappings } from '$lib/server/db/sche
 import { uploadAndParse, detectFileDirection } from '$lib/server/parsers/index.js';
 import { summarizeClassification } from '$lib/server/dedup.js';
 import { matchCategories } from '$lib/server/ai/tagger.js';
+import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 
 // ─── POST /api/accounts/[id]/preview ──────────────────────────────────────────
 // Parse a CSV for the given bank account and return a preview — no DB writes.
@@ -17,7 +18,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		where: and(eq(bankAccounts.id, params.id), isNull(bankAccounts.deletedAt))
 	});
 	if (!account) throw error(404, 'Account not found');
-	if (account.ownerUserId !== locals.user.id) throw error(403, 'Forbidden');
+	const accessible = await getAccessibleAccountIds(locals.user.id);
+	if (!accessible.includes(account.id)) throw error(403, 'Access denied to this account');
 
 	const formData = await request.formData();
 	const file = formData.get('file') as File | null;
