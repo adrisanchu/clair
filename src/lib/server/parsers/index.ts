@@ -13,11 +13,7 @@ import {
 } from './normalizer.js';
 import { preCategorize } from './pre-categorize.js';
 import { detectAdaptiveProfile, detectEncoding } from './detector.js';
-import {
-	revolut_eu,
-	postNormalize as revolut_eu_postNormalize,
-	REVOLUT_EU_HEADER_FINGERPRINT
-} from './profiles/revolut_eu.js';
+import { revolut_eu, REVOLUT_EU_HEADER_FINGERPRINT } from './profiles/revolut_eu.js';
 import { bankinter_es, BANKINTER_ES_HEADER_FINGERPRINT } from './profiles/bankinter_es.js';
 
 // ─── Profile registry ──────────────────────────────────────────────────────
@@ -102,11 +98,11 @@ export function detectFileDirection(
 
 // ─── Per-profile post-normalise hooks ─────────────────────────────────────
 
+// Per-profile escape hatch for adjustments the generic normalizer can't express.
+// Fees are now handled generically via `profile.feeColumn`, so there are no entries today.
 const POST_NORMALIZE: Partial<
 	Record<string, (row: NormalizedTransaction, raw: Record<string, string>) => NormalizedTransaction>
-> = {
-	revolut_eu: revolut_eu_postNormalize
-};
+> = {};
 
 // ─── Parse ────────────────────────────────────────────────────────────────
 

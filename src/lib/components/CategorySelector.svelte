@@ -50,7 +50,7 @@
 <Popover.Root bind:open>
 	<Popover.Trigger
 		class={cn(
-			'group flex w-full cursor-pointer justify-center outline-none',
+			'group flex w-full cursor-pointer justify-start outline-none',
 			'focus-visible:ring-1 focus-visible:ring-primary-400',
 			pending && 'opacity-50'
 		)}

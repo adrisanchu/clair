@@ -8,6 +8,8 @@
 		size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 		showSign?: boolean;
 		colorize?: boolean;
+		/** Render struck-through and muted — used for reverted/returned transactions. */
+		struck?: boolean;
 		class?: string;
 	}
 
@@ -17,6 +19,7 @@
 		size = 'md',
 		showSign = true,
 		colorize = true,
+		struck = false,
 		class: cls = ''
 	}: Props = $props();
 
@@ -30,10 +33,13 @@
 		'3xl': 'text-4xl'
 	};
 
+	// `narrowSymbol` renders ¥ / € / $ instead of the wide 3-letter code (e.g. "JPY"),
+	// keeping large amounts on one line and matching the app's symbol-first aesthetic.
 	const formatted = $derived(
 		new Intl.NumberFormat('es-ES', {
 			style: 'currency',
 			currency,
+			currencyDisplay: 'narrowSymbol',
 			minimumFractionDigits: 2
 		}).format(Math.abs(value))
 	);
@@ -41,16 +47,26 @@
 	const sign = $derived(showSign ? (value > 0 ? '+' : value < 0 ? '−' : '') : '');
 
 	const colourClass = $derived(
-		colorize
-			? value > 0
-				? 'text-success-600'
-				: value < 0
-					? 'text-danger-600'
-					: 'text-text-secondary'
-			: ''
+		struck
+			? 'text-text-tertiary'
+			: colorize
+				? value > 0
+					? 'text-success-600'
+					: value < 0
+						? 'text-danger-600'
+						: 'text-text-secondary'
+				: ''
 	);
 </script>
 
-<span class={cn('font-mono tabular-nums', sizeMap[size], colourClass, cls)}>
+<span
+	class={cn(
+		'font-mono whitespace-nowrap tabular-nums',
+		sizeMap[size],
+		colourClass,
+		struck && 'line-through',
+		cls
+	)}
+>
 	{sign}{formatted}
 </span>

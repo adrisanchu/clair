@@ -10,7 +10,27 @@ import { computeEnrichmentDelta, type EnrichableExisting } from './enrichment.js
  */
 interface ExistingRow extends EnrichableExisting {
 	id: string;
-	status: 'pending' | 'posted' | 'review';
+	status: 'pending' | 'posted' | 'review' | 'reverted';
+}
+
+/**
+ * Decide whether an incoming row's status finalises an existing one.
+ * Returns the new status to apply, or null when there is nothing to change.
+ *
+ *  - pending → posted / reverted: a provisional row settled (or was returned).
+ *  - posted  → reverted:          a settled charge was later returned/cancelled.
+ *
+ * We never downgrade (posted → pending), never un-revert, and leave `review` rows to
+ * manual resolution.
+ */
+function statusTransition(
+	existing: ExistingRow['status'],
+	incoming: NormalizedTransaction['status']
+): NormalizedTransaction['status'] | null {
+	if (existing === incoming) return null;
+	if (existing === 'pending' && (incoming === 'posted' || incoming === 'reverted')) return incoming;
+	if (existing === 'posted' && incoming === 'reverted') return 'reverted';
+	return null;
 }
 
 const EXISTING_COLUMNS = {
@@ -94,7 +114,7 @@ export async function classifyRow(
 	if (sameAmountDate.length === 1) {
 		const existing = sameAmountDate[0];
 		const enrichment = computeEnrichmentDelta(existing, row);
-		if (existing.status === 'pending' && row.status === 'posted')
+		if (statusTransition(existing.status, row.status))
 			return { action: 'update_status', existingId: existing.id, enrichment };
 		// Description changed (out of contract) — still apply enrichment on this branch.
 		return { action: 'update_desc', existingId: existing.id, enrichment };
@@ -110,7 +130,7 @@ export async function classifyRow(
  */
 function resolveExactMatch(existing: ExistingRow, row: NormalizedTransaction): DedupResult {
 	const enrichment = computeEnrichmentDelta(existing, row);
-	if (existing.status === 'pending' && row.status === 'posted')
+	if (statusTransition(existing.status, row.status))
 		return { action: 'update_status', existingId: existing.id, enrichment };
 	if (enrichment) return { action: 'update_enrichment', existingId: existing.id, enrichment };
 	return { action: 'skip' };
@@ -161,8 +181,9 @@ export async function summarizeClassification(
 }
 
 /**
- * Apply a PENDING → POSTED status upgrade.
- * Only touches system-owned fields. Never overwrites category, notes, city, tags.
+ * Apply a status transition (pending → posted/reverted, or posted → reverted).
+ * Refreshes the bank-owned fields that can change on settlement (status, amount, fee,
+ * valueDate). Only touches system-owned fields — never category, notes, city, tags.
  */
 export async function applyStatusUpdate(
 	existingId: string,
@@ -171,7 +192,9 @@ export async function applyStatusUpdate(
 	await db
 		.update(transactions)
 		.set({
-			status: 'posted',
+			status: row.status,
+			amount: row.amount.toFixed(4),
+			fee: row.fee.toFixed(4),
 			valueDate: row.valueDate,
 			updatedAt: new Date()
 			// Intentionally NOT updating: category, categoryOverride, notes, city, tags

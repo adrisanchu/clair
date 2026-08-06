@@ -103,12 +103,13 @@ export interface TxRow {
 	id: string;
 	accountingDate: Date;
 	description: string;
-	amount: number;
+	amount: number; // net (gross − fee)
+	fee: number; // fee portion, non-negative, in `currency`
 	currency: string;
 	amountEur: number | null;
 	exchangeRate: number | null;
 	conversionId: string | null;
-	status: 'pending' | 'posted' | 'review';
+	status: 'pending' | 'posted' | 'review' | 'reverted';
 	isTransfer: boolean;
 	isOpeningBalance: boolean;
 	notes: string | null;
@@ -220,7 +221,8 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 			? and(
 					sql`${transactions.amount}::numeric < 0`,
 					eq(transactions.isTransfer, false),
-					eq(transactions.isOpeningBalance, false)
+					eq(transactions.isOpeningBalance, false),
+					eq(transactions.status, 'posted')
 				)
 			: filter === 'transfers'
 				? eq(transactions.isTransfer, true)
@@ -241,6 +243,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				accountingDate: transactions.accountingDate,
 				description: transactions.description,
 				amount: transactions.amount,
+				fee: transactions.fee,
 				currency: transactions.currency,
 				amountEur: transactions.amountEur,
 				exchangeRate: transactions.exchangeRate,
@@ -268,7 +271,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				// Tab badge counts never include the opening balance row
 				all: sql<number>`COUNT(*) FILTER (WHERE NOT ${transactions.isOpeningBalance})::int`,
 				allWithOpening: sql<number>`COUNT(*)::int`,
-				expenses: sql<number>`COUNT(*) FILTER (WHERE ${transactions.amount}::numeric < 0 AND NOT ${transactions.isTransfer} AND NOT ${transactions.isOpeningBalance})::int`,
+				expenses: sql<number>`COUNT(*) FILTER (WHERE ${transactions.amount}::numeric < 0 AND NOT ${transactions.isTransfer} AND NOT ${transactions.isOpeningBalance} AND ${transactions.status} = 'posted')::int`,
 				transfers: sql<number>`COUNT(*) FILTER (WHERE ${transactions.isTransfer})::int`,
 				review: sql<number>`COUNT(*) FILTER (WHERE ${transactions.status} = 'review')::int`
 			})
@@ -298,6 +301,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 		rows: rows.map((r) => ({
 			...r,
 			amount: parseFloat(r.amount as string),
+			fee: parseFloat(r.fee as string),
 			amountEur:
 				r.currency === PRIMARY_CURRENCY
 					? parseFloat(r.amount as string)
@@ -305,7 +309,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 						? parseFloat(r.amountEur as string)
 						: null,
 			exchangeRate: r.exchangeRate != null ? parseFloat(r.exchangeRate as string) : null,
-			status: r.status as 'pending' | 'posted' | 'review',
+			status: r.status as 'pending' | 'posted' | 'review' | 'reverted',
 			isOpeningBalance: r.isOpeningBalance ?? false
 		})),
 		total,

@@ -12,6 +12,7 @@ export type SemanticField =
 	| 'balance'
 	| 'status'
 	| 'type'
+	| 'fee'
 	| 'category'
 	| 'city'
 	| 'notes';
@@ -52,6 +53,7 @@ export interface BankParserProfile {
 	currencyColumn: string | null;
 	localAmountColumn: string | null; // original-currency amount (cross-currency txns)
 	balanceColumn: string | null; // running balance (empty for PENDING rows)
+	feeColumn: string | null; // fee/commission column in the row's currency (e.g. Revolut 'Comisión')
 	statusColumn: string | null; // e.g. 'COMPLETADO'/'PENDIENTE'
 	typeColumn: string | null; // raw transaction type (e.g. Revolut 'Tipo')
 	transferTypes: string[]; // typeColumn values that flag a row as a transfer candidate
@@ -70,13 +72,14 @@ export interface ResolvedProfile extends BankParserProfile {
 export interface NormalizedTransaction {
 	accountingDate: Date;
 	valueDate: Date | null; // null when transaction is pending
-	amount: number;
+	amount: number; // net signed effect on the balance (gross − fee)
+	fee: number; // fee/commission portion, non-negative, in `currency`; 0 when none
 	currency: string;
 	amountOriginal: number;
 	currencyOriginal: string;
 	description: string;
 	runningBalance: number | null; // null when transaction is pending
-	status: 'pending' | 'posted';
+	status: 'pending' | 'posted' | 'reverted';
 	rawType: string | null; // original type string from CSV
 	isTransferCandidate: boolean; // derived from rawType + profile.transferTypes
 	isFxCandidate: boolean; // derived from rawType + profile.fxCandidateTypes

@@ -285,7 +285,7 @@ function buildTxInsert(
 	bankAccountId: string,
 	csvUploadId: string,
 	payerUserId: string,
-	status: 'pending' | 'posted' | 'review'
+	status: 'pending' | 'posted' | 'review' | 'reverted'
 ): typeof transactions.$inferInsert {
 	return {
 		bankAccountId,
@@ -293,6 +293,7 @@ function buildTxInsert(
 		accountingDate: row.accountingDate,
 		valueDate: row.valueDate,
 		amount: row.amount.toFixed(4),
+		fee: row.fee.toFixed(4),
 		currency: row.currency,
 		amountOriginal: row.amountOriginal.toFixed(4),
 		currencyOriginal: row.currencyOriginal,

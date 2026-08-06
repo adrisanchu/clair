@@ -42,6 +42,7 @@ export function getUsedColumns(profile: BankParserProfile): string[] {
 		profile.currencyColumn,
 		profile.localAmountColumn,
 		profile.balanceColumn,
+		profile.feeColumn,
 		profile.statusColumn,
 		profile.typeColumn,
 		...profile.additionalColumns
@@ -60,9 +61,14 @@ export function normalizeRow(
 		idColumn: null
 	}
 ): NormalizedTransaction | null {
-	const amount = profile.amountColumn
+	const grossAmount = profile.amountColumn
 		? parseAmount(raw[profile.amountColumn])
 		: parseAmount(raw[profile.creditColumn!] ?? '') - parseAmount(raw[profile.debitColumn!] ?? '');
+
+	// Fee/commission is always a cost, stored non-negative. Net effect on the balance is
+	// gross − fee (uniform for income and expenses), so we fold it into `amount` at parse time.
+	const fee = profile.feeColumn ? Math.abs(parseAmount(raw[profile.feeColumn] ?? '')) : 0;
+	const amount = grossAmount - fee;
 
 	const accountingDate = parseDateField(raw[profile.dateColumn], profile.dateFormat);
 	if (!accountingDate) return null; // unparseable date → skip row
@@ -71,9 +77,9 @@ export function normalizeRow(
 		? parseDateField(raw[profile.valueDateColumn], profile.dateFormat)
 		: null;
 
-	const statusRaw = profile.statusColumn ? raw[profile.statusColumn]?.trim().toUpperCase() : null;
-	const status: 'pending' | 'posted' =
-		statusRaw && ['PENDIENTE', 'PENDING'].includes(statusRaw) ? 'pending' : 'posted';
+	const status = classifyStatus(
+		profile.statusColumn ? raw[profile.statusColumn]?.trim().toUpperCase() : null
+	);
 
 	const rawType = profile.typeColumn ? (raw[profile.typeColumn]?.trim() ?? null) : null;
 
@@ -88,6 +94,7 @@ export function normalizeRow(
 		accountingDate,
 		valueDate,
 		amount,
+		fee,
 		currency: profile.currencyColumn
 			? raw[profile.currencyColumn]?.trim() || PRIMARY_CURRENCY
 			: PRIMARY_CURRENCY,
@@ -109,6 +116,29 @@ export function normalizeRow(
 		internalId: optionalColumns.idColumn ? raw[optionalColumns.idColumn]?.trim() || null : null,
 		sourceIndex: 0 // placeholder; always overwritten by the caller
 	};
+}
+
+// Bank status vocabularies, normalised to UPPERCASE. `reverted` is an umbrella for any
+// transaction whose money was returned / never settled (returned, cancelled, declined, failed).
+const PENDING_STATES = ['PENDIENTE', 'PENDING'];
+const REVERTED_STATES = [
+	'DEVUELTO',
+	'REVERTED',
+	'RETURNED',
+	'CANCELLED',
+	'CANCELED',
+	'CANCELADO',
+	'RECHAZADO',
+	'DECLINED',
+	'FAILED'
+];
+
+/** Map a raw (upper-cased) bank status string to Clair's status. Unknown → posted. */
+export function classifyStatus(statusRaw: string | null | undefined): 'pending' | 'posted' | 'reverted' {
+	if (!statusRaw) return 'posted';
+	if (PENDING_STATES.includes(statusRaw)) return 'pending';
+	if (REVERTED_STATES.includes(statusRaw)) return 'reverted';
+	return 'posted';
 }
 
 function parseDateField(raw: string | undefined, format: string): Date | null {

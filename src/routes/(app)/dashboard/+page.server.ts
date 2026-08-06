@@ -80,7 +80,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				and(
 					inArray(transactions.bankAccountId, accessibleIds),
 					gte(transactions.accountingDate, thirtyDaysAgo),
-					eq(transactions.isOpeningBalance, false)
+					eq(transactions.isOpeningBalance, false),
+					// Only settled transactions affect the real net change — exclude pending/reverted.
+					eq(transactions.status, 'posted')
 				)
 			)
 			.groupBy(transactions.bankAccountId),
