@@ -28,6 +28,15 @@
 
 	let { data }: { data: PageData } = $props();
 
+	/** Small "incl. ¥21 fee" hint for rows that carried a fee/commission. */
+	function formatFee(value: number, currency: string): string {
+		return new Intl.NumberFormat('es-ES', {
+			style: 'currency',
+			currency,
+			minimumFractionDigits: 2
+		}).format(value);
+	}
+
 	// ── Local state ────────────────────────────────────────────────────────────
 
 	let searchInput = $state(data.filters.q);
@@ -305,6 +314,8 @@
 					<tbody>
 						{#each data.rows as tx (tx.id)}
 							{@const isReview = tx.status === 'review'}
+							{@const isReverted = tx.status === 'reverted'}
+							{@const isPending = tx.status === 'pending'}
 							{@const isTransfer = tx.isTransfer}
 							{@const isOpening = tx.isOpeningBalance}
 
@@ -359,7 +370,8 @@
 								<tr
 									class={cn(
 										'border-b border-border transition-colors hover:bg-surface-sunken/60',
-										isReview && 'border-l-2 border-l-amber-400'
+										isReview && 'border-l-2 border-l-amber-400',
+										isReverted && 'opacity-60'
 									)}
 								>
 									<!-- Category col: status label or CategorySelector -->
@@ -408,6 +420,21 @@
 												<AlertTriangle size={13} class="shrink-0 text-amber-500" />
 											{/if}
 											<span class="truncate text-xs font-medium md:text-sm">{tx.description}</span>
+											{#if isPending}
+												<Badge
+													variant="outline"
+													class="shrink-0 border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-700"
+												>
+													Pending
+												</Badge>
+											{:else if isReverted}
+												<Badge
+													variant="outline"
+													class="shrink-0 text-[10px] font-medium text-text-tertiary"
+												>
+													Returned
+												</Badge>
+											{/if}
 											{#if tx.notes}
 												<NoteHint note={tx.notes} />
 											{/if}
@@ -433,7 +460,18 @@
 
 									<!-- Amount col -->
 									<td class="px-2 py-2 text-right md:px-4 md:py-3">
-										<Amount value={tx.amount} currency={tx.currency} size="xs" class="md:text-sm" />
+										<Amount
+											value={tx.amount}
+											currency={tx.currency}
+											size="xs"
+											struck={isReverted}
+											class="md:text-sm"
+										/>
+										{#if tx.fee > 0}
+											<div class="mt-0.5 text-[10px] text-text-tertiary md:text-xs">
+												incl. {formatFee(tx.fee, tx.currency)} fee
+											</div>
+										{/if}
 										{#if tx.currency !== PRIMARY_CURRENCY}
 											{#if tx.amountEur != null}
 												<div class="mt-0.5 text-text-tertiary">
