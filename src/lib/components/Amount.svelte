@@ -33,10 +33,13 @@
 		'3xl': 'text-4xl'
 	};
 
+	// `narrowSymbol` renders ¥ / € / $ instead of the wide 3-letter code (e.g. "JPY"),
+	// keeping large amounts on one line and matching the app's symbol-first aesthetic.
 	const formatted = $derived(
 		new Intl.NumberFormat('es-ES', {
 			style: 'currency',
 			currency,
+			currencyDisplay: 'narrowSymbol',
 			minimumFractionDigits: 2
 		}).format(Math.abs(value))
 	);
@@ -57,7 +60,13 @@
 </script>
 
 <span
-	class={cn('font-mono tabular-nums', sizeMap[size], colourClass, struck && 'line-through', cls)}
+	class={cn(
+		'font-mono whitespace-nowrap tabular-nums',
+		sizeMap[size],
+		colourClass,
+		struck && 'line-through',
+		cls
+	)}
 >
 	{sign}{formatted}
 </span>

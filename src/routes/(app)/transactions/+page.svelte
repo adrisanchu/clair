@@ -28,13 +28,12 @@
 
 	let { data }: { data: PageData } = $props();
 
-	/** Small "incl. ¥21 fee" hint for rows that carried a fee/commission. */
-	function formatFee(value: number, currency: string): string {
-		return new Intl.NumberFormat('es-ES', {
-			style: 'currency',
-			currency,
-			minimumFractionDigits: 2
-		}).format(value);
+	/**
+	 * Bare number for the "incl. 21,00 fee" hint — no currency code, since the fee is always in
+	 * the same currency as the amount shown directly above it (keeps the line short + single-row).
+	 */
+	function formatFee(value: number): string {
+		return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(value);
 	}
 
 	// ── Local state ────────────────────────────────────────────────────────────
@@ -285,7 +284,7 @@
 					<thead class="sticky top-0 z-10 bg-surface-sunken shadow-[0_1px_0_0_var(--border)]">
 						<tr>
 							<th
-								class="w-20 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:w-36 md:px-4"
+								class="w-28 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:w-36 md:px-4"
 							>
 								Category
 							</th>
@@ -305,7 +304,7 @@
 								Account
 							</th>
 							<th
-								class="w-24 px-2 py-2.5 text-right text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:w-32 md:px-4"
+								class="w-28 px-2 py-2.5 text-right text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:w-40 md:px-4"
 							>
 								Amount
 							</th>
@@ -324,7 +323,10 @@
 								<tr class="border-b border-border bg-surface-sunken/40 opacity-70">
 									<!-- Category col: opening balance label -->
 									<td class="px-2 py-2 md:px-4 md:py-3">
-										<Badge variant="outline" class="text-[11px] font-medium text-text-tertiary">
+										<Badge
+											variant="outline"
+											class="max-w-full min-w-0 shrink truncate text-[11px] font-medium text-text-tertiary"
+										>
 											Opening balance
 										</Badge>
 									</td>
@@ -377,18 +379,18 @@
 									<!-- Category col: status label or CategorySelector -->
 									<td class="px-2 py-2 md:px-4 md:py-3">
 										{#if isReview}
-											<div class="flex justify-center">
+											<div class="flex justify-start">
 												<Badge
-													class="border-amber-200 bg-amber-100 text-[11px] font-medium text-amber-700"
+													class="max-w-full min-w-0 shrink truncate border-amber-200 bg-amber-100 text-[11px] font-medium text-amber-700"
 												>
 													Review Required
 												</Badge>
 											</div>
 										{:else if isTransfer}
-											<div class="flex justify-center">
+											<div class="flex justify-start">
 												<Badge
 													variant="outline"
-													class="text-[11px] font-medium text-text-secondary"
+													class="max-w-full min-w-0 shrink truncate text-[11px] font-medium text-text-secondary"
 												>
 													Transfer
 												</Badge>
@@ -468,8 +470,10 @@
 											class="md:text-sm"
 										/>
 										{#if tx.fee > 0}
-											<div class="mt-0.5 text-[10px] text-text-tertiary md:text-xs">
-												incl. {formatFee(tx.fee, tx.currency)} fee
+											<div
+												class="mt-0.5 truncate text-[10px] whitespace-nowrap text-text-tertiary md:text-xs"
+											>
+												incl. {formatFee(tx.fee)} fee
 											</div>
 										{/if}
 										{#if tx.currency !== PRIMARY_CURRENCY}
