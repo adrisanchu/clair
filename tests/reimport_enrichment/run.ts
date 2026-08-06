@@ -53,6 +53,7 @@ function mkRow(p: Partial<NormalizedTransaction>): NormalizedTransaction {
 		accountingDate: new Date(Date.UTC(2024, 0, 1)),
 		valueDate: null,
 		amount: 0,
+		fee: 0,
 		currency: 'EUR',
 		amountOriginal: 0,
 		currencyOriginal: 'EUR',
