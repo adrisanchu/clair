@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from './db/index.js';
 import { transactions, bankAccounts } from './db/schema.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
@@ -10,14 +10,18 @@ import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 export async function computeOpeningBalance(
 	bankAccountId: string,
 	enteredCurrentBalance: number,
-	uploadedRows: { amount: number }[]
+	uploadedRows: { amount: number; status?: 'pending' | 'posted' | 'review' | 'reverted' }[]
 ): Promise<number> {
+	// Only posted rows move the real balance — pending and reverted are excluded so the
+	// derived opening balance reconciles with refreshCurrentBalance (which also sums posted).
 	const [{ sum }] = await db
 		.select({ sum: sql<string>`COALESCE(SUM(amount), 0)` })
 		.from(transactions)
-		.where(eq(transactions.bankAccountId, bankAccountId));
+		.where(and(eq(transactions.bankAccountId, bankAccountId), eq(transactions.status, 'posted')));
 
-	const uploadSum = uploadedRows.reduce((acc, r) => acc + r.amount, 0);
+	const uploadSum = uploadedRows
+		.filter((r) => (r.status ?? 'posted') === 'posted')
+		.reduce((acc, r) => acc + r.amount, 0);
 	return enteredCurrentBalance - uploadSum - parseFloat(sum);
 }
 
@@ -68,10 +72,12 @@ export async function upsertOpeningBalance(
  * Recompute and store the current balance for an account by summing all transactions.
  */
 export async function refreshCurrentBalance(bankAccountId: string): Promise<void> {
+	// Sum posted transactions only — pending and reverted rows don't affect the real balance,
+	// so Clair's current balance matches the bank app's balance.
 	const [{ sum }] = await db
 		.select({ sum: sql<string>`COALESCE(SUM(amount), 0)` })
 		.from(transactions)
-		.where(eq(transactions.bankAccountId, bankAccountId));
+		.where(and(eq(transactions.bankAccountId, bankAccountId), eq(transactions.status, 'posted')));
 
 	await db
 		.update(bankAccounts)

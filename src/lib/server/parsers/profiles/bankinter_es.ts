@@ -18,6 +18,7 @@ export const bankinter_es: BankParserProfile = {
 	currencyColumn: 'Divisa',
 	localAmountColumn: null,
 	balanceColumn: 'Saldo',
+	feeColumn: null, // Bankinter bakes any fees into the amount / separate rows
 	statusColumn: null, // all exported rows are posted
 	typeColumn: null, // Bankinter exports do not include an operation type column
 	transferTypes: [],

@@ -117,6 +117,19 @@ export const SEMANTIC_SYNONYMS: Record<SemanticField, string[]> = {
 		'available balance'
 	],
 	status: ['status', 'estado', 'state', 'statut', 'zustand'],
+	fee: [
+		'fee',
+		'fees',
+		'comisión',
+		'comision',
+		'comisiones',
+		'charge',
+		'charges',
+		'commission',
+		'gebühr',
+		'gebuhr',
+		'frais'
+	],
 	type: [
 		'type',
 		'tipo',
@@ -192,6 +205,7 @@ const FIELD_PRIORITY: SemanticField[] = [
 	'credit',
 	'status',
 	'type',
+	'fee',
 	'localAmount',
 	'category',
 	'city',
@@ -676,6 +690,7 @@ function buildResolvedProfile(
 		currencyColumn: m('currency'),
 		localAmountColumn: m('localAmount'),
 		balanceColumn: m('balance'),
+		feeColumn: m('fee'),
 		statusColumn: m('status'),
 		typeColumn: m('type'),
 		transferTypes: [],

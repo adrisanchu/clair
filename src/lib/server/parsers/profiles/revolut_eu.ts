@@ -1,5 +1,4 @@
-import type { BankParserProfile, NormalizedTransaction } from '../types.js';
-import { parseAmount } from '../normalizer.js';
+import type { BankParserProfile } from '../types.js';
 
 export const revolut_eu: BankParserProfile = {
 	fileType: 'csv',
@@ -19,6 +18,8 @@ export const revolut_eu: BankParserProfile = {
 	currencyColumn: 'Divisa',
 	localAmountColumn: null, // Revolut only exports the EUR-equivalent amount
 	balanceColumn: 'Saldo',
+	// Fee/commission, positive in the row's currency; the normalizer folds it in as gross − fee.
+	feeColumn: 'Comisión',
 	statusColumn: 'State',
 	typeColumn: 'Tipo',
 	// 'Transferir' = outgoing/incoming peer transfers.
@@ -27,25 +28,8 @@ export const revolut_eu: BankParserProfile = {
 	transferTypes: ['Transferir', 'Recargas'],
 	// 'Cambio' marks a cross-currency exchange (e.g. EUR → SEK top-up).
 	fxCandidateTypes: ['Cambio'],
-	additionalColumns: ['Comisión'] // used in postNormalize to add fees to amount
+	additionalColumns: []
 };
-
-/**
- * Revolut-specific post-normalisation adjustments:
- * - Adds fee (Comisión) to amount if non-zero
- * - Leaves everything else as-is from the generic normalizer
- */
-export function postNormalize(
-	row: NormalizedTransaction,
-	raw: Record<string, string>
-): NormalizedTransaction {
-	const fee = parseAmount(raw['Comisión'] ?? '');
-	if (fee !== 0) {
-		// Fee is already signed (negative) in Revolut exports; add it to amount
-		return { ...row, amount: row.amount + fee };
-	}
-	return row;
-}
 
 /**
  * Fingerprint to auto-detect a Revolut EU (Spanish) CSV from its header row.
