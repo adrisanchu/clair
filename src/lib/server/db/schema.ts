@@ -27,7 +27,12 @@ export const accountVisibilityEnum = pgEnum('account_visibility', [
 	'full'
 ]);
 
-export const transactionStatusEnum = pgEnum('transaction_status', ['pending', 'posted', 'review']);
+export const transactionStatusEnum = pgEnum('transaction_status', [
+	'pending',
+	'posted',
+	'review',
+	'reverted'
+]);
 
 export const syncSourceEnum = pgEnum('sync_source', ['csv_upload', 'cron', 'manual']);
 
@@ -132,7 +137,11 @@ export const transactions = coreSchema.table(
 		accountingDate: timestamp('accounting_date', { mode: 'date' }).notNull(),
 		valueDate: timestamp('value_date', { mode: 'date' }),
 
+		// Net signed effect on the balance (gross − fee). Drives all balance/P&L aggregations.
 		amount: numeric('amount', { precision: 15, scale: 4 }).notNull(),
+		// Fee/commission portion, stored as a non-negative value in `currency`. A fee is always
+		// a cost: net `amount` = gross − fee. Gross is derivable as `amount + fee`.
+		fee: numeric('fee', { precision: 15, scale: 4 }).default('0').notNull(),
 		currency: text('currency').notNull(),
 		amountEur: numeric('amount_eur', { precision: 15, scale: 4 }),
 		amountOriginal: numeric('amount_original', { precision: 15, scale: 4 }),
