@@ -22,6 +22,7 @@
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import NoteHint from '$lib/components/NoteHint.svelte';
+	import TransferHint from '$lib/components/TransferHint.svelte';
 	import CategorySelector from '$lib/components/CategorySelector.svelte';
 	import { cn } from '$lib/utils';
 	import type { PageData } from './$types';
@@ -376,34 +377,31 @@
 										isReverted && 'opacity-60'
 									)}
 								>
-									<!-- Category col: status label or CategorySelector -->
+									<!-- Category col: category is always editable. Orthogonal facets show
+									     compactly beside it — a "Review Required" chip (needs attention),
+									     and a subtle "T" badge marking a transfer (see TransferHint). -->
 									<td class="px-2 py-2 md:px-4 md:py-3">
-										{#if isReview}
-											<div class="flex justify-start">
+										<div class="flex min-w-0 flex-col items-start gap-1">
+											{#if isReview}
 												<Badge
 													class="max-w-full min-w-0 shrink truncate border-amber-200 bg-amber-100 text-[11px] font-medium text-amber-700"
 												>
 													Review Required
 												</Badge>
+											{/if}
+											<div class="flex min-w-0 items-center gap-1.5">
+												<CategorySelector
+													txId={tx.id}
+													category={tx.category}
+													categoryAI={tx.categoryAI}
+													categoryOverride={tx.categoryOverride}
+													categories={data.categories}
+												/>
+												{#if isTransfer}
+													<TransferHint />
+												{/if}
 											</div>
-										{:else if isTransfer}
-											<div class="flex justify-start">
-												<Badge
-													variant="outline"
-													class="max-w-full min-w-0 shrink truncate text-[11px] font-medium text-text-secondary"
-												>
-													Transfer
-												</Badge>
-											</div>
-										{:else}
-											<CategorySelector
-												txId={tx.id}
-												category={tx.category}
-												categoryAI={tx.categoryAI}
-												categoryOverride={tx.categoryOverride}
-												categories={data.categories}
-											/>
-										{/if}
+										</div>
 									</td>
 
 									<!-- Date col (desktop only) -->
