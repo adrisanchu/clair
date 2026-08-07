@@ -13,6 +13,12 @@ import type { ExportTxRow } from '$lib/server/db/queries.js';
  * user keeps it, the dedup engine matches on it exactly (even for identical bank
  * rows); when they delete it, the file still re-imports via the date+amount+
  * description baseline key.
+ *
+ * `Type` marks the transfer facet (`transfer` / empty), a dimension orthogonal to
+ * `Category`: it lets `Category` carry the row's real value even on transfer rows
+ * without the two conflating. It is export-only/informational on re-import — the
+ * adaptive parser has empty `transferTypes`, so a `Type` value never flips the
+ * transfer flag, and the enrichment round-trip never writes `isTransfer`.
  */
 export const EXPORT_HEADERS = [
 	'Id',
@@ -22,6 +28,7 @@ export const EXPORT_HEADERS = [
 	'Currency',
 	'Account',
 	'Category',
+	'Type',
 	'Notes',
 	'City'
 ] as const;
@@ -47,6 +54,8 @@ function toIsoDateUTC(d: Date): string {
  * - Amount → plain dot-decimal, no thousands separators (parseAmount-friendly).
  * - Category → effective value: human override, else raw bank value, else AI guess,
  *   matching what the /transactions page shows.
+ * - Type → `transfer` for transfer rows, else empty. Keeps the transfer facet out of
+ *   the Category cell so a transfer's real category stays visible in the file.
  */
 export function toCsv(rows: ExportTxRow[]): string {
 	const records = rows.map((r) => ({
@@ -57,6 +66,7 @@ export function toCsv(rows: ExportTxRow[]): string {
 		Currency: r.currency,
 		Account: r.accountName ?? '',
 		Category: r.categoryOverride ?? r.category ?? r.categoryAI ?? '',
+		Type: r.isTransfer ? 'transfer' : '',
 		Notes: r.notes ?? '',
 		City: r.city ?? ''
 	}));

@@ -143,6 +143,7 @@ export interface ExportTxRow {
 	category: string | null; // raw bank-file value
 	categoryAI: string | null; // AI guess
 	categoryOverride: string | null; // human decision (takes precedence on export)
+	isTransfer: boolean; // transfer facet — emitted as the Type column, orthogonal to category
 	notes: string | null;
 	city: string | null;
 }
@@ -180,6 +181,7 @@ export async function queryTransactionsForExport(
 			category: transactions.category,
 			categoryAI: transactions.categoryAI,
 			categoryOverride: transactions.categoryOverride,
+			isTransfer: transactions.isTransfer,
 			notes: transactions.notes,
 			city: transactions.city
 		})
