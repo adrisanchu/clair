@@ -23,7 +23,7 @@ import {
 import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { detectAndLinkTransfers } from '$lib/server/transfer-detector.js';
-import { detectAndCreateConversions } from '$lib/server/currency-converter.js';
+import { rescanWorkspaceConversions } from '$lib/server/currency-converter.js';
 import { autoTagUpload } from '$lib/server/ai/auto-tag.js';
 import type { NormalizedTransaction } from '$lib/server/parsers/types.js';
 
@@ -204,10 +204,12 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	// Detect and insert new categories from the CSV
 	const newCategories = await upsertNewCategories(rows, account.workspaceId);
 
-	// Transfer auto-detection and cross-currency conversion detection
+	// Transfer auto-detection (scoped to the new rows) and cross-currency conversion
+	// detection. Conversions rescan ALL unresolved foreign anchors in the workspace —
+	// not just this batch — so a re-upload or a late-arriving EUR funder still links.
 	const [unresolvedTransfers, detectedConversions] = await Promise.all([
 		detectAndLinkTransfers(insertedIds, accessibleIds, locals.user.id),
-		detectAndCreateConversions(insertedIds, account.workspaceId, account.currency)
+		rescanWorkspaceConversions(account.workspaceId)
 	]);
 
 	// AI auto-tag uncategorised transactions (gracefully skips if no API key)
