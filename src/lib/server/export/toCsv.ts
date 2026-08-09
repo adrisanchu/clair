@@ -1,5 +1,10 @@
 import Papa from 'papaparse';
 import type { ExportTxRow } from '$lib/server/db/queries.js';
+import {
+	formatAccountingDate,
+	DEFAULT_DATE_FORMAT_ID,
+	type DateFormatId
+} from '$lib/constants/dateFormats.js';
 
 /**
  * Column headers, in order, for the exported CSV.
@@ -34,33 +39,24 @@ export const EXPORT_HEADERS = [
 ] as const;
 
 /**
- * Format a Date as `yyyy-MM-dd` using its UTC parts.
- *
- * accountingDate is stored at UTC midnight; formatting via UTC (not local time)
- * keeps the exported date identical to the stored value regardless of the server's
- * timezone, which is what the dedup engine matches on re-import.
- */
-function toIsoDateUTC(d: Date): string {
-	const yyyy = d.getUTCFullYear();
-	const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-	const dd = String(d.getUTCDate()).padStart(2, '0');
-	return `${yyyy}-${mm}-${dd}`;
-}
-
-/**
  * Serialise export rows to a round-trip-safe CSV string.
  *
- * - Date → `yyyy-MM-dd` (UTC), a format the parser recognises and the dedup keys on.
+ * - Date → formatted with `dateFormat` (UTC parts), a format the parser recognises.
+ *   The dedup engine keys on the calendar day, so any of the offered formats — with
+ *   or without a time component — re-imports safely.
  * - Amount → plain dot-decimal, no thousands separators (parseAmount-friendly).
  * - Category → effective value: human override, else raw bank value, else AI guess,
  *   matching what the /transactions page shows.
  * - Type → `transfer` for transfer rows, else empty. Keeps the transfer facet out of
  *   the Category cell so a transfer's real category stays visible in the file.
  */
-export function toCsv(rows: ExportTxRow[]): string {
+export function toCsv(
+	rows: ExportTxRow[],
+	dateFormat: DateFormatId = DEFAULT_DATE_FORMAT_ID
+): string {
 	const records = rows.map((r) => ({
 		Id: r.id,
-		Date: toIsoDateUTC(r.accountingDate),
+		Date: formatAccountingDate(r.accountingDate, dateFormat),
 		Amount: String(r.amount),
 		Description: r.description,
 		Currency: r.currency,
