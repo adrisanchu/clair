@@ -83,14 +83,15 @@ async function resolveForeignAnchor(
 				isNull(transactions.conversionId),
 				eq(transactions.isOpeningBalance, false),
 				// EUR outgoing must be ≤ FX settlement date, within 3 days
-				sql`${transactions.accountingDate} >= ${toDateStr(subDays(txDate, 3))}::date`,
-				sql`${transactions.accountingDate} <= ${txDateStr}::date`
+				sql`${transactions.accountingDate}::date >= ${toDateStr(subDays(txDate, 3))}::date`,
+				sql`${transactions.accountingDate}::date <= ${txDateStr}::date`
 			)
 		)
 		// Prefer a flagged EUR leg (both sides typed as FX), then the closest by date.
 		.orderBy(
 			sql`${transactions.isFxCandidate} DESC`,
-			sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDateStr}::date)))`
+			// date − date yields an integer day count directly (no EXTRACT needed).
+			sql`ABS(${transactions.accountingDate}::date - ${txDateStr}::date)`
 		)
 		.limit(5);
 
@@ -226,10 +227,10 @@ export async function propagateRateToAccount(accountId: string): Promise<number>
 		const dateRange =
 			nextConv !== undefined
 				? and(
-						sql`${transactions.accountingDate} >= ${effectiveFromStr}::date`,
-						sql`${transactions.accountingDate} < ${toDateStr(nextConv.effectiveFrom as unknown as Date)}::date`
+						sql`${transactions.accountingDate}::date >= ${effectiveFromStr}::date`,
+						sql`${transactions.accountingDate}::date < ${toDateStr(nextConv.effectiveFrom as unknown as Date)}::date`
 					)
-				: sql`${transactions.accountingDate} >= ${effectiveFromStr}::date`;
+				: sql`${transactions.accountingDate}::date >= ${effectiveFromStr}::date`;
 
 		const updated = await db
 			.update(transactions)

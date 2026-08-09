@@ -134,21 +134,39 @@ const REVERTED_STATES = [
 ];
 
 /** Map a raw (upper-cased) bank status string to Clair's status. Unknown → posted. */
-export function classifyStatus(statusRaw: string | null | undefined): 'pending' | 'posted' | 'reverted' {
+export function classifyStatus(
+	statusRaw: string | null | undefined
+): 'pending' | 'posted' | 'reverted' {
 	if (!statusRaw) return 'posted';
 	if (PENDING_STATES.includes(statusRaw)) return 'pending';
 	if (REVERTED_STATES.includes(statusRaw)) return 'reverted';
 	return 'posted';
 }
 
+// Fixed reference so date-fns fills any field the format omits with a stable value
+// instead of "now": a date-only format then yields 00:00, giving the UTC-midnight
+// fallback for rows whose CSV carries no time.
+const DATE_PARSE_REFERENCE = new Date(2000, 0, 1);
+
 function parseDateField(raw: string | undefined, format: string): Date | null {
 	if (!raw?.trim()) return null;
 	// date-fns format uses lowercase dd/yyyy
 	const dfnsFormat = format.replace(/DD/g, 'dd').replace(/YYYY/g, 'yyyy');
-	const parsed = parseDate(raw.trim(), dfnsFormat, new Date());
+	const parsed = parseDate(raw.trim(), dfnsFormat, DATE_PARSE_REFERENCE);
 	if (!isValid(parsed)) return null;
-	// Normalize to UTC midnight so dedup eq comparisons are stable across uploads
-	return new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()));
+	// Reinterpret the parsed wall-clock (date-fns builds a local Date) as UTC: keeps the
+	// calendar day stable across server timezones and preserves the hour/minute the CSV
+	// provided — formats without a time component parse to 00:00 (UTC-midnight fallback).
+	// Dedup keys on the calendar day (see dedup.ts), so the stored time never fragments it.
+	return new Date(
+		Date.UTC(
+			parsed.getFullYear(),
+			parsed.getMonth(),
+			parsed.getDate(),
+			parsed.getHours(),
+			parsed.getMinutes()
+		)
+	);
 }
 
 export function parseAmount(raw: string): number {

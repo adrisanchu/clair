@@ -88,9 +88,8 @@ export async function detectAndLinkTransfers(
 				description: transactions.description,
 				bankAccountId: transactions.bankAccountId,
 				accountName: bankAccounts.displayName,
-				daysDiff: sql<number>`ABS(EXTRACT(DAY FROM (
-					${transactions.accountingDate} - ${sourceDateStr}::date
-				)))`
+				// date − date yields an integer day count directly (no EXTRACT needed).
+				daysDiff: sql<number>`ABS(${transactions.accountingDate}::date - ${sourceDateStr}::date)`
 			})
 			.from(transactions)
 			.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
@@ -100,15 +99,13 @@ export async function detectAndLinkTransfers(
 					inArray(transactions.bankAccountId, accessibleAccountIds),
 					sql`ABS(${transactions.amount}::numeric) = ABS(${source.amount}::numeric)`,
 					sql`SIGN(${transactions.amount}::numeric) != SIGN(${source.amount}::numeric)`,
-					sql`${transactions.accountingDate} >= ${toDateStr(subDays(sourceDate, 3))}::date`,
-					sql`${transactions.accountingDate} <= ${toDateStr(addDays(sourceDate, 3))}::date`,
+					sql`${transactions.accountingDate}::date >= ${toDateStr(subDays(sourceDate, 3))}::date`,
+					sql`${transactions.accountingDate}::date <= ${toDateStr(addDays(sourceDate, 3))}::date`,
 					isNull(transactions.transferCounterpartId),
 					eq(transactions.isOpeningBalance, false)
 				)
 			)
-			.orderBy(
-				sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${sourceDateStr}::date)))`
-			)
+			.orderBy(sql`ABS(${transactions.accountingDate}::date - ${sourceDateStr}::date)`)
 			.limit(5);
 
 		const mappedCandidates = candidates.map((c) => ({
