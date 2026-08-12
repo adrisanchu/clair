@@ -1,6 +1,6 @@
 import { parse as parseDate, isValid } from 'date-fns';
 import type { BankParserProfile, NormalizedTransaction } from './types.js';
-import { SEMANTIC_SYNONYMS, ID_SYNONYMS } from './detector.js';
+import { SEMANTIC_SYNONYMS, ID_SYNONYMS, detectDateFormat } from './detector.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 // ─── Optional column synonym lists (re-exported from detector for backward compat) ──
@@ -59,7 +59,11 @@ export function normalizeRow(
 		cityColumn: null,
 		notesColumn: null,
 		idColumn: null
-	}
+	},
+	// The format actually used by this file's date columns. Defaults to the profile's
+	// declared format; callers pass a value resolved via resolveDateFormat() so a file
+	// re-saved in a different (but internally consistent) date format still parses.
+	dateFormat: string = profile.dateFormat
 ): NormalizedTransaction | null {
 	const grossAmount = profile.amountColumn
 		? parseAmount(raw[profile.amountColumn])
@@ -67,14 +71,18 @@ export function normalizeRow(
 
 	// Fee/commission is always a cost, stored non-negative. Net effect on the balance is
 	// gross − fee (uniform for income and expenses), so we fold it into `amount` at parse time.
+	// Round to the stored precision (4 dp): `gross − fee` accumulates binary-float error
+	// (e.g. -168.64 − 4.44 = -173.07999999999998). Left unrounded, this raw float no longer
+	// equals the toFixed(4)-rounded value written to the DB, so dedup's `amount::numeric =`
+	// check misses and a re-import of the same row is wrongly flagged as new.
 	const fee = profile.feeColumn ? Math.abs(parseAmount(raw[profile.feeColumn] ?? '')) : 0;
-	const amount = grossAmount - fee;
+	const amount = roundAmount(grossAmount - fee);
 
-	const accountingDate = parseDateField(raw[profile.dateColumn], profile.dateFormat);
+	const accountingDate = parseDateField(raw[profile.dateColumn], dateFormat);
 	if (!accountingDate) return null; // unparseable date → skip row
 
 	const valueDate = profile.valueDateColumn
-		? parseDateField(raw[profile.valueDateColumn], profile.dateFormat)
+		? parseDateField(raw[profile.valueDateColumn], dateFormat)
 		: null;
 
 	const status = classifyStatus(
@@ -148,11 +156,51 @@ export function classifyStatus(
 // fallback for rows whose CSV carries no time.
 const DATE_PARSE_REFERENCE = new Date(2000, 0, 1);
 
+/** Normalize a profile/user format token to date-fns casing (DD→dd, YYYY→yyyy). */
+function toDfnsFormat(format: string): string {
+	return format.replace(/DD/g, 'dd').replace(/YYYY/g, 'yyyy');
+}
+
+/** Fraction of samples (0..1) that parse cleanly under `format`. */
+function dateParseRate(samples: string[], format: string): number {
+	if (samples.length === 0) return 0;
+	const fmt = toDfnsFormat(format);
+	let ok = 0;
+	for (const s of samples) {
+		try {
+			if (isValid(parseDate(s.trim(), fmt, DATE_PARSE_REFERENCE))) ok++;
+		} catch {
+			/* ignore parse errors */
+		}
+	}
+	return ok / samples.length;
+}
+
+/**
+ * Resolve the date format a file actually uses for its date column.
+ *
+ * `preferred` is the profile's declared format — a hint, not a guarantee. A CSV re-saved
+ * through Excel/LibreOffice often localizes dates (e.g. `yyyy-MM-dd HH:mm:ss` →
+ * `dd/MM/yyyy HH:mm`) while every date column stays internally consistent. We keep the
+ * preferred format when it still fits the samples — it's the bank's known-correct format
+ * and sidesteps `dd/MM` vs `MM/dd` ambiguity on all-small-day files — and only detect the
+ * real format when the file was clearly saved differently. Detection must clear a
+ * confidence bar; otherwise we stay with the preferred format.
+ */
+export function resolveDateFormat(samples: Array<string | undefined>, preferred: string): string {
+	const valid = samples
+		.map((s) => s?.trim())
+		.filter((s): s is string => Boolean(s))
+		.slice(0, 30);
+	if (valid.length === 0) return preferred;
+	if (dateParseRate(valid, preferred) >= 0.7) return preferred;
+	const detected = detectDateFormat(valid);
+	return detected.confidence >= 0.7 && detected.value ? detected.value : preferred;
+}
+
 function parseDateField(raw: string | undefined, format: string): Date | null {
 	if (!raw?.trim()) return null;
-	// date-fns format uses lowercase dd/yyyy
-	const dfnsFormat = format.replace(/DD/g, 'dd').replace(/YYYY/g, 'yyyy');
-	const parsed = parseDate(raw.trim(), dfnsFormat, DATE_PARSE_REFERENCE);
+	const parsed = parseDate(raw.trim(), toDfnsFormat(format), DATE_PARSE_REFERENCE);
 	if (!isValid(parsed)) return null;
 	// Reinterpret the parsed wall-clock (date-fns builds a local Date) as UTC: keeps the
 	// calendar day stable across server timezones and preserves the hour/minute the CSV
@@ -167,6 +215,16 @@ function parseDateField(raw: string | undefined, format: string): Date | null {
 			parsed.getMinutes()
 		)
 	);
+}
+
+/**
+ * Round a computed monetary amount to the stored precision (4 dp), clearing the binary-float
+ * error left by fee-folding so the in-memory value matches the toFixed(4) value written to the
+ * DB (and thus dedup's amount comparison). `Number(n.toFixed(4))` yields a double whose short
+ * repr is clean (e.g. -173.07999999999998 → -173.08).
+ */
+export function roundAmount(n: number): number {
+	return Number(n.toFixed(4));
 }
 
 export function parseAmount(raw: string): number {

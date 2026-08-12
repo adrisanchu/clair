@@ -12,14 +12,8 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, 'data');
 
-const {
-	detectEncoding,
-	detectDelimiter,
-	detectSkipRows,
-	detectSemanticMapping,
-	detectDateFormat,
-	detectAdaptiveProfile
-} = await import('../../src/lib/server/parsers/detector.js');
+const { detectEncoding, detectDelimiter, detectSkipRows, detectSemanticMapping, detectDateFormat } =
+	await import('../../src/lib/server/parsers/detector.js');
 
 const { uploadAndParse } = await import('../../src/lib/server/parsers/index.js');
 
@@ -222,40 +216,36 @@ assert(
 );
 
 // ── Test 6: Integration — revolut_wrong_dateformat.csv ────────────────────
-console.log('\n6. Integration: uploadAndParse with wrong date format (adaptive fallback)');
+console.log('\n6. Integration: uploadAndParse resolves an off-profile date format in-file');
 
 const wrongFormatBuffer = readFileSync(join(dataDir, 'revolut_wrong_dateformat.csv'));
 const wrongFormatFile = new File([wrongFormatBuffer], 'revolut_wrong_dateformat.csv', {
 	type: 'text/csv'
 });
 
-// Use profileIdHint = 'revolut_eu' to simulate uploading to a revolut_eu account
+// Use profileIdHint = 'revolut_eu' to simulate uploading to a revolut_eu account.
+// The file's dates are dd/MM/yyyy (a re-saved export) while the profile declares
+// yyyy-MM-dd HH:mm:ss. The strict parser detects the real format from the date column,
+// so the file parses through the profile itself — keeping the profile's transfer/FX
+// semantics — instead of falling back to the generic adaptive parser.
 const { profileId, result } = await uploadAndParse(wrongFormatFile, 'revolut_eu');
-assert(
-	'rows.length > 0 (fallback succeeded)',
-	result.rows.length > 0,
-	`got: ${result.rows.length}`
-);
+assert('parsed via the revolut_eu profile', profileId === 'revolut_eu', `got: ${profileId}`);
+assert('rows.length > 0', result.rows.length > 0, `got: ${result.rows.length}`);
 assert('skippedCount is low', result.skippedCount <= 1, `got: ${result.skippedCount}`);
 assert(
-	'detectionMeta.usedAdaptive === true',
-	result.detectionMeta?.usedAdaptive === true,
+	'did NOT fall back to adaptive (strict path handled the date format)',
+	result.detectionMeta?.usedAdaptive !== true,
 	`got: ${result.detectionMeta?.usedAdaptive}`
 );
 assert(
-	'detected date format contains dd/MM',
-	result.detectionMeta?.detectedDateFormat.value?.includes('dd/MM') === true,
-	`got: ${result.detectionMeta?.detectedDateFormat.value}`
+	'off-profile dd/MM dates parsed correctly (first row → 2025-07-31)',
+	result.rows[0]?.accountingDate.toISOString().startsWith('2025-07-31') === true,
+	`got: ${result.rows[0]?.accountingDate.toISOString()}`
 );
 
-console.log(`\n  Parsed ${result.rows.length} rows, skipped ${result.skippedCount}`);
-console.log(`  Detected format: ${result.detectionMeta?.detectedDateFormat.value}`);
 console.log(
-	`  Overall confidence: ${(result.detectionMeta?.overallConfidence ?? 0 * 100).toFixed(0)}%`
+	`\n  Parsed ${result.rows.length} rows via ${profileId}, skipped ${result.skippedCount}`
 );
-if (result.detectionMeta?.warnings.length) {
-	console.log(`  Warnings: ${result.detectionMeta.warnings.join('; ')}`);
-}
 
 // ── Test 7: Integration — semicolon file (unknown bank) ───────────────────
 console.log('\n7. Integration: uploadAndParse with semicolon-delimited unknown bank file');

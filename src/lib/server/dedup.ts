@@ -44,6 +44,18 @@ const EXISTING_COLUMNS = {
 } as const;
 
 /**
+ * ISO calendar date (`yyyy-MM-dd`) for a `::date` SQL comparison.
+ *
+ * A raw `Date` interpolated into a `sql` template is serialised by the pg driver via
+ * `.toString()` (e.g. `Thu Jul 31 2025 …`), which PostgreSQL cannot cast to `::date`.
+ * Passing the date as a `yyyy-MM-dd` string sidesteps that. Uses UTC parts to match how
+ * `accountingDate` is stored (see parsers/normalizer.ts).
+ */
+function toDateStr(d: Date): string {
+	return d.toISOString().split('T')[0];
+}
+
+/**
  * Classify a normalised row before writing to the DB.
  *
  * Priority order:
@@ -75,6 +87,9 @@ export async function classifyRow(
 	bankAccountId: string,
 	externalId?: string
 ): Promise<DedupResult> {
+	// Day-only comparisons interpolate this string (not the raw Date) — see toDateStr.
+	const rowDate = toDateStr(row.accountingDate);
+
 	// Priority 0: internal id echoed back from a Clair export
 	if (row.internalId) {
 		const existing = await db.query.transactions.findFirst({
@@ -113,7 +128,7 @@ export async function classifyRow(
 			where: (t, { and, eq, sql: s }) =>
 				and(
 					eq(t.bankAccountId, bankAccountId),
-					s`${t.accountingDate}::date = ${row.accountingDate}::date`,
+					s`${t.accountingDate}::date = ${rowDate}::date`,
 					s`${t.amount}::numeric = ${row.amount}`,
 					s`md5(${t.description}) = md5(${row.description})`
 				),
@@ -137,7 +152,7 @@ export async function classifyRow(
 			where: (t, { and, eq, sql: s }) =>
 				and(
 					eq(t.bankAccountId, bankAccountId),
-					s`${t.accountingDate}::date = ${row.accountingDate}::date`,
+					s`${t.accountingDate}::date = ${rowDate}::date`,
 					s`${t.amount}::numeric = ${row.amount}`
 				),
 			columns: EXISTING_COLUMNS
