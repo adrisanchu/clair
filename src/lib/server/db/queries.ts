@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, gte, ilike, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from './index.js';
-import { transactions, bankAccounts } from './schema.js';
+import { transactions, bankAccounts, currencyConversions } from './schema.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 export const TX_PAGE_SIZE = 25;
@@ -111,6 +111,8 @@ export interface TxRow {
 	conversionId: string | null;
 	status: 'pending' | 'posted' | 'review' | 'reverted';
 	isTransfer: boolean;
+	transferCounterpartId: string | null;
+	isFxCandidate: boolean;
 	isOpeningBalance: boolean;
 	notes: string | null;
 	category: string | null; // raw bank-file value
@@ -252,6 +254,8 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				conversionId: transactions.conversionId,
 				status: transactions.status,
 				isTransfer: transactions.isTransfer,
+				transferCounterpartId: transactions.transferCounterpartId,
+				isFxCandidate: transactions.isFxCandidate,
 				isOpeningBalance: transactions.isOpeningBalance,
 				notes: transactions.notes,
 				category: transactions.category,
@@ -319,4 +323,373 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 		page,
 		limit
 	};
+}
+
+// ---------------------------------------------------------------------------
+// Transfer / conversion pairs — for the /transfers visualizer and reconciliation
+// ---------------------------------------------------------------------------
+
+/**
+ * One leg of a related pair (a transfer counterpart or a conversion leg).
+ * `amountEur` is normalised the same way the ledger does: EUR rows report their
+ * own amount, foreign rows report the stored `amountEur` (may be null).
+ */
+export interface TxLeg {
+	id: string;
+	description: string;
+	accountingDate: Date;
+	amount: number;
+	currency: string;
+	amountEur: number | null;
+	bankAccountId: string;
+	accountName: string | null;
+}
+
+/**
+ * A settled relationship. `out` is the money-out leg (negative), `in` the
+ * money-in leg (positive), regardless of how the underlying record is oriented.
+ */
+export interface TransferPair {
+	kind: 'transfer' | 'conversion';
+	conversionId: string | null;
+	exchangeRate: number | null; // foreign-per-EUR, conversions only
+	confidence: 'auto' | 'confirmed' | 'manual' | null;
+	out: TxLeg;
+	in: TxLeg;
+}
+
+/**
+ * An unsettled transfer/FX candidate that HAS at least one plausible counterpart
+ * in another accessible account — i.e. actually reconcilable (not an external P2P
+ * transfer with no in-app match). `kind` distinguishes a same-currency transfer
+ * from a cross-currency FX candidate.
+ */
+export interface OrphanTransfer {
+	tx: TxLeg;
+	kind: 'transfer' | 'conversion';
+	candidateCount: number;
+}
+
+export interface TransferPairsResult {
+	settled: TransferPair[];
+	orphans: OrphanTransfer[];
+}
+
+interface RawLeg {
+	id: string;
+	description: string;
+	accountingDate: Date;
+	amount: string;
+	currency: string;
+	amountEur: string | null;
+	accountCurrency: string;
+	bankAccountId: string;
+	accountName: string | null;
+	isTransfer: boolean;
+	transferCounterpartId: string | null;
+	isFxCandidate: boolean;
+	isOpeningBalance: boolean;
+}
+
+function toLeg(r: RawLeg): TxLeg {
+	return {
+		id: r.id,
+		description: r.description,
+		accountingDate: r.accountingDate as unknown as Date,
+		amount: parseFloat(r.amount),
+		currency: r.currency,
+		amountEur:
+			r.currency === PRIMARY_CURRENCY
+				? parseFloat(r.amount)
+				: r.amountEur != null
+					? parseFloat(r.amountEur)
+					: null,
+		bankAccountId: r.bankAccountId,
+		accountName: r.accountName
+	};
+}
+
+/** Whole-day difference between two dates, ignoring time-of-day. */
+function dayDiff(a: Date, b: Date): number {
+	const ms = Math.abs(
+		Date.UTC(a.getFullYear(), a.getMonth(), a.getDate()) -
+			Date.UTC(b.getFullYear(), b.getMonth(), b.getDate())
+	);
+	return Math.round(ms / 86_400_000);
+}
+
+async function fetchAccessibleLegs(accessibleIds: string[]): Promise<RawLeg[]> {
+	if (accessibleIds.length === 0) return [];
+	return db
+		.select({
+			id: transactions.id,
+			description: transactions.description,
+			accountingDate: transactions.accountingDate,
+			amount: transactions.amount,
+			currency: transactions.currency,
+			amountEur: transactions.amountEur,
+			accountCurrency: bankAccounts.currency,
+			bankAccountId: transactions.bankAccountId,
+			accountName: bankAccounts.displayName,
+			isTransfer: transactions.isTransfer,
+			transferCounterpartId: transactions.transferCounterpartId,
+			isFxCandidate: transactions.isFxCandidate,
+			isOpeningBalance: transactions.isOpeningBalance
+		})
+		.from(transactions)
+		.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
+		.where(
+			and(inArray(transactions.bankAccountId, accessibleIds), eq(transactions.isOpeningBalance, false))
+		) as unknown as Promise<RawLeg[]>;
+}
+
+/**
+ * Orphans that are actually reconcilable — each has ≥1 plausible counterpart in a
+ * different accessible account. Powers the dashboard "needs attention" surface and
+ * the /transfers attention filter. Runs entirely in memory (two-user scale).
+ */
+export async function findActionableOrphans(accessibleIds: string[]): Promise<OrphanTransfer[]> {
+	if (accessibleIds.length === 0) return [];
+
+	const [legs, convLegs] = await Promise.all([
+		fetchAccessibleLegs(accessibleIds),
+		db
+			.select({
+				fromTransactionId: currencyConversions.fromTransactionId,
+				toTransactionId: currencyConversions.toTransactionId
+			})
+			.from(currencyConversions)
+	]);
+
+	const claimed = new Set<string>();
+	for (const c of convLegs) {
+		if (c.fromTransactionId) claimed.add(c.fromTransactionId);
+		if (c.toTransactionId) claimed.add(c.toTransactionId);
+	}
+
+	const parsed = legs.map((r) => ({ raw: r, amount: parseFloat(r.amount) }));
+	const orphans: OrphanTransfer[] = [];
+
+	for (const { raw, amount } of parsed) {
+		const isFxOrphan = raw.isFxCandidate && !claimed.has(raw.id);
+		const isTransferOrphan = raw.isTransfer && raw.transferCounterpartId === null;
+		if (!isFxOrphan && !isTransferOrphan) continue;
+
+		const date = raw.accountingDate as unknown as Date;
+		let candidateCount = 0;
+
+		if (isFxOrphan) {
+			// Cross-currency counterpart: opposite sign, opposite currency-class, ±3 days,
+			// itself an unclaimed FX candidate in another account.
+			const selfPrimary = raw.accountCurrency === PRIMARY_CURRENCY;
+			candidateCount = parsed.filter(({ raw: c, amount: ca }) => {
+				if (c.id === raw.id || c.bankAccountId === raw.bankAccountId) return false;
+				if (!c.isFxCandidate || claimed.has(c.id)) return false;
+				if (ca > 0 === amount > 0 || ca === 0 || amount === 0) return false;
+				if ((c.accountCurrency === PRIMARY_CURRENCY) === selfPrimary) return false;
+				return dayDiff(date, c.accountingDate as unknown as Date) <= 3;
+			}).length;
+		} else {
+			// Same-currency transfer counterpart: mirror amount, opposite sign, ±3 days, unlinked.
+			candidateCount = parsed.filter(({ raw: c, amount: ca }) => {
+				if (c.id === raw.id || c.bankAccountId === raw.bankAccountId) return false;
+				if (c.transferCounterpartId !== null) return false;
+				if (c.currency !== raw.currency) return false;
+				if (Math.abs(ca) !== Math.abs(amount) || ca > 0 === amount > 0) return false;
+				return dayDiff(date, c.accountingDate as unknown as Date) <= 3;
+			}).length;
+		}
+
+		if (candidateCount > 0) {
+			orphans.push({ tx: toLeg(raw), kind: isFxOrphan ? 'conversion' : 'transfer', candidateCount });
+		}
+	}
+
+	// Most recent first.
+	orphans.sort((a, b) => b.tx.accountingDate.getTime() - a.tx.accountingDate.getTime());
+	return orphans;
+}
+
+/**
+ * Full dataset for the /transfers page: every settled pair (same-currency transfers
+ * + cross-currency conversions) plus the actionable orphans. Genuine pairs are read
+ * from `transfer_counterpart_id` and `currency_conversions.from/to_transaction_id` —
+ * never from `transactions.conversion_id`, which is an overloaded rate-window tag.
+ */
+export async function queryTransferPairs(accessibleIds: string[]): Promise<TransferPairsResult> {
+	if (accessibleIds.length === 0) return { settled: [], orphans: [] };
+
+	const [legs, conversions, orphans] = await Promise.all([
+		fetchAccessibleLegs(accessibleIds),
+		db
+			.select()
+			.from(currencyConversions)
+			.where(
+				and(
+					isNotNull(currencyConversions.fromTransactionId),
+					isNotNull(currencyConversions.toTransactionId)
+				)
+			),
+		findActionableOrphans(accessibleIds)
+	]);
+
+	const byId = new Map<string, RawLeg>(legs.map((l) => [l.id, l]));
+	const orient = (a: TxLeg, b: TxLeg): { out: TxLeg; in: TxLeg } =>
+		a.amount <= 0 ? { out: a, in: b } : { out: b, in: a };
+
+	const settled: TransferPair[] = [];
+
+	// Conversion pairs.
+	for (const conv of conversions) {
+		const from = conv.fromTransactionId ? byId.get(conv.fromTransactionId) : undefined;
+		const to = conv.toTransactionId ? byId.get(conv.toTransactionId) : undefined;
+		if (!from || !to) continue; // a leg outside the user's accessible accounts
+		settled.push({
+			kind: 'conversion',
+			conversionId: conv.id,
+			exchangeRate: parseFloat(conv.exchangeRate as unknown as string),
+			confidence: conv.confidence as 'auto' | 'confirmed' | 'manual',
+			...orient(toLeg(from), toLeg(to))
+		});
+	}
+
+	// Same-currency transfer pairs (dedup the A↔B mirror by keeping id < counterpart).
+	for (const leg of legs) {
+		const cp = leg.transferCounterpartId;
+		if (!cp || leg.id >= cp) continue;
+		const counterpart = byId.get(cp);
+		if (!counterpart) continue;
+		settled.push({
+			kind: 'transfer',
+			conversionId: null,
+			exchangeRate: null,
+			confidence: null,
+			...orient(toLeg(leg), toLeg(counterpart))
+		});
+	}
+
+	settled.sort((a, b) => b.out.accountingDate.getTime() - a.out.accountingDate.getTime());
+	return { settled, orphans };
+}
+
+export interface TransferCandidateItem extends TxLeg {
+	crossCurrency: boolean;
+	impliedRate: number | null; // foreign-per-EUR, cross-currency candidates only
+	daysDiff: number;
+}
+
+export interface TransferCandidatesResult {
+	source: TxLeg | null;
+	mode: 'transfer' | 'conversion';
+	/** Set when the source is already linked — the dialog shows the pair instead of candidates. */
+	settled: TransferPair | null;
+	candidates: TransferCandidateItem[];
+}
+
+/**
+ * Everything the pairing dialog needs for `txId` in one round-trip: the settled pair
+ * if already linked, otherwise the candidate counterparts. Mode is inferred from the
+ * source — an FX candidate looks for a cross-currency, opposite-sign leg (→ create a
+ * conversion); anything else looks for a same-currency mirror amount (→ link-transfer).
+ * Window is a generous ±7 days for manual reconciliation.
+ */
+export async function queryTransferCandidates(
+	accessibleIds: string[],
+	txId: string
+): Promise<TransferCandidatesResult> {
+	if (accessibleIds.length === 0)
+		return { source: null, mode: 'transfer', settled: null, candidates: [] };
+
+	const [legs, conversions] = await Promise.all([
+		fetchAccessibleLegs(accessibleIds),
+		db.select().from(currencyConversions)
+	]);
+
+	const source = legs.find((l) => l.id === txId);
+	if (!source) return { source: null, mode: 'transfer', settled: null, candidates: [] };
+
+	const byId = new Map<string, RawLeg>(legs.map((l) => [l.id, l]));
+	const orient = (a: TxLeg, b: TxLeg): { out: TxLeg; in: TxLeg } =>
+		a.amount <= 0 ? { out: a, in: b } : { out: b, in: a };
+
+	const claimed = new Set<string>();
+	for (const c of conversions) {
+		if (c.fromTransactionId) claimed.add(c.fromTransactionId);
+		if (c.toTransactionId) claimed.add(c.toTransactionId);
+	}
+
+	// Already linked? Return the pair and skip candidate search.
+	const asConvLeg = conversions.find(
+		(c) => c.fromTransactionId === txId || c.toTransactionId === txId
+	);
+	if (asConvLeg) {
+		const from = asConvLeg.fromTransactionId ? byId.get(asConvLeg.fromTransactionId) : undefined;
+		const to = asConvLeg.toTransactionId ? byId.get(asConvLeg.toTransactionId) : undefined;
+		if (from && to) {
+			return {
+				source: toLeg(source),
+				mode: 'conversion',
+				settled: {
+					kind: 'conversion',
+					conversionId: asConvLeg.id,
+					exchangeRate: parseFloat(asConvLeg.exchangeRate as unknown as string),
+					confidence: asConvLeg.confidence as 'auto' | 'confirmed' | 'manual',
+					...orient(toLeg(from), toLeg(to))
+				},
+				candidates: []
+			};
+		}
+	}
+	if (source.transferCounterpartId) {
+		const counterpart = byId.get(source.transferCounterpartId);
+		if (counterpart) {
+			return {
+				source: toLeg(source),
+				mode: 'transfer',
+				settled: {
+					kind: 'transfer',
+					conversionId: null,
+					exchangeRate: null,
+					confidence: null,
+					...orient(toLeg(source), toLeg(counterpart))
+				},
+				candidates: []
+			};
+		}
+	}
+
+	const srcAmount = parseFloat(source.amount);
+	const srcDate = source.accountingDate as unknown as Date;
+	const srcPrimary = source.accountCurrency === PRIMARY_CURRENCY;
+	const mode: 'transfer' | 'conversion' = source.isFxCandidate ? 'conversion' : 'transfer';
+
+	const candidates: TransferCandidateItem[] = [];
+	for (const c of legs) {
+		if (c.id === source.id || c.bankAccountId === source.bankAccountId) continue;
+		const cAmount = parseFloat(c.amount);
+		if (cAmount === 0 || srcAmount === 0 || cAmount > 0 === srcAmount > 0) continue; // opposite sign
+		const days = dayDiff(srcDate, c.accountingDate as unknown as Date);
+		if (days > 7) continue;
+
+		if (mode === 'conversion') {
+			if (!c.isFxCandidate || claimed.has(c.id)) continue;
+			if ((c.accountCurrency === PRIMARY_CURRENCY) === srcPrimary) continue; // must be opposite class
+			const eurAmt = srcPrimary ? Math.abs(srcAmount) : Math.abs(cAmount);
+			const foreignAmt = srcPrimary ? Math.abs(cAmount) : Math.abs(srcAmount);
+			candidates.push({
+				...toLeg(c),
+				crossCurrency: true,
+				impliedRate: eurAmt > 0 ? foreignAmt / eurAmt : null,
+				daysDiff: days
+			});
+		} else {
+			if (c.transferCounterpartId !== null) continue;
+			if (c.currency !== source.currency) continue;
+			if (Math.abs(cAmount) !== Math.abs(srcAmount)) continue;
+			candidates.push({ ...toLeg(c), crossCurrency: false, impliedRate: null, daysDiff: days });
+		}
+	}
+
+	candidates.sort((a, b) => a.daysDiff - b.daysDiff);
+	return { source: toLeg(source), mode, settled: null, candidates };
 }

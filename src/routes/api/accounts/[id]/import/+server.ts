@@ -23,7 +23,7 @@ import {
 import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { detectAndLinkTransfers } from '$lib/server/transfer-detector.js';
-import { rescanWorkspaceConversions } from '$lib/server/currency-converter.js';
+import { detectFxPairs, rescanWorkspaceConversions } from '$lib/server/currency-converter.js';
 import { autoTagUpload } from '$lib/server/ai/auto-tag.js';
 import type { NormalizedTransaction } from '$lib/server/parsers/types.js';
 
@@ -207,10 +207,14 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	// Transfer auto-detection (scoped to the new rows) and cross-currency conversion
 	// detection. Conversions rescan ALL unresolved foreign anchors in the workspace —
 	// not just this batch — so a re-upload or a late-arriving EUR funder still links.
-	const [unresolvedTransfers, detectedConversions] = await Promise.all([
+	// Exact-timestamp FX pairing runs first so it claims both legs (either direction)
+	// before the looser anchor rescan handles only cross-bank / off-timestamp leftovers.
+	const fxPairs = await detectFxPairs(account.workspaceId);
+	const [unresolvedTransfers, rescanConversions] = await Promise.all([
 		detectAndLinkTransfers(insertedIds, accessibleIds, locals.user.id),
 		rescanWorkspaceConversions(account.workspaceId)
 	]);
+	const detectedConversions = [...fxPairs, ...rescanConversions];
 
 	// AI auto-tag uncategorised transactions (gracefully skips if no API key)
 	const aiTagResult = await autoTagUpload(upload.id, account.workspaceId);

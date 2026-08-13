@@ -142,6 +142,151 @@ async function resolveForeignAnchor(
 }
 
 /**
+ * High-confidence FX pairing: match the two legs of a single-provider conversion
+ * (e.g. Revolut) that share the **exact same `accountingDate` timestamp**.
+ *
+ * This is the drift-proof, bidirectional counterpart to `resolveForeignAnchor`.
+ * A conversion emits two `isFxCandidate` rows at the identical instant — one on a
+ * EUR account, one on the foreign account, with opposite signs. That covers BOTH
+ * directions the anchor scan cannot:
+ *   - EUR→foreign ("Conversión a SEK"): EUR leg negative, foreign leg positive.
+ *   - foreign→EUR ("Conversión a EUR"): foreign leg negative, EUR leg positive.
+ *
+ * Because the rate is derived from the actual pair (`|foreign| / |eur|`), it is
+ * immune to inter-day rate drift — the failure that left a reverse conversion
+ * mis-valued by a stale rate window and its legs unpaired.
+ *
+ * The conversion is stored NORMALISED (`fromAccount = EUR`, `toAccount = foreign`,
+ * rate = foreign-per-EUR) regardless of physical direction, so the row is a pure
+ * rate anchor and `propagateRateToAccount` keeps its `amountEur = amount / rate`
+ * semantics. Run BEFORE `rescanWorkspaceConversions` so its exact pairs claim the
+ * legs first; the anchor scan then handles only the looser cross-bank leftovers.
+ *
+ * Skips any transaction already recorded as a conversion leg.
+ */
+export async function detectFxPairs(workspaceId: string): Promise<CurrencyConversionResult[]> {
+	// Transactions already committed as a leg of some conversion — never re-pair them.
+	const existingLegs = await db
+		.select({
+			fromTransactionId: currencyConversions.fromTransactionId,
+			toTransactionId: currencyConversions.toTransactionId
+		})
+		.from(currencyConversions)
+		.where(eq(currencyConversions.workspaceId, workspaceId));
+
+	const claimed = new Set<string>();
+	for (const leg of existingLegs) {
+		if (leg.fromTransactionId) claimed.add(leg.fromTransactionId);
+		if (leg.toTransactionId) claimed.add(leg.toTransactionId);
+	}
+
+	const candidates = await db
+		.select({
+			id: transactions.id,
+			amount: transactions.amount,
+			accountingDate: transactions.accountingDate,
+			bankAccountId: transactions.bankAccountId,
+			description: transactions.description,
+			accountCurrency: bankAccounts.currency,
+			accountName: bankAccounts.displayName
+		})
+		.from(transactions)
+		.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
+		.where(
+			and(
+				eq(bankAccounts.workspaceId, workspaceId),
+				eq(transactions.isFxCandidate, true),
+				eq(transactions.isOpeningBalance, false)
+			)
+		)
+		.orderBy(asc(transactions.accountingDate));
+
+	// Group unclaimed candidates by exact instant so both legs of one conversion land
+	// in the same bucket regardless of which account they came from.
+	const byInstant = new Map<number, typeof candidates>();
+	for (const c of candidates) {
+		if (claimed.has(c.id)) continue;
+		const instant = (c.accountingDate as unknown as Date).getTime();
+		const bucket = byInstant.get(instant) ?? [];
+		bucket.push(c);
+		byInstant.set(instant, bucket);
+	}
+
+	const results: CurrencyConversionResult[] = [];
+	const touchedForeignAccounts = new Set<string>();
+
+	for (const bucket of byInstant.values()) {
+		const eurLegs = bucket.filter((c) => c.accountCurrency === PRIMARY_CURRENCY);
+		const foreignLegs = bucket.filter((c) => c.accountCurrency !== PRIMARY_CURRENCY);
+		if (eurLegs.length === 0 || foreignLegs.length === 0) continue;
+
+		const usedEur = new Set<string>();
+		for (const foreign of foreignLegs) {
+			const fxAmount = parseFloat(foreign.amount as unknown as string);
+			// Pair with the first unused EUR leg of opposite sign at the same instant.
+			const eur = eurLegs.find((e) => {
+				if (usedEur.has(e.id)) return false;
+				const eurAmount = parseFloat(e.amount as unknown as string);
+				return eurAmount !== 0 && fxAmount !== 0 && fxAmount > 0 !== eurAmount > 0;
+			});
+			if (!eur) continue;
+			usedEur.add(eur.id);
+
+			const eurAmount = Math.abs(parseFloat(eur.amount as unknown as string));
+			const foreignAmount = Math.abs(fxAmount);
+			const rate = foreignAmount / eurAmount;
+			const effectiveFrom = foreign.accountingDate as unknown as Date;
+
+			const [conversion] = await db
+				.insert(currencyConversions)
+				.values({
+					workspaceId,
+					fromAccountId: eur.bankAccountId,
+					toAccountId: foreign.bankAccountId,
+					fromAmount: eurAmount.toFixed(4),
+					toAmount: foreignAmount.toFixed(4),
+					exchangeRate: rate.toFixed(6),
+					effectiveFrom,
+					confidence: 'auto',
+					fromTransactionId: eur.id,
+					toTransactionId: foreign.id
+				})
+				.returning({ id: currencyConversions.id });
+
+			touchedForeignAccounts.add(foreign.bankAccountId);
+
+			results.push({
+				conversionId: conversion.id,
+				fromAccountId: eur.bankAccountId,
+				toAccountId: foreign.bankAccountId,
+				fromTransactionId: eur.id,
+				toTransactionId: foreign.id,
+				fromAmount: eurAmount,
+				toAmount: foreignAmount,
+				exchangeRate: rate,
+				effectiveFrom,
+				affectedTxCount: 0,
+				confidence: 'auto',
+				fromAccountName: eur.accountName,
+				fromTransactionDescription: eur.description,
+				toAccountName: foreign.accountName,
+				toTransactionDescription: foreign.description
+			});
+		}
+	}
+
+	// Re-propagate each touched foreign account once, after all its new rate windows exist.
+	for (const accountId of touchedForeignAccounts) {
+		const count = await propagateRateToAccount(accountId);
+		for (const r of results) {
+			if (r.toAccountId === accountId) r.affectedTxCount = count;
+		}
+	}
+
+	return results;
+}
+
+/**
  * Detect cross-currency conversions across the whole workspace by (re)scanning every
  * UNRESOLVED foreign anchor — not just the rows from the current import.
  *
