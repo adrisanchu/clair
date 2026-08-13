@@ -1,17 +1,17 @@
 <script lang="ts">
 	import * as HoverCard from '$lib/components/ui/hover-card';
-	import * as Popover from '$lib/components/ui/popover';
 
 	interface Props {
 		/**
 		 * Settlement state of the transfer. Drives the badge colour:
 		 *  - 'settled'   → linked to a counterpart (neutral).
 		 *  - 'candidate' → orphan, no counterpart yet (amber — needs attention).
-		 * Defaults to 'settled'; the candidate colour is wired up once #30/#50 land.
 		 */
 		status?: 'settled' | 'candidate';
+		/** Click handler — opens the pairing dialog. When omitted the badge is inert. */
+		onclick?: () => void;
 	}
-	let { status = 'settled' }: Props = $props();
+	let { status = 'settled', onclick }: Props = $props();
 
 	// Detect touch devices after mount to avoid SSR hydration mismatches.
 	let isTouch = $state(false);
@@ -21,8 +21,8 @@
 
 	const label = $derived(
 		status === 'candidate'
-			? 'Transfer — no matching counterpart found yet'
-			: 'This is a transfer between your accounts'
+			? 'Transfer — tap to find its match'
+			: 'Linked transfer — tap to view the pair'
 	);
 
 	// Small, subtle rounded "T" badge. Amber ring when it still needs a counterpart.
@@ -34,17 +34,22 @@
 				: 'border-border text-text-tertiary hover:text-text-secondary hover:bg-surface-sunken'
 		].join(' ')
 	);
-	const contentClass = 'max-w-56 text-xs text-text-secondary';
+
+	function handle(e: Event) {
+		e.stopPropagation();
+		onclick?.();
+	}
 </script>
 
 {#if isTouch}
-	<Popover.Root>
-		<Popover.Trigger class={triggerClass} aria-label={label}>T</Popover.Trigger>
-		<Popover.Content class={contentClass}>{label}</Popover.Content>
-	</Popover.Root>
+	<!-- Touch: tap is the action; no hover tooltip. -->
+	<button type="button" class={triggerClass} aria-label={label} onclick={handle}>T</button>
 {:else}
+	<!-- Desktop: hover shows the tooltip, click opens the dialog. -->
 	<HoverCard.Root>
-		<HoverCard.Trigger class={triggerClass} aria-label={label}>T</HoverCard.Trigger>
-		<HoverCard.Content class={contentClass}>{label}</HoverCard.Content>
+		<HoverCard.Trigger class={triggerClass} aria-label={label} onclick={handle}
+			>T</HoverCard.Trigger
+		>
+		<HoverCard.Content class="max-w-56 text-xs text-text-secondary">{label}</HoverCard.Content>
 	</HoverCard.Root>
 {/if}
