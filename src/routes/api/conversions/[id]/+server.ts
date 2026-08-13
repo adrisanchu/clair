@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import { and, eq, or } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { authUser, bankAccounts, currencyConversions } from '$lib/server/db/schema.js';
+import { authUser, bankAccounts, currencyConversions, transactions } from '$lib/server/db/schema.js';
 import { propagateRateToAccount } from '$lib/server/currency-converter.js';
 
 // ─── PATCH /api/conversions/[id] ────────────────────────────────────────────
@@ -69,4 +69,52 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	}
 
 	throw error(400, 'Invalid action');
+};
+
+// ─── DELETE /api/conversions/[id] ───────────────────────────────────────────
+// Break a conversion pair. Clears the foreign account's rate tags then re-propagates
+// from whatever conversions remain, so a leg reverts to the prior rate window (or to
+// unresolved when nothing covers it).
+
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+	if (!locals.user) throw error(401, 'Unauthorized');
+
+	const user = await db.query.authUser.findFirst({
+		where: eq(authUser.id, locals.user.id),
+		columns: { workspaceId: true }
+	});
+	if (!user?.workspaceId) throw error(403, 'No workspace');
+
+	const conversion = await db.query.currencyConversions.findFirst({
+		where: and(
+			eq(currencyConversions.id, params.id),
+			eq(currencyConversions.workspaceId, user.workspaceId)
+		)
+	});
+	if (!conversion) throw error(404, 'Conversion not found');
+
+	const ownedAccount = await db.query.bankAccounts.findFirst({
+		where: and(
+			or(eq(bankAccounts.id, conversion.fromAccountId), eq(bankAccounts.id, conversion.toAccountId)),
+			eq(bankAccounts.ownerUserId, locals.user.id)
+		),
+		columns: { id: true }
+	});
+	if (!ownedAccount) throw error(403, 'Forbidden');
+
+	await db.delete(currencyConversions).where(eq(currencyConversions.id, params.id));
+
+	// Reset the foreign account's rate tags, then recompute from remaining windows.
+	await db
+		.update(transactions)
+		.set({ conversionId: null, exchangeRate: null, amountEur: null })
+		.where(
+			and(
+				eq(transactions.bankAccountId, conversion.toAccountId),
+				eq(transactions.isOpeningBalance, false)
+			)
+		);
+	await propagateRateToAccount(conversion.toAccountId);
+
+	return json({ ok: true });
 };

@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { transactions } from '$lib/server/db/schema.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
-import { linkPair } from '$lib/server/transfer-detector.js';
+import { linkPair, unlinkPair } from '$lib/server/transfer-detector.js';
 
 // ─── POST /api/transactions/[id]/link-transfer ────────────────────────────────
 // Manually link two transactions as a transfer pair.
@@ -43,6 +43,28 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	}
 
 	await linkPair(params.id, counterpartId, locals.user.id);
+
+	return json({ ok: true });
+};
+
+// ─── DELETE /api/transactions/[id]/link-transfer ──────────────────────────────
+// Break a same-currency transfer pair (bidirectional).
+
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+	if (!locals.user) throw error(401, 'Unauthorized');
+
+	const accessibleIds = await getAccessibleAccountIds(locals.user.id);
+	if (accessibleIds.length === 0) throw error(403, 'Forbidden');
+
+	const source = await db.query.transactions.findFirst({
+		where: eq(transactions.id, params.id),
+		columns: { id: true, bankAccountId: true, transferCounterpartId: true }
+	});
+	if (!source) throw error(404, 'Transaction not found');
+	if (!accessibleIds.includes(source.bankAccountId)) throw error(403, 'Forbidden');
+	if (!source.transferCounterpartId) throw error(409, 'Transaction is not linked');
+
+	await unlinkPair(params.id);
 
 	return json({ ok: true });
 };
