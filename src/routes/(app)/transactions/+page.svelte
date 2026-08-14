@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { format } from 'date-fns';
 	import { DropdownMenu } from 'bits-ui';
@@ -23,6 +23,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import NoteHint from '$lib/components/NoteHint.svelte';
 	import TransferHint from '$lib/components/TransferHint.svelte';
+	import TransferPairDialog from '$lib/components/transfers/TransferPairDialog.svelte';
 	import CategorySelector from '$lib/components/CategorySelector.svelte';
 	import { cn } from '$lib/utils';
 	import type { PageData } from './$types';
@@ -41,6 +42,9 @@
 
 	let searchInput = $state(data.filters.q);
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// Transaction currently open in the transfer-pairing dialog.
+	let dialogTxId = $state<string | null>(null);
 
 	// Keep search input in sync when navigating via other filters
 	$effect(() => {
@@ -317,6 +321,11 @@
 							{@const isReverted = tx.status === 'reverted'}
 							{@const isPending = tx.status === 'pending'}
 							{@const isTransfer = tx.isTransfer}
+							{@const showTransferBadge = tx.isTransfer || tx.isFxCandidate}
+							{@const transferSettled = !!(
+								tx.transferCounterpartId ||
+								(tx.isFxCandidate && tx.conversionId)
+							)}
 							{@const isOpening = tx.isOpeningBalance}
 
 							{#if isOpening}
@@ -397,8 +406,11 @@
 													categoryOverride={tx.categoryOverride}
 													categories={data.categories}
 												/>
-												{#if isTransfer}
-													<TransferHint />
+												{#if showTransferBadge}
+													<TransferHint
+														status={transferSettled ? 'settled' : 'candidate'}
+														onclick={() => (dialogTxId = tx.id)}
+													/>
 												{/if}
 											</div>
 										</div>
@@ -555,3 +567,9 @@
 		</div>
 	{/if}
 </div>
+
+<TransferPairDialog
+	txId={dialogTxId}
+	onclose={() => (dialogTxId = null)}
+	onchange={() => invalidateAll()}
+/>
