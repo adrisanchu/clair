@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from './index.js';
 import { transactions, bankAccounts, currencyConversions } from './schema.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
@@ -700,4 +700,124 @@ export async function queryTransferCandidates(
 
 	candidates.sort((a, b) => a.daysDiff - b.daysDiff);
 	return { source: toLeg(source), mode, settled: null, candidates };
+}
+
+export interface PairableItem extends TxLeg {
+	notes: string | null;
+	/** True when linking would create a cross-currency conversion (different currency class). */
+	crossCurrency: boolean;
+	/** Foreign-per-EUR rate the pair would imply, when exactly one leg is EUR. */
+	impliedRate: number | null;
+	/** Whole-day gap from the source transaction (for a proximity hint). */
+	daysDiff: number;
+}
+
+export interface PairableResult {
+	source: TxLeg | null;
+	items: PairableItem[];
+}
+
+const PAIRABLE_LIMIT = 100;
+
+/**
+ * Backs the manual "pair with another transaction" browser. Unlike
+ * `queryTransferCandidates` (strict auto-match on sign/amount/date), this returns
+ * ANY still-unlinked transaction from an account OTHER than the source's, optionally
+ * narrowed by a LIKE match on description or notes. Correctness of a chosen pair
+ * (opposite sign, EUR-vs-foreign) is enforced at link time by the write endpoints.
+ */
+export async function queryPairableTransactions(
+	accessibleIds: string[],
+	txId: string,
+	q: string
+): Promise<PairableResult> {
+	if (accessibleIds.length === 0) return { source: null, items: [] };
+
+	// Source leg — need its account, currency, amount and date to shape the preview.
+	const [source] = (await db
+		.select({
+			id: transactions.id,
+			description: transactions.description,
+			accountingDate: transactions.accountingDate,
+			amount: transactions.amount,
+			currency: transactions.currency,
+			amountEur: transactions.amountEur,
+			accountCurrency: bankAccounts.currency,
+			bankAccountId: transactions.bankAccountId,
+			accountName: bankAccounts.displayName
+		})
+		.from(transactions)
+		.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
+		.where(eq(transactions.id, txId))
+		.limit(1)) as unknown as RawLeg[];
+
+	if (!source || !accessibleIds.includes(source.bankAccountId)) return { source: null, items: [] };
+
+	// Ids already claimed by a conversion — excluded so we never double-link.
+	const convLegs = await db
+		.select({
+			fromTransactionId: currencyConversions.fromTransactionId,
+			toTransactionId: currencyConversions.toTransactionId
+		})
+		.from(currencyConversions);
+	const claimed = new Set<string>();
+	for (const c of convLegs) {
+		if (c.fromTransactionId) claimed.add(c.fromTransactionId);
+		if (c.toTransactionId) claimed.add(c.toTransactionId);
+	}
+
+	const term = q.trim();
+	const search = term
+		? or(ilike(transactions.description, `%${term}%`), ilike(transactions.notes, `%${term}%`))
+		: undefined;
+
+	const rows = (await db
+		.select({
+			id: transactions.id,
+			description: transactions.description,
+			accountingDate: transactions.accountingDate,
+			amount: transactions.amount,
+			currency: transactions.currency,
+			amountEur: transactions.amountEur,
+			accountCurrency: bankAccounts.currency,
+			bankAccountId: transactions.bankAccountId,
+			accountName: bankAccounts.displayName,
+			notes: transactions.notes
+		})
+		.from(transactions)
+		.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
+		.where(
+			and(
+				inArray(transactions.bankAccountId, accessibleIds),
+				ne(transactions.bankAccountId, source.bankAccountId),
+				eq(transactions.isOpeningBalance, false),
+				isNull(transactions.transferCounterpartId),
+				search
+			)
+		)
+		.orderBy(desc(transactions.accountingDate))
+		.limit(PAIRABLE_LIMIT)) as unknown as (RawLeg & { notes: string | null })[];
+
+	const srcAmount = parseFloat(source.amount);
+	const srcDate = source.accountingDate as unknown as Date;
+	const srcPrimary = source.accountCurrency === PRIMARY_CURRENCY;
+
+	const items: PairableItem[] = rows
+		.filter((r) => !claimed.has(r.id))
+		.map((r) => {
+			const crossCurrency = r.accountCurrency !== source.accountCurrency;
+			const cAmount = parseFloat(r.amount);
+			const oneEur = srcPrimary !== (r.accountCurrency === PRIMARY_CURRENCY);
+			const eurAmt = srcPrimary ? Math.abs(srcAmount) : Math.abs(cAmount);
+			const foreignAmt = srcPrimary ? Math.abs(cAmount) : Math.abs(srcAmount);
+			return {
+				...toLeg(r),
+				notes: r.notes,
+				crossCurrency,
+				impliedRate: crossCurrency && oneEur && eurAmt > 0 ? foreignAmt / eurAmt : null,
+				daysDiff: dayDiff(srcDate, r.accountingDate as unknown as Date)
+			};
+		});
+
+	return { source: toLeg(source), items };
 }

@@ -1,12 +1,18 @@
 <script lang="ts">
 	import { format } from 'date-fns';
-	import { Search, Link2, Unlink, CircleCheck, Info } from '@lucide/svelte';
+	import { Search, Link2, Unlink, CircleCheck, Info, ListPlus, ArrowLeft } from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import Amount from '$lib/components/Amount.svelte';
 	import TransferPairCard from './TransferPairCard.svelte';
-	import type { TransferCandidatesResult, TransferCandidateItem } from '$lib/server/db/queries';
+	import TransferPairPicker from './TransferPairPicker.svelte';
+	import type {
+		TransferCandidatesResult,
+		TransferCandidateItem,
+		TransferPair,
+		PairableItem
+	} from '$lib/server/db/queries';
 
 	interface Props {
 		/** The transaction to reconcile. Dialog is open while this is non-null. */
@@ -24,6 +30,27 @@
 	let search = $state('');
 	let busy = $state(false);
 
+	// Manual-pairing wizard: 'main' (settled / auto-candidates) → 'pick' (browse all) →
+	// 'confirm' (preview the chosen pair before writing it).
+	let step = $state<'main' | 'pick' | 'confirm'>('main');
+	let picked = $state<PairableItem | null>(null);
+
+	// Preview pair synthesised from the source + the manually picked transaction,
+	// oriented so `out` is the money-out leg — exactly how it will render once linked.
+	const previewPair = $derived.by<TransferPair | null>(() => {
+		if (!data?.source || !picked) return null;
+		const s = data.source;
+		const [out, inLeg] = s.amount <= 0 ? [s, picked] : [picked, s];
+		return {
+			kind: picked.crossCurrency ? 'conversion' : 'transfer',
+			conversionId: null,
+			exchangeRate: picked.impliedRate,
+			confidence: 'manual',
+			out,
+			in: inLeg
+		};
+	});
+
 	// Open + (re)load whenever the target transaction changes.
 	let loadedFor = $state<string | null>(null);
 	$effect(() => {
@@ -38,6 +65,8 @@
 		loading = true;
 		err = null;
 		search = '';
+		step = 'main';
+		picked = null;
 		data = null;
 		try {
 			const res = await fetch(`/api/transactions/${id}/transfer-candidates`);
@@ -58,6 +87,8 @@
 			search = '';
 			err = null;
 			loadedFor = null;
+			step = 'main';
+			picked = null;
 		}
 	}
 
@@ -72,25 +103,47 @@
 		})
 	);
 
+	// Write the link. Cross-currency → a manual conversion; same currency → a transfer pair.
+	async function doLink(counterpartId: string, crossCurrency: boolean) {
+		const res = crossCurrency
+			? await fetch('/api/conversions', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ transactionId: txId, counterpartId })
+				})
+			: await fetch(`/api/transactions/${txId}/link-transfer`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ counterpartId })
+				});
+		if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.message ?? 'Link failed');
+	}
+
+	// Quick-link an auto-detected candidate (main step).
 	async function linkTo(c: TransferCandidateItem) {
 		if (!txId) return;
 		busy = true;
 		err = null;
 		try {
-			const res = c.crossCurrency
-				? await fetch('/api/conversions', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ transactionId: txId, counterpartId: c.id })
-					})
-				: await fetch(`/api/transactions/${txId}/link-transfer`, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ counterpartId: c.id })
-					});
-			if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.message ?? 'Link failed');
+			await doLink(c.id, c.crossCurrency);
 			onchange?.();
 			await load(txId);
+		} catch (e) {
+			err = e instanceof Error ? e.message : 'Link failed';
+		} finally {
+			busy = false;
+		}
+	}
+
+	// Commit the manually picked pair from the confirm step.
+	async function confirmPick() {
+		if (!txId || !picked) return;
+		busy = true;
+		err = null;
+		try {
+			await doLink(picked.id, picked.crossCurrency);
+			onchange?.();
+			await load(txId); // resets to 'main', now showing the settled pair
 		} catch (e) {
 			err = e instanceof Error ? e.message : 'Link failed';
 		} finally {
@@ -142,17 +195,69 @@
 	<Dialog.Content class="sm:max-w-xl">
 		<Dialog.Header>
 			<Dialog.Title>
-				{data?.settled ? 'Linked transfer' : 'Reconcile transfer'}
+				{#if step === 'pick'}
+					Pair with another transaction
+				{:else if step === 'confirm'}
+					Confirm the link
+				{:else if data?.settled}
+					Linked transfer
+				{:else}
+					Reconcile transfer
+				{/if}
 			</Dialog.Title>
 			<Dialog.Description>
-				{data?.settled
-					? 'These two transactions are linked as one movement.'
-					: 'Find the matching transaction in another account to link them.'}
+				{#if step === 'pick'}
+					Pick a transaction from another account to link with this one.
+				{:else if step === 'confirm'}
+					Review how these two transactions will be linked, then confirm.
+				{:else if data?.settled}
+					These two transactions are linked as one movement.
+				{:else}
+					Find the matching transaction in another account to link them.
+				{/if}
 			</Dialog.Description>
 		</Dialog.Header>
 
 		{#if loading}
 			<div class="py-10 text-center text-sm text-text-tertiary">Loading…</div>
+		{:else if step === 'pick' && txId}
+			<!-- ── Pick: browse every unlinked transaction from another account ──── -->
+			<TransferPairPicker
+				{txId}
+				onpick={(item) => {
+					picked = item;
+					err = null;
+					step = 'confirm';
+				}}
+				onback={() => (step = 'main')}
+			/>
+		{:else if step === 'confirm' && previewPair}
+			<!-- ── Confirm: preview the manual pair before writing it ─────────────── -->
+			<div class="space-y-4 py-2">
+				<TransferPairCard pair={previewPair} />
+
+				{#if err}
+					<p class="text-sm text-danger-600">{err}</p>
+				{/if}
+
+				<div class="flex items-center justify-between gap-2">
+					<Button
+						variant="ghost"
+						onclick={() => {
+							err = null;
+							step = 'pick';
+						}}
+						disabled={busy}
+					>
+						<ArrowLeft size={14} />
+						Pick another
+					</Button>
+					<Button onclick={confirmPick} disabled={busy}>
+						<Link2 size={14} />
+						Confirm link
+					</Button>
+				</div>
+			</div>
 		{:else if data?.settled}
 			<!-- ── Settled: show the pair + unlink / confirm ─────────────────────── -->
 			<div class="space-y-4 py-2">
@@ -246,6 +351,20 @@
 						{/if}
 					</div>
 				{/if}
+
+				<!-- Manual escape hatch: pick ANY transaction from another account. -->
+				<Button
+					variant="outline"
+					class="w-full"
+					onclick={() => {
+						err = null;
+						step = 'pick';
+					}}
+					disabled={busy}
+				>
+					<ListPlus size={15} />
+					Pair with another transaction
+				</Button>
 
 				{#if err}
 					<p class="text-sm text-danger-600">{err}</p>
