@@ -359,10 +359,10 @@ export interface TransferPair {
 }
 
 /**
- * An unsettled transfer/FX candidate that HAS at least one plausible counterpart
- * in another accessible account — i.e. actually reconcilable (not an external P2P
- * transfer with no in-app match). `kind` distinguishes a same-currency transfer
- * from a cross-currency FX candidate.
+ * An unsettled transfer / FX candidate. `candidateCount` is how many plausible
+ * counterparts exist in other accessible accounts: > 0 means reconcilable ("needs
+ * attention"), 0 means an external transfer with no in-app match ("unmatched").
+ * `kind` distinguishes a same-currency transfer from a cross-currency FX candidate.
  */
 export interface OrphanTransfer {
 	tx: TxLeg;
@@ -444,11 +444,12 @@ async function fetchAccessibleLegs(accessibleIds: string[]): Promise<RawLeg[]> {
 }
 
 /**
- * Orphans that are actually reconcilable — each has ≥1 plausible counterpart in a
- * different accessible account. Powers the dashboard "needs attention" surface and
- * the /transfers attention filter. Runs entirely in memory (two-user scale).
+ * Every unsettled transfer / FX candidate, each annotated with how many plausible
+ * counterparts it has in a different accessible account (`candidateCount`). Those with
+ * `candidateCount > 0` are reconcilable ("needs attention"); those with 0 are external
+ * transfers with no in-app match ("unmatched"). Runs in memory (two-user scale).
  */
-export async function findActionableOrphans(accessibleIds: string[]): Promise<OrphanTransfer[]> {
+export async function computeOrphans(accessibleIds: string[]): Promise<OrphanTransfer[]> {
 	if (accessibleIds.length === 0) return [];
 
 	const [legs, convLegs] = await Promise.all([
@@ -500,9 +501,7 @@ export async function findActionableOrphans(accessibleIds: string[]): Promise<Or
 			}).length;
 		}
 
-		if (candidateCount > 0) {
-			orphans.push({ tx: toLeg(raw), kind: isFxOrphan ? 'conversion' : 'transfer', candidateCount });
-		}
+		orphans.push({ tx: toLeg(raw), kind: isFxOrphan ? 'conversion' : 'transfer', candidateCount });
 	}
 
 	// Most recent first.
@@ -511,10 +510,19 @@ export async function findActionableOrphans(accessibleIds: string[]): Promise<Or
 }
 
 /**
+ * Only the reconcilable orphans (≥1 candidate). Powers the dashboard "needs your
+ * attention" surface, which must never nag about un-matchable external transfers.
+ */
+export async function findActionableOrphans(accessibleIds: string[]): Promise<OrphanTransfer[]> {
+	return (await computeOrphans(accessibleIds)).filter((o) => o.candidateCount > 0);
+}
+
+/**
  * Full dataset for the /transfers page: every settled pair (same-currency transfers
- * + cross-currency conversions) plus the actionable orphans. Genuine pairs are read
- * from `transfer_counterpart_id` and `currency_conversions.from/to_transaction_id` —
- * never from `transactions.conversion_id`, which is an overloaded rate-window tag.
+ * + cross-currency conversions) plus ALL unsettled orphans (each annotated with its
+ * `candidateCount` so the page can split "needs attention" from "unmatched"). Genuine
+ * pairs are read from `transfer_counterpart_id` and `currency_conversions.from/to_transaction_id`
+ * — never from `transactions.conversion_id`, which is an overloaded rate-window tag.
  */
 export async function queryTransferPairs(accessibleIds: string[]): Promise<TransferPairsResult> {
 	if (accessibleIds.length === 0) return { settled: [], orphans: [] };
@@ -530,7 +538,7 @@ export async function queryTransferPairs(accessibleIds: string[]): Promise<Trans
 					isNotNull(currencyConversions.toTransactionId)
 				)
 			),
-		findActionableOrphans(accessibleIds)
+		computeOrphans(accessibleIds)
 	]);
 
 	const byId = new Map<string, RawLeg>(legs.map((l) => [l.id, l]));

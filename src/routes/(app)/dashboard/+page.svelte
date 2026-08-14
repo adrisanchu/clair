@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { formatDistanceToNow } from 'date-fns';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 	import { buildProjection } from '$lib/chart-utils.js';
@@ -13,6 +13,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { TrendingUp, TrendingDown, Plus, Clock, MoreHorizontal, Landmark, BarChart2 } from '@lucide/svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import AttentionList from '$lib/components/transfers/AttentionList.svelte';
+	import TransferPairDialog from '$lib/components/transfers/TransferPairDialog.svelte';
 	import type { PageData } from './$types';
 	import type { Granularity } from '$lib/server/db/queries.js';
 
@@ -30,6 +32,9 @@
 	);
 
 	const firstName = $derived(data.user.name.split(' ')[0]);
+
+	// Transaction open in the reconcile dialog (from the attention list).
+	let dialogTxId = $state<string | null>(null);
 
 	const projectedPoints = $derived(buildProjection(data.balanceData.points, data.granularity));
 
@@ -58,6 +63,9 @@
 		</p>
 		<h1 class="text-2xl font-semibold text-text-primary">{firstName}</h1>
 	</div>
+
+	<!-- Needs your attention: unmatched transfers/conversions to reconcile -->
+	<AttentionList orphans={data.orphans} onreconcile={(id) => (dialogTxId = id)} />
 
 	<!-- Total Net Liquidity hero -->
 	<div class="mb-10">
@@ -219,3 +227,9 @@
 		</div>
 	{/if}
 </div>
+
+<TransferPairDialog
+	txId={dialogTxId}
+	onclose={() => (dialogTxId = null)}
+	onchange={() => invalidateAll()}
+/>
