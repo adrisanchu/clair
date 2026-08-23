@@ -50,34 +50,24 @@
 {#snippet orphanRow(orphan: OrphanTransfer, variant: 'attention' | 'unmatched')}
 	<div
 		class={cn(
-			'flex items-center justify-between gap-3 rounded-xl border p-4',
-			variant === 'attention'
-				? 'border-amber-200 bg-amber-50/50'
-				: 'border-border bg-surface'
+			'orphan-card rounded-xl border p-4',
+			variant === 'attention' ? 'border-amber-200 bg-amber-50/50' : 'border-border bg-surface'
 		)}
 	>
-		<div class="min-w-0">
-			<div class="flex flex-col items-start gap-1">
-				<span
-					class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-secondary uppercase"
-				>
-					{orphan.tx.accountName}
-				</span>
-				<span class="text-[11px] text-text-tertiary tabular-nums">
-					{format(orphan.tx.accountingDate, 'd MMM yyyy')}
-				</span>
-			</div>
-			<p class="mt-2 truncate text-sm font-medium text-text-primary">{orphan.tx.description}</p>
-			{#if variant === 'attention'}
-				<p class="mt-0.5 text-[11px] text-amber-700">
-					{orphan.candidateCount}
-					possible {orphan.candidateCount === 1 ? 'match' : 'matches'} in another account
-				</p>
-			{:else}
-				<p class="mt-0.5 text-[11px] text-text-tertiary">No match in your accounts — likely external</p>
-			{/if}
+		<!-- Meta: account chip + date (top) -->
+		<div class="orphan-meta flex flex-col items-start gap-1">
+			<span
+				class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-secondary uppercase"
+			>
+				{orphan.tx.accountName}
+			</span>
+			<span class="text-[11px] text-text-tertiary tabular-nums">
+				{format(orphan.tx.accountingDate, 'd MMM yyyy')}
+			</span>
 		</div>
-		<div class="flex shrink-0 items-center gap-3">
+
+		<!-- Action: amount + link button (own line on mobile, right column on desktop) -->
+		<div class="orphan-action flex items-center justify-between gap-3">
 			<Amount value={orphan.tx.amount} currency={orphan.tx.currency} size="md" showSign />
 			<button
 				onclick={() => (dialogTxId = orphan.tx.id)}
@@ -93,6 +83,19 @@
 						manually{/if}
 				</span>
 			</button>
+		</div>
+
+		<!-- Description: full card width, at the bottom -->
+		<div class="orphan-desc min-w-0">
+			<p class="text-sm font-medium text-text-primary">{orphan.tx.description}</p>
+			{#if variant === 'attention'}
+				<p class="mt-0.5 text-[11px] text-amber-700">
+					{orphan.candidateCount}
+					possible {orphan.candidateCount === 1 ? 'match' : 'matches'} in another account
+				</p>
+			{:else}
+				<p class="mt-0.5 text-[11px] text-text-tertiary">No match in your accounts — likely external</p>
+			{/if}
 		</div>
 	</div>
 {/snippet}
@@ -216,6 +219,42 @@
 <TransferPairDialog txId={dialogTxId} onclose={() => (dialogTxId = null)} onchange={handleChange} />
 
 <style>
+	/*
+	 * Orphan card: description spans the full card width at the bottom so long
+	 * transaction names never get squeezed by the amount/button. On mobile it stacks
+	 * (meta → action → description); on desktop the amount + button move to a right
+	 * column, vertically centred against the account/date + description block.
+	 */
+	.orphan-card {
+		display: grid;
+		grid-template-columns: 1fr;
+		grid-template-areas:
+			'meta'
+			'action'
+			'desc';
+		gap: 0.5rem 1rem;
+	}
+	.orphan-meta {
+		grid-area: meta;
+	}
+	.orphan-action {
+		grid-area: action;
+	}
+	.orphan-desc {
+		grid-area: desc;
+	}
+	@media (min-width: 768px) {
+		.orphan-card {
+			grid-template-columns: 1fr auto;
+			grid-template-areas:
+				'meta action'
+				'desc action';
+		}
+		.orphan-action {
+			align-self: center;
+		}
+	}
+
 	.reveal {
 		animation: reveal 0.28s ease-out both;
 	}
