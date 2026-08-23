@@ -38,6 +38,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const ids = [source.bankAccountId, counterpart.bankAccountId];
 	if (!ids.every((id) => accessibleIds.includes(id))) throw error(403, 'Forbidden');
 
+	// A transfer moves money BETWEEN accounts. Two rows in the same account are not a
+	// transfer — that's a cost group (e.g. an expense partly reimbursed into the same card).
+	if (source.bankAccountId === counterpart.bankAccountId) {
+		throw error(
+			400,
+			'Both transactions are in the same account — link them as a cost group, not a transfer'
+		);
+	}
+
 	if (source.transferCounterpartId || counterpart.transferCounterpartId) {
 		throw error(409, 'One or both transactions are already linked');
 	}

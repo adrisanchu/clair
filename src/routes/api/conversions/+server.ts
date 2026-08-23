@@ -43,6 +43,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!a || !b) throw error(404, 'Transaction not found');
 	if (![a, b].every((r) => accessibleIds.includes(r.bankAccountId))) throw error(403, 'Forbidden');
 
+	// A conversion moves money BETWEEN accounts. Two rows in the same account are not a
+	// conversion — that's a cost group (e.g. an expense partly reimbursed into the same card).
+	if (a.bankAccountId === b.bankAccountId) {
+		throw error(
+			400,
+			'Both transactions are in the same account — link them as a cost group, not a conversion'
+		);
+	}
+
 	// Must be one EUR leg and one foreign leg (same-currency pairs use link-transfer).
 	const eur = [a, b].find((r) => r.accountCurrency === PRIMARY_CURRENCY);
 	const foreign = [a, b].find((r) => r.accountCurrency !== PRIMARY_CURRENCY);
