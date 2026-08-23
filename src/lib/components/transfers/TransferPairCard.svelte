@@ -36,9 +36,11 @@
 </script>
 
 {#snippet leg(l: TxLeg, direction: 'out' | 'in')}
-	<div class="min-w-0 flex-1">
+	<!-- Sent leg hugs the left edge; received leg mirrors to the right so the pair reads
+	     as a balanced "from → to" (rate centred between/under them). -->
+	<div class={cn('min-w-0 flex-1', direction === 'in' && 'text-right')}>
 		<!-- Account chip and date on their own rows -->
-		<div class="flex flex-col items-start gap-1">
+		<div class={cn('flex flex-col gap-1', direction === 'in' ? 'items-end' : 'items-start')}>
 			{#if l.accountName}
 				<span
 					class="inline-flex max-w-full items-center truncate rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-secondary uppercase"
@@ -78,12 +80,20 @@
 		onclick && 'cursor-pointer hover:border-border-strong hover:bg-surface-raised'
 	)}
 >
-	<div class="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+	<!--
+		Mobile: the two legs sit side-by-side (flex-1 each) and the connector wraps to a
+		full-width row centred underneath (order-last). Desktop (md): flex-nowrap puts them
+		back in a single leg → connector → leg row. No custom CSS — flex-wrap + order only.
+	-->
+	<div class="flex flex-wrap items-start gap-x-3 gap-y-3 md:flex-nowrap md:gap-4">
 		{@render leg(pair.out, 'out')}
 
-		<!-- Center connector: column (↓) on mobile, row (→) on desktop -->
-		<div class="flex shrink-0 flex-col items-center gap-1.5 md:flex-row md:gap-2">
-			<span class="h-4 w-px bg-border md:h-px md:w-4"></span>
+		<!-- Connector: centred rate pill. On mobile it's a full-width row under both legs;
+		     on desktop it sits between them (vertically centred) with a → arrow. -->
+		<div
+			class="order-last flex w-full shrink-0 items-center justify-center gap-2 md:order-none md:w-auto md:self-center"
+		>
+			<span class="h-px w-4 bg-border"></span>
 			{#if pair.kind === 'conversion' && rateLabel}
 				<div
 					class="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-raised px-2.5 py-1"
@@ -105,8 +115,8 @@
 					<span class="text-[10px] font-semibold tracking-wider uppercase">Transfer</span>
 				</div>
 			{/if}
-			<ArrowRight size={16} class="shrink-0 rotate-90 text-text-tertiary md:rotate-0" />
-			<span class="h-4 w-px bg-border md:h-px md:w-4"></span>
+			<ArrowRight size={16} class="hidden shrink-0 text-text-tertiary md:block" />
+			<span class="h-px w-4 bg-border"></span>
 		</div>
 
 		{@render leg(pair.in, 'in')}
