@@ -1,11 +1,26 @@
 # Clair — Claude Code Instructions
 
-> Read this file before every task. See `features/` for full PRDs.
+> Read this file before every task. `features/` holds the canonical PRDs
+> (`clair-prd-main/-backend/-frontend`).
+>
+> **Durable knowledge lives in the maintainer's Obsidian vault, not the repo:**
+> `~/Documents/Vaults/main/clair/` — concept/design notes at the root (vision, architecture,
+> category model, multi-currency, transfers/groups, sharing…), implementation task-plans under
+> `tasks/`, and design/data-flow reference under `reference/`. When a task needs the "why" or a
+> feature's build plan, look there.
 
 ## Project
 
 Personal finance aggregator: upload bank CSVs → AI-tag transactions → export clean CSV.
 Two users max (invite-only couple). Designed to scale to more users in v2 with no schema changes.
+
+**Vision (canonical source: Obsidian vault `vision-and-mission.md`):** bring clarity to people who juggle
+multiple bank providers, accounts, and currencies. Three principles: (1) **no bank integrations** — users
+upload their own data manually; (2) **your data, always in control** — free import/export; (3) **extensive,
+incremental features** — a single-account core loop (create account → upload CSV → dedup → AI-tag → export)
+that expands with transfers, cross-currency conversions, cost groups, and split/shared accounts once a
+second account joins. Clair is not a bank, a fraud-risk agency, or a financial entity, and does nothing
+with user data without explicit consent.
 
 ## Stack
 
@@ -243,19 +258,27 @@ src/routes/
 
 ## Bank Profile IDs
 
-`revolut_eu` · `caixabank_es` · `bankinter_es` · `bbva_es` · `myinvestor_es`
+Planned set: `revolut_eu` · `caixabank_es` · `bankinter_es` · `bbva_es` · `myinvestor_es`
+
+**Implemented parsers** (`src/lib/server/parsers/profiles/`): `revolut_eu`, `bankinter_es` only.
+`caixabank_es`, `bbva_es`, and `myinvestor_es` are not yet built.
 
 ## Build Phases
+
+> Status reflects the codebase as of the `feat/is-transfer-category-split` branch. Verify against
+> `src/` before trusting — this table drifts.
 
 | Phase | Description                                                | Status       |
 | ----- | ---------------------------------------------------------- | ------------ |
 | 1     | Scaffold, Docker, schema, Better Auth, login, invite, seed | **Complete** |
-| 2     | Bank account CRUD + sharing model                          | Pending      |
-| 3a–d  | CSV parsers + full upload pipeline                         | Pending      |
-| 4     | Transaction list + detail panel + transfer linking         | Pending      |
-| 5     | AI tagging via Claude Haiku                                | Pending      |
-| 6     | CSV export streaming                                       | Pending      |
-| 7     | Settings, upload history, mobile polish, empty states      | Pending      |
+| 2     | Bank account CRUD + `visibility` sharing model             | **Complete** |
+| 3a–d  | CSV parsers + full upload pipeline (dedup, balance, enrich)| **Partial** — pipeline done; only `revolut_eu` + `bankinter_es` parsers exist |
+| 4     | Transaction list + detail panel + transfer linking         | **Complete** |
+| 5     | AI tagging via Claude Haiku                                | **Complete** — `ai/tagger.ts` + `ai/auto-tag.ts` |
+| 6     | CSV export                                                 | **Complete** |
+| 7     | Settings, upload history, mobile polish, empty states      | In progress  |
+| —     | Multi-currency (FX conversions, EUR-unified reporting)     | **Complete** — `currency-converter.ts`, `currency_conversions` |
+| —     | Transfers page + cost groups                               | Transfers **complete**; cost groups **not built** (no `groups` tables) — in progress on current branch |
 
 ## Design Decisions
 

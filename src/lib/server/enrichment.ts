@@ -16,7 +16,7 @@ export interface EnrichableExisting {
 /**
  * Diff a re-imported row's enrichment cells against the stored transaction.
  *
- * Policy (see docs/category-reimport-plan.md §8):
+ * Policy (see the "category-reimport-plan" note in the Obsidian vault, §8):
  *  - Empty incoming cell → leave unchanged (never wipe existing data on a round-trip).
  *  - Category: compare incoming against the stored *effective* value
  *    (`categoryOverride ?? category ?? categoryAI`); a genuine change is recorded as a
