@@ -1,0 +1,1 @@
+ALTER TABLE "core"."csv_uploads" ADD COLUMN "outcome" jsonb;

@@ -6,6 +6,7 @@ import {
 	boolean,
 	numeric,
 	integer,
+	jsonb,
 	uniqueIndex,
 	index
 } from 'drizzle-orm/pg-core';
@@ -98,6 +99,21 @@ export const bankAccounts = coreSchema.table('bank_accounts', {
 
 // ─── CSV uploads ───────────────────────────────────────────────────────────
 
+/** Which change a re-imported row applied to an existing transaction. */
+export type UploadOutcomeChange = 'status' | 'desc' | 'enrichment';
+
+/**
+ * Per-upload record of which transactions this import touched, so the UI can
+ * deep-link to exactly the rows that were inserted / updated / already present.
+ * Inserted rows are also discoverable via `transactions.csvUploadId`, but
+ * updated/duplicate rows belong to prior uploads and must be captured here.
+ */
+export interface UploadOutcome {
+	insertedIds: string[];
+	updatedIds: { id: string; change: UploadOutcomeChange }[];
+	duplicateIds: string[];
+}
+
 export const csvUploads = coreSchema.table('csv_uploads', {
 	id: text('id')
 		.primaryKey()
@@ -117,6 +133,8 @@ export const csvUploads = coreSchema.table('csv_uploads', {
 	openingBalance: numeric('opening_balance', { precision: 15, scale: 4 }),
 	dateRangeFrom: timestamp('date_range_from', { mode: 'date' }),
 	dateRangeTo: timestamp('date_range_to', { mode: 'date' }),
+	// Per-row import outcomes for transparency / deep-linking (null on older uploads).
+	outcome: jsonb('outcome').$type<UploadOutcome>(),
 	uploadedAt: timestamp('uploaded_at').defaultNow().notNull()
 });
 

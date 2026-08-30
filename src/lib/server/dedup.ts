@@ -181,7 +181,7 @@ function resolveExactMatch(existing: ExistingRow, row: NormalizedTransaction): D
 	if (statusTransition(existing.status, row.status))
 		return { action: 'update_status', existingId: existing.id, enrichment };
 	if (enrichment) return { action: 'update_enrichment', existingId: existing.id, enrichment };
-	return { action: 'skip' };
+	return { action: 'skip', existingId: existing.id };
 }
 
 /**

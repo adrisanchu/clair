@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from './index.js';
-import { transactions, bankAccounts, currencyConversions } from './schema.js';
+import { transactions, bankAccounts, currencyConversions, csvUploads } from './schema.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 export const TX_PAGE_SIZE = 25;
@@ -91,12 +91,17 @@ export async function queryRollingBalance(
 
 export type TxFilter = 'all' | 'expenses' | 'transfers' | 'review';
 
+/** Restrict the ledger to the rows a single CSV upload inserted / updated / duplicated. */
+export type UploadOutcomeFilter = 'inserted' | 'updated' | 'duplicate';
+
 export interface TxQueryParams {
 	accessibleIds: string[];
 	q?: string;
 	accountId?: string;
 	filter?: TxFilter;
 	page?: number;
+	uploadId?: string;
+	uploadOutcome?: UploadOutcomeFilter;
 }
 
 export interface TxRow {
@@ -202,6 +207,7 @@ export async function queryTransactionsForExport(
 
 export async function queryTransactions(params: TxQueryParams): Promise<TxQueryResult> {
 	const { accessibleIds, q = '', accountId = '', filter = 'all', page = 1 } = params;
+	const { uploadId, uploadOutcome } = params;
 	const limit = TX_PAGE_SIZE;
 	const offset = (page - 1) * limit;
 
@@ -215,7 +221,28 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 		};
 	}
 
-	const baseWhere = and(inArray(transactions.bankAccountId, accessibleIds));
+	// Optional deep-link: restrict the ledger to the rows a single upload touched.
+	// Inserted rows carry csvUploadId directly; updated/duplicate rows belong to
+	// prior uploads and are looked up from the upload's stored `outcome` payload.
+	let uploadCondition: ReturnType<typeof and> | undefined;
+	if (uploadId && uploadOutcome) {
+		if (uploadOutcome === 'inserted') {
+			uploadCondition = and(eq(transactions.csvUploadId, uploadId));
+		} else {
+			const upload = await db.query.csvUploads.findFirst({
+				where: eq(csvUploads.id, uploadId),
+				columns: { outcome: true }
+			});
+			const ids =
+				uploadOutcome === 'updated'
+					? (upload?.outcome?.updatedIds.map((u) => u.id) ?? [])
+					: (upload?.outcome?.duplicateIds ?? []);
+			// No matching ids → force an empty result rather than an unfiltered one.
+			uploadCondition = ids.length > 0 ? inArray(transactions.id, ids) : sql`false`;
+		}
+	}
+
+	const baseWhere = and(inArray(transactions.bankAccountId, accessibleIds), uploadCondition);
 
 	// Opening balance is only visible in the 'all' tab.
 	// For 'expenses' we must explicitly exclude it (it could have a negative amount).
