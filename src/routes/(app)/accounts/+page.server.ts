@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 						ownerUserId: bankAccounts.ownerUserId,
 						createdAt: bankAccounts.createdAt,
 						txCount: count(transactions.id),
-						lastUploadedAt: sql<Date | null>`(SELECT MAX(${csvUploads.uploadedAt}) FROM ${csvUploads} WHERE ${csvUploads.bankAccountId} = ${bankAccounts.id})`
+						lastUploadedAt: sql<Date | null>`(SELECT to_char(MAX(${csvUploads.uploadedAt}), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM ${csvUploads} WHERE ${csvUploads.bankAccountId} = ${bankAccounts.id})`
 					})
 					.from(bankAccounts)
 					.leftJoin(

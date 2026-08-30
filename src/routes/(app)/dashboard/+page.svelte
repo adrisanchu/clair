@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatDistanceToNow } from 'date-fns';
+	import { formatRelativeTime } from '$lib/datetime';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
@@ -45,8 +45,7 @@
 	}
 
 	function formatLastUpdated(date: Date | string | null): string {
-		if (!date) return 'No uploads yet';
-		return formatDistanceToNow(new Date(date), { addSuffix: true });
+		return formatRelativeTime(date);
 	}
 
 	function formatTrend(value: number): string {

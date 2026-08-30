@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { formatDistanceToNow, format } from 'date-fns';
+	import { format } from 'date-fns';
+	import { formatRelativeTime } from '$lib/datetime';
 	import { ArrowLeft, Upload, Trash2, Check, X, Lock, BarChart2, Eye } from '@lucide/svelte';
 	import Amount from '$lib/components/Amount.svelte';
 	import BankLogo from '$lib/components/BankLogo.svelte';
@@ -220,8 +221,25 @@
 									</p>
 								</div>
 								<div class="shrink-0 text-right text-xs text-text-tertiary">
-									<p class="font-medium text-text-secondary">{upload.importedCount} imported</p>
-									<p>{formatDistanceToNow(new Date(upload.uploadedAt), { addSuffix: true })}</p>
+									{#if upload.importedCount > 0}
+										<a
+											href="/transactions?upload={upload.id}&outcome=inserted"
+											class="font-medium text-primary-600 hover:underline"
+										>
+											{upload.importedCount} imported →
+										</a>
+									{:else}
+										<p class="font-medium text-text-secondary">0 imported</p>
+									{/if}
+									{#if upload.outcome && upload.outcome.updatedIds.length > 0}
+										<a
+											href="/transactions?upload={upload.id}&outcome=updated"
+											class="block text-primary-600 hover:underline"
+										>
+											{upload.outcome.updatedIds.length} updated →
+										</a>
+									{/if}
+									<p>{formatRelativeTime(upload.uploadedAt)}</p>
 								</div>
 							</div>
 						{/each}

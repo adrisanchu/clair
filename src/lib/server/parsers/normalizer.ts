@@ -203,16 +203,19 @@ function parseDateField(raw: string | undefined, format: string): Date | null {
 	const parsed = parseDate(raw.trim(), toDfnsFormat(format), DATE_PARSE_REFERENCE);
 	if (!isValid(parsed)) return null;
 	// Reinterpret the parsed wall-clock (date-fns builds a local Date) as UTC: keeps the
-	// calendar day stable across server timezones and preserves the hour/minute the CSV
-	// provided — formats without a time component parse to 00:00 (UTC-midnight fallback).
-	// Dedup keys on the calendar day (see dedup.ts), so the stored time never fragments it.
+	// calendar day stable across server timezones and preserves the hour/minute/second the
+	// CSV provided — formats without a time component parse to 00:00:00 (UTC-midnight).
+	// Seconds are kept so two genuinely-distinct same-minute rows (same amount + label) stay
+	// apart in dedup's exact-instant match; a re-export whose seconds shifted still dedupes
+	// via dedup's same-calendar-day fallback (see dedup.ts), so this never causes duplicates.
 	return new Date(
 		Date.UTC(
 			parsed.getFullYear(),
 			parsed.getMonth(),
 			parsed.getDate(),
 			parsed.getHours(),
-			parsed.getMinutes()
+			parsed.getMinutes(),
+			parsed.getSeconds()
 		)
 	);
 }
