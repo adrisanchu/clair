@@ -4,7 +4,13 @@ import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, categories } from '$lib/server/db/schema.js';
 import { getFullAccessAccountIds } from '$lib/server/db/access.js';
-import { queryTransactions, type TxFilter } from '$lib/server/db/queries.js';
+import {
+	queryTransactions,
+	type TxFilter,
+	type UploadOutcomeFilter
+} from '$lib/server/db/queries.js';
+
+const UPLOAD_OUTCOMES: UploadOutcomeFilter[] = ['inserted', 'updated', 'duplicate'];
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) error(401);
@@ -16,8 +22,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const filter = (url.searchParams.get('filter') ?? 'all') as TxFilter;
 	const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'));
 
+	const uploadId = url.searchParams.get('upload') ?? undefined;
+	const outcomeParam = url.searchParams.get('outcome');
+	const uploadOutcome =
+		uploadId && outcomeParam && UPLOAD_OUTCOMES.includes(outcomeParam as UploadOutcomeFilter)
+			? (outcomeParam as UploadOutcomeFilter)
+			: undefined;
+
 	const [result, accounts, cats] = await Promise.all([
-		queryTransactions({ accessibleIds, q, accountId, filter, page }),
+		queryTransactions({ accessibleIds, q, accountId, filter, page, uploadId, uploadOutcome }),
 		accessibleIds.length > 0
 			? db
 					.select({ id: bankAccounts.id, displayName: bankAccounts.displayName })
@@ -42,6 +55,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		...result,
 		accounts,
 		categories: cats,
-		filters: { q, accountId, filter }
+		filters: { q, accountId, filter, uploadId: uploadId ?? null, uploadOutcome: uploadOutcome ?? null }
 	};
 };

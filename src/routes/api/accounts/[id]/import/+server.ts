@@ -26,6 +26,7 @@ import { detectAndLinkTransfers } from '$lib/server/transfer-detector.js';
 import { detectFxPairs, rescanWorkspaceConversions } from '$lib/server/currency-converter.js';
 import { autoTagUpload } from '$lib/server/ai/auto-tag.js';
 import type { NormalizedTransaction } from '$lib/server/parsers/types.js';
+import type { UploadOutcomeChange } from '$lib/server/db/schema.js';
 
 // ─── POST /api/accounts/[id]/import ───────────────────────────────────────────
 // Parse a CSV, dedup against existing transactions, and persist to DB.
@@ -105,6 +106,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	let enrichmentUpdatesCount = 0;
 	let flaggedCount = 0;
 
+	// Per-row outcomes for transparency: which existing rows were updated (and how)
+	// and which were exact duplicates. Inserted ids are collected after the batch insert.
+	const updatedIds: { id: string; change: UploadOutcomeChange }[] = [];
+	const duplicateIds: string[] = [];
+
 	const toInsert: (typeof transactions.$inferInsert)[] = [];
 
 	for (const row of rows) {
@@ -123,6 +129,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 				enrichmentUpdatesCount++;
 			}
 			statusUpdatesCount++;
+			updatedIds.push({ id: dedup.existingId, change: 'status' });
 		} else if (dedup.action === 'update_desc' && dedup.existingId) {
 			await applyDescUpdate(dedup.existingId, row);
 			if (dedup.enrichment) {
@@ -130,12 +137,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 				enrichmentUpdatesCount++;
 			}
 			statusUpdatesCount++;
+			updatedIds.push({ id: dedup.existingId, change: 'desc' });
 		} else if (dedup.action === 'update_enrichment' && dedup.existingId && dedup.enrichment) {
 			await applyEnrichmentUpdate(dedup.existingId, dedup.enrichment, locals.user.id);
 			enrichmentUpdatesCount++;
 			statusUpdatesCount++;
+			updatedIds.push({ id: dedup.existingId, change: 'enrichment' });
 		} else {
 			duplicateCount++;
+			if (dedup.existingId) duplicateIds.push(dedup.existingId);
 		}
 	}
 
@@ -148,14 +158,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		insertedIds.push(...inserted.map((r) => r.id));
 	}
 
-	// Update upload with actual counts
+	// Update upload with actual counts + per-row outcomes (for deep-linking)
 	await db
 		.update(csvUploads)
 		.set({
 			importedCount: importedCount + flaggedCount,
 			duplicateCount,
 			flaggedCount,
-			statusUpdates: statusUpdatesCount
+			statusUpdates: statusUpdatesCount,
+			outcome: { insertedIds, updatedIds, duplicateIds }
 		})
 		.where(eq(csvUploads.id, upload.id));
 
@@ -220,6 +231,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const aiTagResult = await autoTagUpload(upload.id, account.workspaceId);
 
 	return json({
+		uploadId: upload.id,
 		imported: importedCount,
 		flagged: flaggedCount,
 		statusUpdates: statusUpdatesCount,
