@@ -10,6 +10,7 @@
 		Landmark,
 		Plus
 	} from '@lucide/svelte';
+	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -45,6 +46,14 @@
 	}
 
 	let { accountId, accounts = [], profiles = [], onImported, onClose }: Props = $props();
+
+	/** Close the wizard and open the transactions list filtered to this upload's rows. */
+	function viewUpload(outcome: 'inserted' | 'updated' | 'duplicate') {
+		if (!importResult) return;
+		const url = `/transactions?upload=${importResult.uploadId}&outcome=${outcome}`;
+		onClose?.();
+		goto(url);
+	}
 
 	// Picker mode = no account was preselected → user must pick/create one first.
 	const pickerMode = !accountId;
@@ -134,6 +143,7 @@
 	};
 
 	type ImportResult = {
+		uploadId: string;
 		imported: number;
 		flagged: number;
 		statusUpdates: number;
@@ -775,21 +785,29 @@
 				<p class="text-sm text-text-secondary">Your transactions have been saved.</p>
 			</div>
 			<div class="grid w-full max-w-xs grid-cols-2 gap-2">
-				<div class="rounded-lg border border-border px-3 py-2 text-center">
-					<p class="font-mono text-xl font-bold text-text-primary">{importResult.imported}</p>
-					<p class="text-xs text-text-secondary">Imported</p>
-				</div>
-				<div class="rounded-lg border border-border px-3 py-2 text-center">
-					<p class="font-mono text-xl font-bold text-text-primary">{importResult.duplicates}</p>
-					<p class="text-xs text-text-secondary">Duplicates</p>
-				</div>
+				{#snippet tile(count: number, label: string, outcome: 'inserted' | 'updated' | 'duplicate')}
+					{#if count > 0}
+						<button
+							type="button"
+							onclick={() => viewUpload(outcome)}
+							class="group rounded-lg border border-border px-3 py-2 text-center transition-colors hover:border-primary-300 hover:bg-primary-50"
+							title="View these transactions"
+						>
+							<p class="font-mono text-xl font-bold text-text-primary">{count}</p>
+							<p class="text-xs text-text-secondary group-hover:text-primary-700">{label} →</p>
+						</button>
+					{:else}
+						<div class="rounded-lg border border-border px-3 py-2 text-center">
+							<p class="font-mono text-xl font-bold text-text-primary">{count}</p>
+							<p class="text-xs text-text-secondary">{label}</p>
+						</div>
+					{/if}
+				{/snippet}
+
+				{@render tile(importResult.imported, 'Imported', 'inserted')}
+				{@render tile(importResult.duplicates, 'Duplicates', 'duplicate')}
 				{#if importResult.statusUpdates > 0}
-					<div class="rounded-lg border border-border px-3 py-2 text-center">
-						<p class="font-mono text-xl font-bold text-text-primary">
-							{importResult.statusUpdates}
-						</p>
-						<p class="text-xs text-text-secondary">Updated</p>
-					</div>
+					{@render tile(importResult.statusUpdates, 'Updated', 'updated')}
 				{/if}
 				{#if importResult.flagged > 0}
 					<div class="border-warning-200 bg-warning-50 rounded-lg border px-3 py-2 text-center">

@@ -24,6 +24,7 @@
 	import NoteHint from '$lib/components/NoteHint.svelte';
 	import TransferHint from '$lib/components/TransferHint.svelte';
 	import TransferPairDialog from '$lib/components/transfers/TransferPairDialog.svelte';
+	import TransactionDetailSheet from '$lib/components/transactions/TransactionDetailSheet.svelte';
 	import CategorySelector from '$lib/components/CategorySelector.svelte';
 	import { cn } from '$lib/utils';
 	import type { PageData } from './$types';
@@ -45,6 +46,15 @@
 
 	// Transaction currently open in the transfer-pairing dialog.
 	let dialogTxId = $state<string | null>(null);
+
+	// Transaction currently open in the detail sheet (edit note / transfer flag).
+	let detailTx = $state<(typeof data.rows)[number] | null>(null);
+	let detailOpen = $state(false);
+
+	function openDetail(tx: (typeof data.rows)[number]) {
+		detailTx = tx;
+		detailOpen = true;
+	}
 
 	// Keep search input in sync when navigating via other filters
 	$effect(() => {
@@ -92,8 +102,23 @@
 	const activeAccountName = $derived(
 		data.accounts.find((a) => a.id === activeAccountId)?.displayName ?? null
 	);
+	const uploadOutcomeLabel: Record<string, string> = {
+		inserted: 'imported by this upload',
+		updated: 'updated by this upload',
+		duplicate: 'already present (duplicates) in this upload'
+	};
+	const activeUploadOutcome = $derived(
+		data.filters.uploadId && data.filters.uploadOutcome
+			? uploadOutcomeLabel[data.filters.uploadOutcome]
+			: null
+	);
 	const hasFilters = $derived(
-		!!(data.filters.q || data.filters.accountId || data.filters.filter !== 'all')
+		!!(
+			data.filters.q ||
+			data.filters.accountId ||
+			data.filters.filter !== 'all' ||
+			data.filters.uploadId
+		)
 	);
 
 	const totalPages = $derived(Math.max(1, Math.ceil(data.total / data.limit)));
@@ -260,6 +285,24 @@
 			</Button>
 		{/if}
 	</div>
+
+	<!-- ── Upload-scoped notice ──────────────────────────────────────────────────── -->
+	{#if activeUploadOutcome}
+		<div
+			class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-primary-100 bg-primary-50 px-4 py-2 text-xs text-primary-700 md:px-8"
+		>
+			<span>Showing only transactions {activeUploadOutcome}.</span>
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={clearFilters}
+				class="h-6 gap-1 text-primary-600 hover:bg-primary-100 hover:text-primary-700"
+			>
+				<X size={12} />
+				Show all
+			</Button>
+		</div>
+	{/if}
 
 	<!-- ── Transactions table ──────────────────────────────────────────────────── -->
 	<div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
@@ -431,7 +474,14 @@
 											{:else if isReview}
 												<AlertTriangle size={13} class="shrink-0 text-amber-500" />
 											{/if}
-											<span class="truncate text-xs font-medium md:text-sm">{tx.description}</span>
+											<button
+												type="button"
+												onclick={() => openDetail(tx)}
+												class="min-w-0 truncate text-left text-xs font-medium hover:underline md:text-sm"
+												title="View details"
+											>
+												{tx.description}
+											</button>
 											{#if isPending}
 												<Badge
 													variant="outline"
@@ -573,3 +623,5 @@
 	onclose={() => (dialogTxId = null)}
 	onchange={() => invalidateAll()}
 />
+
+<TransactionDetailSheet bind:open={detailOpen} tx={detailTx} />
