@@ -1,0 +1,42 @@
+name: Migrate prod DB
+
+# Applies pending Drizzle migrations to the production (Neon) database.
+#
+# Triggers automatically when a migration file lands on `main` — e.g. when a PR that
+# adds one is merged — and can also be run manually from the Actions tab ("Run workflow").
+# `drizzle-kit migrate` is idempotent: it reads the __drizzle_migrations journal and
+# applies only what is pending, so re-runs are safe no-ops.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'drizzle/migrations/**'
+      - 'drizzle.config.ts'
+  workflow_dispatch:
+
+# Never let two migration runs overlap.
+concurrency:
+  group: migrate-prod
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: drizzle-kit migrate
+    runs-on: ubuntu-latest
+    if: github.repository == 'adrisanchu/clair'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply pending migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
