@@ -1,13 +1,17 @@
 <script lang="ts">
 	import CategoryList from '$lib/components/settings/CategoryList.svelte';
+	import CostGroupList from '$lib/components/settings/CostGroupList.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	type Tab = 'categories';
+	type Tab = 'categories' | 'cost-groups';
 	let activeTab = $state<Tab>('categories');
 
-	const tabs: { id: Tab; label: string }[] = [{ id: 'categories', label: 'Categories' }];
+	const tabs: { id: Tab; label: string }[] = [
+		{ id: 'categories', label: 'Categories' },
+		{ id: 'cost-groups', label: 'Cost Groups' }
+	];
 </script>
 
 <div class="max-w-3xl px-4 py-6 md:px-8 md:py-8">
@@ -34,5 +38,7 @@
 	<!-- Tab content -->
 	{#if activeTab === 'categories'}
 		<CategoryList categories={data.categories} isOwner={data.isOwner} />
+	{:else if activeTab === 'cost-groups'}
+		<CostGroupList costGroups={data.costGroups} isOwner={data.isOwner} />
 	{/if}
 </div>
