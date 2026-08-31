@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { bankAccounts, categories } from '$lib/server/db/schema.js';
+import { bankAccounts, categories, costGroups } from '$lib/server/db/schema.js';
 import { getFullAccessAccountIds } from '$lib/server/db/access.js';
 import {
 	queryTransactions,
@@ -29,7 +29,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			? (outcomeParam as UploadOutcomeFilter)
 			: undefined;
 
-	const [result, accounts, cats] = await Promise.all([
+	const [result, accounts, cats, groups] = await Promise.all([
 		queryTransactions({ accessibleIds, q, accountId, filter, page, uploadId, uploadOutcome }),
 		accessibleIds.length > 0
 			? db
@@ -48,6 +48,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						asc(categories.sortOrder),
 						asc(categories.name)
 					)
+			: Promise.resolve([]),
+		locals.user.workspaceId
+			? db
+					.select()
+					.from(costGroups)
+					.where(eq(costGroups.workspaceId, locals.user.workspaceId))
+					.orderBy(asc(costGroups.sortOrder), asc(costGroups.name))
 			: Promise.resolve([])
 	]);
 
@@ -55,6 +62,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		...result,
 		accounts,
 		categories: cats,
+		costGroups: groups,
 		filters: { q, accountId, filter, uploadId: uploadId ?? null, uploadOutcome: uploadOutcome ?? null }
 	};
 };

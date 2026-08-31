@@ -10,6 +10,7 @@ import { unlinkPair } from '$lib/server/transfer-detector.js';
 // Updates user-editable fields on a transaction. Partial: only the fields present
 // in the body are touched. Supports:
 //   - categoryOverride (string | null)
+//   - costGroup        (string | null — cross-cutting cost bucket label)
 //   - notes           (string | null — empty/whitespace is normalised to null)
 //   - isTransfer      (boolean — un-flagging a linked transfer clears both legs)
 //
@@ -21,14 +22,18 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 	const body = await request.json();
 	const hasCategory = 'categoryOverride' in body;
+	const hasCostGroup = 'costGroup' in body;
 	const hasNotes = 'notes' in body;
 	const hasTransfer = 'isTransfer' in body;
 
-	if (!hasCategory && !hasNotes && !hasTransfer) {
+	if (!hasCategory && !hasCostGroup && !hasNotes && !hasTransfer) {
 		throw error(400, 'No editable fields provided');
 	}
 	if (hasCategory && body.categoryOverride !== null && typeof body.categoryOverride !== 'string') {
 		throw error(400, 'categoryOverride must be a string or null');
+	}
+	if (hasCostGroup && body.costGroup !== null && typeof body.costGroup !== 'string') {
+		throw error(400, 'costGroup must be a string or null');
 	}
 	if (hasNotes && body.notes !== null && typeof body.notes !== 'string') {
 		throw error(400, 'notes must be a string or null');
@@ -56,6 +61,11 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (hasCategory) {
 		set.categoryOverride = body.categoryOverride ?? null;
 		set.categoryOverrideById = body.categoryOverride !== null ? locals.user.id : null;
+	}
+	if (hasCostGroup) {
+		const trimmed = typeof body.costGroup === 'string' ? body.costGroup.trim() : '';
+		set.costGroup = trimmed ? trimmed : null;
+		set.costGroupById = trimmed ? locals.user.id : null;
 	}
 	if (hasNotes) {
 		const trimmed = typeof body.notes === 'string' ? body.notes.trim() : '';

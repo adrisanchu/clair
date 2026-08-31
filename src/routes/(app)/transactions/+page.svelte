@@ -130,6 +130,10 @@
 		data.rows.reduce((sum, a) => (a.amountEur ? sum + a.amountEur : sum + 0), 0)
 	);
 
+	// Cost-group name → color, for the subtle row tag. Falls back to neutral for an
+	// orphaned label (assigned to a group that was since deleted).
+	const costGroupColors = $derived(new Map(data.costGroups.map((c) => [c.name, c.color])));
+
 	// ── Pagination ─────────────────────────────────────────────────────────────
 
 	function getPaginationPages(cur: number, total: number): (number | '…')[] {
@@ -500,6 +504,22 @@
 											{#if tx.notes}
 												<NoteHint note={tx.notes} />
 											{/if}
+											{#if tx.costGroup}
+												{@const cgColor = costGroupColors.get(tx.costGroup) ?? '#6b7280'}
+												<button
+													type="button"
+													onclick={() => openDetail(tx)}
+													class="inline-flex max-w-[9rem] shrink-0 items-center gap-1 rounded-full border py-0.5 pr-2 pl-1.5 text-[10px] font-medium text-text-secondary transition-colors hover:brightness-95"
+													style="border-color: {cgColor}40; background-color: {cgColor}14;"
+													title="Cost group: {tx.costGroup}"
+												>
+													<span
+														class="h-1.5 w-1.5 shrink-0 rounded-full"
+														style="background-color: {cgColor}"
+													></span>
+													<span class="truncate">{tx.costGroup}</span>
+												</button>
+											{/if}
 										</div>
 										<!-- Mobile meta: date + account -->
 										<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
@@ -624,4 +644,4 @@
 	onchange={() => invalidateAll()}
 />
 
-<TransactionDetailSheet bind:open={detailOpen} tx={detailTx} />
+<TransactionDetailSheet bind:open={detailOpen} tx={detailTx} costGroups={data.costGroups} />
