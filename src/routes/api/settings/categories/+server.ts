@@ -54,15 +54,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		if (parent.parentId !== null) throw error(400, 'Cannot nest more than one level deep');
 	}
 
-	// Uniqueness check: no sibling with same name at same level
-	const sibling = await db.query.categories.findFirst({
-		where: and(
-			eq(categories.workspaceId, workspaceId),
-			eq(categories.name, name.trim()),
-			parentId === null ? isNull(categories.parentId) : eq(categories.parentId, parentId)
-		)
+	// Uniqueness check: category names are unique per workspace (across levels), since a
+	// transaction references its category by text label — two same-named categories would
+	// be ambiguous. Enforced at the DB via categories_workspace_name_idx.
+	const duplicate = await db.query.categories.findFirst({
+		where: and(eq(categories.workspaceId, workspaceId), eq(categories.name, name.trim()))
 	});
-	if (sibling) throw error(409, `A category named "${name.trim()}" already exists at this level`);
+	if (duplicate) throw error(409, `A category named "${name.trim()}" already exists`);
 
 	// Compute sortOrder: use provided value if explicitly set, otherwise append at end
 	const scopeFilter = and(

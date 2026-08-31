@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { and, count, eq, isNull } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
@@ -59,20 +59,14 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	const oldName = existing.name;
 	const nameChanged = newName !== undefined && newName !== oldName;
 
-	// Uniqueness check on rename
+	// Uniqueness check on rename: names are unique per workspace (across levels), matching
+	// the DB constraint categories_workspace_name_idx.
 	if (nameChanged) {
-		const resolvedParentId = parentId !== undefined ? parentId : existing.parentId;
-		const sibling = await db.query.categories.findFirst({
-			where: and(
-				eq(categories.workspaceId, workspaceId),
-				eq(categories.name, newName!),
-				resolvedParentId === null
-					? isNull(categories.parentId)
-					: eq(categories.parentId, resolvedParentId)
-			)
+		const duplicate = await db.query.categories.findFirst({
+			where: and(eq(categories.workspaceId, workspaceId), eq(categories.name, newName!))
 		});
-		if (sibling && sibling.id !== params.id)
-			throw error(409, `A category named "${newName}" already exists at this level`);
+		if (duplicate && duplicate.id !== params.id)
+			throw error(409, `A category named "${newName}" already exists`);
 	}
 
 	const patch: Record<string, unknown> = {};
