@@ -432,7 +432,10 @@
 								>
 									<!-- Category col: category is always editable. Orthogonal facets show
 									     compactly beside it — a "Review Required" chip (needs attention),
-									     and a subtle "T" badge marking a transfer (see TransferHint). -->
+									     and a subtle "T" badge marking a transfer (see TransferHint).
+									     On mobile the cost group stacks underneath here (see below), giving
+									     this column two rows that mirror the description's two rows — so the
+									     tag never crowds the description on narrow screens. -->
 									<td class="px-2 py-2 md:px-4 md:py-3">
 										<div class="flex min-w-0 flex-col items-start gap-1">
 											{#if isReview}
@@ -456,6 +459,16 @@
 														onclick={() => (dialogTxId = tx.id)}
 													/>
 												{/if}
+											</div>
+											<!-- Mobile only: cost group stacked under the category. -->
+											<div class="w-full min-w-0 sm:hidden">
+												<CostGroupTag
+													txId={tx.id}
+													costGroup={tx.costGroup}
+													costGroups={data.costGroups}
+													align="start"
+													class="max-w-full"
+												/>
 											</div>
 										</div>
 									</td>
@@ -505,11 +518,15 @@
 													<NoteHint note={tx.notes} />
 												{/if}
 											</div>
-											<CostGroupTag
-												txId={tx.id}
-												costGroup={tx.costGroup}
-												costGroups={data.costGroups}
-											/>
+											<!-- sm+ : cost group sits at the right of the description. On mobile it
+											     moves to the Category column instead (see above) to avoid crowding. -->
+											<div class="hidden shrink-0 sm:block">
+												<CostGroupTag
+													txId={tx.id}
+													costGroup={tx.costGroup}
+													costGroups={data.costGroups}
+												/>
+											</div>
 										</div>
 										<!-- Compact meta: date + account, shown until the columns appear at lg -->
 										<span class="mt-0.5 block text-[10px] text-text-tertiary lg:hidden">
