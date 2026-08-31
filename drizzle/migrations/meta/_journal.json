@@ -99,6 +99,13 @@
       "when": 1788173959544,
       "tag": "0013_futuristic_scorpion",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788218125638,
+      "tag": "0014_sudden_ben_grimm",
+      "breakpoints": true
     }
   ]
 }

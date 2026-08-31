@@ -290,20 +290,26 @@ export const currencyConversions = coreSchema.table(
 
 // ─── Categories ────────────────────────────────────────────────────────────
 
-export const categories = coreSchema.table('categories', {
-	id: text('id')
-		.primaryKey()
-		.$defaultFn(() => crypto.randomUUID()),
-	workspaceId: text('workspace_id')
-		.notNull()
-		.references(() => workspaces.id),
-	// Self-referential: null = top-level category; set = subcategory (max 1 level)
-	parentId: text('parent_id'),
-	name: text('name').notNull(),
-	color: text('color').default('#6b7280').notNull(),
-	sortOrder: integer('sort_order').default(0).notNull(),
-	createdAt: timestamp('created_at').defaultNow().notNull()
-});
+export const categories = coreSchema.table(
+	'categories',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspaces.id),
+		// Self-referential: null = top-level category; set = subcategory (max 1 level)
+		parentId: text('parent_id'),
+		name: text('name').notNull(),
+		color: text('color').default('#6b7280').notNull(),
+		sortOrder: integer('sort_order').default(0).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	// A category name is a workspace-wide label (transactions reference it by text, so two
+	// same-named categories would be an ambiguous label). Unique per workspace, across levels.
+	(t) => [uniqueIndex('categories_workspace_name_idx').on(t.workspaceId, t.name)]
+);
 
 // ─── Cost groups ───────────────────────────────────────────────────────────
 // Cross-cutting cost buckets (e.g. "Trip to Perú", "Work expenses") that span many
@@ -311,18 +317,23 @@ export const categories = coreSchema.table('categories', {
 // totals. Flat (no hierarchy). Like categories, transactions reference these by name
 // (text label), not by id — the id/color/sortOrder here back the settings manager.
 
-export const costGroups = coreSchema.table('cost_groups', {
-	id: text('id')
-		.primaryKey()
-		.$defaultFn(() => crypto.randomUUID()),
-	workspaceId: text('workspace_id')
-		.notNull()
-		.references(() => workspaces.id),
-	name: text('name').notNull(),
-	color: text('color').default('#6b7280').notNull(),
-	sortOrder: integer('sort_order').default(0).notNull(),
-	createdAt: timestamp('created_at').defaultNow().notNull()
-});
+export const costGroups = coreSchema.table(
+	'cost_groups',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		workspaceId: text('workspace_id')
+			.notNull()
+			.references(() => workspaces.id),
+		name: text('name').notNull(),
+		color: text('color').default('#6b7280').notNull(),
+		sortOrder: integer('sort_order').default(0).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	// A cost-group name is a workspace-wide label (referenced by text on transactions).
+	(t) => [uniqueIndex('cost_groups_workspace_name_idx').on(t.workspaceId, t.name)]
+);
 
 export const costGroupsRelations = relations(costGroups, ({ one }) => ({
 	workspace: one(workspaces, { fields: [costGroups.workspaceId], references: [workspaces.id] })
