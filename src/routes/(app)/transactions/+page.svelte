@@ -26,6 +26,7 @@
 	import TransferPairDialog from '$lib/components/transfers/TransferPairDialog.svelte';
 	import TransactionDetailSheet from '$lib/components/transactions/TransactionDetailSheet.svelte';
 	import CategorySelector from '$lib/components/CategorySelector.svelte';
+	import CostGroupTag from '$lib/components/CostGroupTag.svelte';
 	import { cn } from '$lib/utils';
 	import type { PageData } from './$types';
 
@@ -129,10 +130,6 @@
 	const totalBalance = $derived(
 		data.rows.reduce((sum, a) => (a.amountEur ? sum + a.amountEur : sum + 0), 0)
 	);
-
-	// Cost-group name → color, for the subtle row tag. Falls back to neutral for an
-	// orphaned label (assigned to a group that was since deleted).
-	const costGroupColors = $derived(new Map(data.costGroups.map((c) => [c.name, c.color])));
 
 	// ── Pagination ─────────────────────────────────────────────────────────────
 
@@ -341,7 +338,7 @@
 								Category
 							</th>
 							<th
-								class="hidden w-36 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:table-cell md:px-4"
+								class="hidden w-36 px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase lg:table-cell lg:px-4"
 							>
 								Date
 							</th>
@@ -351,7 +348,7 @@
 								Description
 							</th>
 							<th
-								class="hidden px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase md:table-cell md:w-36 md:px-4"
+								class="hidden px-2 py-2.5 text-left text-[10px] font-semibold tracking-wider text-text-tertiary uppercase lg:table-cell lg:w-36 lg:px-4"
 							>
 								Account
 							</th>
@@ -387,9 +384,9 @@
 											Opening balance
 										</Badge>
 									</td>
-									<!-- Date col (desktop only) -->
+									<!-- Date col (large screens only) -->
 									<td
-										class="hidden px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:table-cell md:px-4"
+										class="hidden px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums lg:table-cell lg:px-4"
 									>
 										{format(tx.accountingDate, 'd MMM yyyy')}
 									</td>
@@ -403,15 +400,15 @@
 												<NoteHint note={tx.notes} />
 											{/if}
 										</div>
-										<!-- Mobile meta: date + account -->
-										<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
+										<!-- Compact meta: date + account, shown until the columns appear at lg -->
+										<span class="mt-0.5 block text-[10px] text-text-tertiary lg:hidden">
 											{format(tx.accountingDate, 'd MMM yyyy')}
 											{#if tx.accountName}
 												· {tx.accountName}{/if}
 										</span>
 									</td>
-									<!-- Account col (desktop only) -->
-									<td class="hidden px-2 py-3 md:table-cell md:px-4">
+									<!-- Account col (large screens only) -->
+									<td class="hidden px-2 py-3 lg:table-cell lg:px-4">
 										{#if tx.accountName}
 											<span
 												class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
@@ -428,7 +425,7 @@
 							{:else}
 								<tr
 									class={cn(
-										'border-b border-border transition-colors hover:bg-surface-sunken/60',
+										'group border-b border-border transition-colors hover:bg-surface-sunken/60',
 										isReview && 'border-l-2 border-l-amber-400',
 										isReverted && 'opacity-60'
 									)}
@@ -463,74 +460,67 @@
 										</div>
 									</td>
 
-									<!-- Date col (desktop only) -->
+									<!-- Date col (large screens only) -->
 									<td
-										class="hidden px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums md:table-cell md:px-4"
+										class="hidden px-2 py-3 text-xs whitespace-nowrap text-text-tertiary tabular-nums lg:table-cell lg:px-4"
 									>
 										{format(tx.accountingDate, 'd MMM yyyy')}
 									</td>
 
-									<!-- Description col -->
+									<!-- Description col. The cost-group tag sits at the right end (its own
+									     inline editor) so it reads as a facet of the row without crowding
+									     the description text; date/account meta stack underneath until lg. -->
 									<td class="px-2 py-2 text-text-primary md:px-4 md:py-3">
-										<div class="flex min-w-0 items-center gap-2">
-											{#if isTransfer}
-												<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
-											{:else if isReview}
-												<AlertTriangle size={13} class="shrink-0 text-amber-500" />
-											{/if}
-											<button
-												type="button"
-												onclick={() => openDetail(tx)}
-												class="min-w-0 truncate text-left text-xs font-medium hover:underline md:text-sm"
-												title="View details"
-											>
-												{tx.description}
-											</button>
-											{#if isPending}
-												<Badge
-													variant="outline"
-													class="shrink-0 border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-700"
-												>
-													Pending
-												</Badge>
-											{:else if isReverted}
-												<Badge
-													variant="outline"
-													class="shrink-0 text-[10px] font-medium text-text-tertiary"
-												>
-													Returned
-												</Badge>
-											{/if}
-											{#if tx.notes}
-												<NoteHint note={tx.notes} />
-											{/if}
-											{#if tx.costGroup}
-												{@const cgColor = costGroupColors.get(tx.costGroup) ?? '#6b7280'}
+										<div class="flex items-center justify-between gap-2">
+											<div class="flex min-w-0 flex-1 items-center gap-2">
+												{#if isTransfer}
+													<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
+												{:else if isReview}
+													<AlertTriangle size={13} class="shrink-0 text-amber-500" />
+												{/if}
 												<button
 													type="button"
 													onclick={() => openDetail(tx)}
-													class="inline-flex max-w-[9rem] shrink-0 items-center gap-1 rounded-full border py-0.5 pr-2 pl-1.5 text-[10px] font-medium text-text-secondary transition-colors hover:brightness-95"
-													style="border-color: {cgColor}40; background-color: {cgColor}14;"
-													title="Cost group: {tx.costGroup}"
+													class="min-w-0 truncate text-left text-xs font-medium hover:underline md:text-sm"
+													title="View details"
 												>
-													<span
-														class="h-1.5 w-1.5 shrink-0 rounded-full"
-														style="background-color: {cgColor}"
-													></span>
-													<span class="truncate">{tx.costGroup}</span>
+													{tx.description}
 												</button>
-											{/if}
+												{#if isPending}
+													<Badge
+														variant="outline"
+														class="shrink-0 border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-700"
+													>
+														Pending
+													</Badge>
+												{:else if isReverted}
+													<Badge
+														variant="outline"
+														class="shrink-0 text-[10px] font-medium text-text-tertiary"
+													>
+														Returned
+													</Badge>
+												{/if}
+												{#if tx.notes}
+													<NoteHint note={tx.notes} />
+												{/if}
+											</div>
+											<CostGroupTag
+												txId={tx.id}
+												costGroup={tx.costGroup}
+												costGroups={data.costGroups}
+											/>
 										</div>
-										<!-- Mobile meta: date + account -->
-										<span class="mt-0.5 block text-[10px] text-text-tertiary md:hidden">
+										<!-- Compact meta: date + account, shown until the columns appear at lg -->
+										<span class="mt-0.5 block text-[10px] text-text-tertiary lg:hidden">
 											{format(tx.accountingDate, 'd MMM yyyy')}
 											{#if tx.accountName}
 												· {tx.accountName}{/if}
 										</span>
 									</td>
 
-									<!-- Account col (desktop only) -->
-									<td class="hidden px-2 py-3 md:table-cell md:px-4">
+									<!-- Account col (large screens only) -->
+									<td class="hidden px-2 py-3 lg:table-cell lg:px-4">
 										{#if tx.accountName}
 											<span
 												class="inline-flex items-center rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-text-secondary uppercase"
