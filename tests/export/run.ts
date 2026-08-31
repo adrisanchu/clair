@@ -41,6 +41,7 @@ const rows = [
 		category: null, // no raw bank value
 		categoryAI: 'Groceries', // AI tag
 		categoryOverride: 'Coffee', // user override → wins on export
+		isTransfer: false,
 		notes: 'CPH Day 1',
 		city: 'Copenhagen'
 	},
@@ -54,6 +55,25 @@ const rows = [
 		category: null,
 		categoryAI: null,
 		categoryOverride: null,
+		isTransfer: false,
+		notes: null,
+		city: null
+	},
+	{
+		// #43: a transfer row that carries a category — the category must stay in the
+		// Category cell while the transfer facet lands in the separate Type column.
+		id: 'tx-0003',
+		accountingDate: new Date(Date.UTC(2024, 5, 26)), // 2024-06-26
+		amount: -200,
+		// Deliberately avoids "transfer"/"traspaso" wording so the round-trip assertion
+		// isolates the Type column (the description-pattern detector must not confound it).
+		description: 'Savings pot top-up',
+		currency: 'EUR',
+		accountName: 'Revolut EUR',
+		category: 'Savings',
+		categoryAI: null,
+		categoryOverride: null,
+		isTransfer: true,
 		notes: null,
 		city: null
 	}
@@ -79,10 +99,27 @@ assert('id column emitted first', lines[1].startsWith('tx-0001,'), `got: ${lines
 assert('date formatted yyyy-MM-dd', lines[1].startsWith('tx-0001,2024-06-24,'), `got: ${lines[1]}`);
 assert('amount is dot-decimal', lines[1].includes(',-12.5,'), `got: ${lines[1]}`);
 assert('effective category uses user override', lines[1].includes(',Coffee,'), `got: ${lines[1]}`);
+assert('Type column present in header', EXPORT_HEADERS.includes('Type'));
+assert(
+	'non-transfer row has empty Type (category then empty Type cell)',
+	lines[1].includes(',Coffee,,'),
+	`got: ${lines[1]}`
+);
 assert(
 	'null enrichment → empty cells (salary row ends with commas)',
-	/,,,$/.test(lines[2]),
+	/,,,,$/.test(lines[2]),
 	`got: ${lines[2]}`
+);
+// #43: transfer row keeps its real category AND is marked transfer via the Type column.
+assert(
+	'transfer row keeps its category (Category cell not blanked)',
+	lines[3].includes(',Savings,'),
+	`got: ${lines[3]}`
+);
+assert(
+	'transfer row marked in Type column (Category then Type=transfer)',
+	lines[3].includes(',Savings,transfer,'),
+	`got: ${lines[3]}`
 );
 
 // ── Test 2: round-trip through the adaptive parser ─────────────────────────
@@ -117,6 +154,17 @@ assert('row 0 notes round-trips', r0?.notes === 'CPH Day 1', `got: ${r0?.notes}`
 assert('row 0 city round-trips', r0?.city === 'Copenhagen', `got: ${r0?.city}`);
 assert('row 0 internal id round-trips', r0?.internalId === 'tx-0001', `got: ${r0?.internalId}`);
 assert('row 1 internal id round-trips', result.rows[1]?.internalId === 'tx-0002', `got: ${result.rows[1]?.internalId}`);
+
+// #43: the transfer row's category survives the round-trip, and the Type column is
+// inert — the adaptive parser's empty transferTypes never flip isTransferCandidate.
+const r2 = result.rows[2];
+assert('transfer row category round-trips', r2?.category === 'Savings', `got: ${r2?.category}`);
+assert('transfer row internal id round-trips', r2?.internalId === 'tx-0003', `got: ${r2?.internalId}`);
+assert(
+	'Type column is informational — does not flag a transfer candidate on re-import',
+	r2?.isTransferCandidate === false,
+	`got: ${r2?.isTransferCandidate}`
+);
 
 console.log(`\n  Parsed ${result.rows.length} rows, skipped ${result.skippedCount}`);
 console.log(

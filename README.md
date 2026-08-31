@@ -2,6 +2,37 @@
 
 Personal finance aggregator for couples. Upload bank CSVs, let AI tag your transactions, and export a clean unified CSV — all in a private, invite-only app.
 
+## Vision
+
+Clair brings clarity to the finances of individuals and families who juggle multiple bank providers. When transactions live across different accounts, with different categorizations, or even in different currencies, it's hard to put the numbers together and answer everyday questions like _"How much did I spend on groceries over the past 3 months?"_ or _"What can I cut right now to save more this year?"_. Clair pulls it all into one place so those patterns become obvious.
+
+Three principles guide the product:
+
+1. **No bank integrations.** You upload your own data manually. No credentials, no third-party account access — you decide exactly what goes in.
+2. **Your data, always in control.** Import, process, and export freely, so you can keep working with your data from whatever tool you prefer.
+3. **Extensive, incremental features.** Start simple with a single account, and unlock more as your setup grows.
+
+### Feature ladder
+
+Single account — the core loop:
+
+1. Create a bank account
+2. Upload bank CSVs
+3. Auto-detect duplicated transactions within the account
+4. AI-tag transactions
+5. Export a clean CSV
+
+Once a second account joins:
+
+- **Transfers between accounts** — link a transaction to its counterpart in another account so the pair nets out instead of counting as separate income and expense.
+- **Cross-currency conversions** — derive an FX rate from a linked transfer and apply it to the rest of that period's expenses.
+- **Cost groups** — group transactions across accounts and categories to understand a habit or a one-off project (e.g. a trip).
+- **Split transactions & account sharing** — invite collaborators with view-only or view-and-edit access, for families and companies sharing expenses across owners.
+
+### What Clair is not
+
+Clair is not a bank, a fraud-risk agency, or a financial entity — it's a tool to organize your personal finances. It does nothing with your data unless you consent: the AI tagging model may learn from other users' categorizations, but only from those who opt in to sharing.
+
 ## Stack
 
 | Layer      | Choice                                            |

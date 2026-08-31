@@ -44,7 +44,10 @@ export interface BankParserProfile {
 	delimiter: string; // ',' | ';'
 	skipRows: number; // metadata rows before the header row
 	dateColumn: string; // accounting date / start date
-	dateFormat: string; // date-fns format: 'yyyy-MM-dd HH:mm:ss' | 'dd/MM/yyyy' etc.
+	// Preferred/common date-fns format for this bank's export ('yyyy-MM-dd HH:mm:ss' | 'dd/MM/yyyy'…).
+	// A hint, not a guarantee: the parser detects the format actually used by dateColumn at parse
+	// time (resolveDateFormat), so a re-saved export in a different but consistent format still parses.
+	dateFormat: string;
 	valueDateColumn: string | null; // settlement/end date (empty for PENDING rows)
 	amountColumn: string | null; // signed amount; null when debit/credit split
 	debitColumn: string | null;

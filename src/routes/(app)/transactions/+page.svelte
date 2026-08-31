@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { format } from 'date-fns';
 	import { DropdownMenu } from 'bits-ui';
@@ -22,6 +22,9 @@
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import NoteHint from '$lib/components/NoteHint.svelte';
+	import TransferHint from '$lib/components/TransferHint.svelte';
+	import TransferPairDialog from '$lib/components/transfers/TransferPairDialog.svelte';
+	import TransactionDetailSheet from '$lib/components/transactions/TransactionDetailSheet.svelte';
 	import CategorySelector from '$lib/components/CategorySelector.svelte';
 	import { cn } from '$lib/utils';
 	import type { PageData } from './$types';
@@ -40,6 +43,18 @@
 
 	let searchInput = $state(data.filters.q);
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// Transaction currently open in the transfer-pairing dialog.
+	let dialogTxId = $state<string | null>(null);
+
+	// Transaction currently open in the detail sheet (edit note / transfer flag).
+	let detailTx = $state<(typeof data.rows)[number] | null>(null);
+	let detailOpen = $state(false);
+
+	function openDetail(tx: (typeof data.rows)[number]) {
+		detailTx = tx;
+		detailOpen = true;
+	}
 
 	// Keep search input in sync when navigating via other filters
 	$effect(() => {
@@ -87,8 +102,23 @@
 	const activeAccountName = $derived(
 		data.accounts.find((a) => a.id === activeAccountId)?.displayName ?? null
 	);
+	const uploadOutcomeLabel: Record<string, string> = {
+		inserted: 'imported by this upload',
+		updated: 'updated by this upload',
+		duplicate: 'already present (duplicates) in this upload'
+	};
+	const activeUploadOutcome = $derived(
+		data.filters.uploadId && data.filters.uploadOutcome
+			? uploadOutcomeLabel[data.filters.uploadOutcome]
+			: null
+	);
 	const hasFilters = $derived(
-		!!(data.filters.q || data.filters.accountId || data.filters.filter !== 'all')
+		!!(
+			data.filters.q ||
+			data.filters.accountId ||
+			data.filters.filter !== 'all' ||
+			data.filters.uploadId
+		)
 	);
 
 	const totalPages = $derived(Math.max(1, Math.ceil(data.total / data.limit)));
@@ -256,6 +286,24 @@
 		{/if}
 	</div>
 
+	<!-- ── Upload-scoped notice ──────────────────────────────────────────────────── -->
+	{#if activeUploadOutcome}
+		<div
+			class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-primary-100 bg-primary-50 px-4 py-2 text-xs text-primary-700 md:px-8"
+		>
+			<span>Showing only transactions {activeUploadOutcome}.</span>
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={clearFilters}
+				class="h-6 gap-1 text-primary-600 hover:bg-primary-100 hover:text-primary-700"
+			>
+				<X size={12} />
+				Show all
+			</Button>
+		</div>
+	{/if}
+
 	<!-- ── Transactions table ──────────────────────────────────────────────────── -->
 	<div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
 		{#if data.rows.length === 0}
@@ -316,6 +364,11 @@
 							{@const isReverted = tx.status === 'reverted'}
 							{@const isPending = tx.status === 'pending'}
 							{@const isTransfer = tx.isTransfer}
+							{@const showTransferBadge = tx.isTransfer || tx.isFxCandidate}
+							{@const transferSettled = !!(
+								tx.transferCounterpartId ||
+								(tx.isFxCandidate && tx.conversionId)
+							)}
 							{@const isOpening = tx.isOpeningBalance}
 
 							{#if isOpening}
@@ -376,34 +429,34 @@
 										isReverted && 'opacity-60'
 									)}
 								>
-									<!-- Category col: status label or CategorySelector -->
+									<!-- Category col: category is always editable. Orthogonal facets show
+									     compactly beside it — a "Review Required" chip (needs attention),
+									     and a subtle "T" badge marking a transfer (see TransferHint). -->
 									<td class="px-2 py-2 md:px-4 md:py-3">
-										{#if isReview}
-											<div class="flex justify-start">
+										<div class="flex min-w-0 flex-col items-start gap-1">
+											{#if isReview}
 												<Badge
 													class="max-w-full min-w-0 shrink truncate border-amber-200 bg-amber-100 text-[11px] font-medium text-amber-700"
 												>
 													Review Required
 												</Badge>
+											{/if}
+											<div class="flex min-w-0 items-center gap-1.5">
+												<CategorySelector
+													txId={tx.id}
+													category={tx.category}
+													categoryAI={tx.categoryAI}
+													categoryOverride={tx.categoryOverride}
+													categories={data.categories}
+												/>
+												{#if showTransferBadge}
+													<TransferHint
+														status={transferSettled ? 'settled' : 'candidate'}
+														onclick={() => (dialogTxId = tx.id)}
+													/>
+												{/if}
 											</div>
-										{:else if isTransfer}
-											<div class="flex justify-start">
-												<Badge
-													variant="outline"
-													class="max-w-full min-w-0 shrink truncate text-[11px] font-medium text-text-secondary"
-												>
-													Transfer
-												</Badge>
-											</div>
-										{:else}
-											<CategorySelector
-												txId={tx.id}
-												category={tx.category}
-												categoryAI={tx.categoryAI}
-												categoryOverride={tx.categoryOverride}
-												categories={data.categories}
-											/>
-										{/if}
+										</div>
 									</td>
 
 									<!-- Date col (desktop only) -->
@@ -421,7 +474,14 @@
 											{:else if isReview}
 												<AlertTriangle size={13} class="shrink-0 text-amber-500" />
 											{/if}
-											<span class="truncate text-xs font-medium md:text-sm">{tx.description}</span>
+											<button
+												type="button"
+												onclick={() => openDetail(tx)}
+												class="min-w-0 truncate text-left text-xs font-medium hover:underline md:text-sm"
+												title="View details"
+											>
+												{tx.description}
+											</button>
 											{#if isPending}
 												<Badge
 													variant="outline"
@@ -557,3 +617,11 @@
 		</div>
 	{/if}
 </div>
+
+<TransferPairDialog
+	txId={dialogTxId}
+	onclose={() => (dialogTxId = null)}
+	onchange={() => invalidateAll()}
+/>
+
+<TransactionDetailSheet bind:open={detailOpen} tx={detailTx} />

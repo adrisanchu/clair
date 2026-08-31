@@ -1,5 +1,5 @@
-import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
-import { addDays, subDays } from 'date-fns';
+import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { subDays } from 'date-fns';
 import { db } from './db/index.js';
 import { bankAccounts, currencyConversions, transactions } from './db/schema.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
@@ -33,220 +33,307 @@ export interface CurrencyConversionResult {
 	toTransactionDescription: string;
 }
 
+interface ForeignAnchor {
+	id: string;
+	amount: string | number;
+	accountingDate: unknown;
+	bankAccountId: string;
+	description: string;
+	accountName: string;
+}
+
 /**
- * After inserting a batch of transactions, detect cross-currency conversion pairs
- * and create currency_conversions records.
+ * Resolve a single foreign-currency anchor — a flagged inbound (`isFxCandidate`,
+ * e.g. Revolut 'Cambio') on a non-EUR account — to its EUR funding leg, and create
+ * the `currency_conversions` record.
  *
- * Two flows depending on the account currency:
- *   - Non-EUR account: look for matching negative EUR transactions in the workspace
- *   - EUR account: look for existing unresolved positive foreign-currency transactions
+ * Matching strategy (#30): the flagged foreign leg is the **anchor**; the EUR funding
+ * leg is matched structurally — the nearest opposite-sign EUR row in a `[T-3, T]`
+ * window — **without requiring the EUR leg to be flagged**. A flagged EUR leg is
+ * merely preferred (it ranks first). This is what lets cross-bank funding link: a
+ * €250 wire from an unflagged Spanish EUR bank now matches the Revolut 'Cambio' it
+ * funded. Because FX legs cannot be amount-matched across currencies, keeping the
+ * flagged foreign leg as the anchor is what guards against over-pairing.
  *
- * Returns the list of conversions created.
+ * Returns the created conversion, or null when no EUR funder exists in the window.
  */
-export async function detectAndCreateConversions(
-	insertedIds: string[],
-	workspaceId: string,
-	accountCurrency: string
-): Promise<CurrencyConversionResult[]> {
-	if (insertedIds.length === 0) return [];
+async function resolveForeignAnchor(
+	fxTx: ForeignAnchor,
+	workspaceId: string
+): Promise<CurrencyConversionResult | null> {
+	const txDate = fxTx.accountingDate as unknown as Date;
+	const txDateStr = toDateStr(txDate);
+
+	const eurCandidates = await db
+		.select({
+			id: transactions.id,
+			amount: transactions.amount,
+			accountingDate: transactions.accountingDate,
+			bankAccountId: transactions.bankAccountId,
+			description: transactions.description,
+			accountName: bankAccounts.displayName
+		})
+		.from(transactions)
+		.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
+		.where(
+			and(
+				eq(bankAccounts.workspaceId, workspaceId),
+				eq(bankAccounts.currency, PRIMARY_CURRENCY),
+				sql`${transactions.amount}::numeric < 0`,
+				isNull(transactions.conversionId),
+				eq(transactions.isOpeningBalance, false),
+				// EUR outgoing must be ≤ FX settlement date, within 3 days
+				sql`${transactions.accountingDate}::date >= ${toDateStr(subDays(txDate, 3))}::date`,
+				sql`${transactions.accountingDate}::date <= ${txDateStr}::date`
+			)
+		)
+		// Prefer a flagged EUR leg (both sides typed as FX), then the closest by date.
+		.orderBy(
+			sql`${transactions.isFxCandidate} DESC`,
+			// date − date yields an integer day count directly (no EXTRACT needed).
+			sql`ABS(${transactions.accountingDate}::date - ${txDateStr}::date)`
+		)
+		.limit(5);
+
+	if (eurCandidates.length === 0) return null;
+
+	const best = eurCandidates[0];
+	const fxAmount = parseFloat(fxTx.amount as unknown as string);
+	const eurAmount = Math.abs(parseFloat(best.amount as unknown as string));
+	if (eurAmount === 0) return null;
+	const rate = fxAmount / eurAmount;
+	const effectiveFrom = best.accountingDate as unknown as Date;
+
+	const [conversion] = await db
+		.insert(currencyConversions)
+		.values({
+			workspaceId,
+			fromAccountId: best.bankAccountId,
+			toAccountId: fxTx.bankAccountId,
+			fromAmount: eurAmount.toFixed(4),
+			toAmount: fxAmount.toFixed(4),
+			exchangeRate: rate.toFixed(6),
+			effectiveFrom,
+			confidence: 'auto',
+			fromTransactionId: best.id,
+			toTransactionId: fxTx.id
+		})
+		.returning({ id: currencyConversions.id });
+
+	const count = await propagateRateToAccount(fxTx.bankAccountId);
+
+	return {
+		conversionId: conversion.id,
+		fromAccountId: best.bankAccountId,
+		toAccountId: fxTx.bankAccountId,
+		fromTransactionId: best.id,
+		toTransactionId: fxTx.id,
+		fromAmount: eurAmount,
+		toAmount: fxAmount,
+		exchangeRate: rate,
+		effectiveFrom,
+		affectedTxCount: count,
+		confidence: 'auto',
+		fromAccountName: best.accountName,
+		fromTransactionDescription: best.description,
+		toAccountName: fxTx.accountName,
+		toTransactionDescription: fxTx.description
+	};
+}
+
+/**
+ * High-confidence FX pairing: match the two legs of a single-provider conversion
+ * (e.g. Revolut) that share the **exact same `accountingDate` timestamp**.
+ *
+ * This is the drift-proof, bidirectional counterpart to `resolveForeignAnchor`.
+ * A conversion emits two `isFxCandidate` rows at the identical instant — one on a
+ * EUR account, one on the foreign account, with opposite signs. That covers BOTH
+ * directions the anchor scan cannot:
+ *   - EUR→foreign ("Conversión a SEK"): EUR leg negative, foreign leg positive.
+ *   - foreign→EUR ("Conversión a EUR"): foreign leg negative, EUR leg positive.
+ *
+ * Because the rate is derived from the actual pair (`|foreign| / |eur|`), it is
+ * immune to inter-day rate drift — the failure that left a reverse conversion
+ * mis-valued by a stale rate window and its legs unpaired.
+ *
+ * The conversion is stored NORMALISED (`fromAccount = EUR`, `toAccount = foreign`,
+ * rate = foreign-per-EUR) regardless of physical direction, so the row is a pure
+ * rate anchor and `propagateRateToAccount` keeps its `amountEur = amount / rate`
+ * semantics. Run BEFORE `rescanWorkspaceConversions` so its exact pairs claim the
+ * legs first; the anchor scan then handles only the looser cross-bank leftovers.
+ *
+ * Skips any transaction already recorded as a conversion leg.
+ */
+export async function detectFxPairs(workspaceId: string): Promise<CurrencyConversionResult[]> {
+	// Transactions already committed as a leg of some conversion — never re-pair them.
+	const existingLegs = await db
+		.select({
+			fromTransactionId: currencyConversions.fromTransactionId,
+			toTransactionId: currencyConversions.toTransactionId
+		})
+		.from(currencyConversions)
+		.where(eq(currencyConversions.workspaceId, workspaceId));
+
+	const claimed = new Set<string>();
+	for (const leg of existingLegs) {
+		if (leg.fromTransactionId) claimed.add(leg.fromTransactionId);
+		if (leg.toTransactionId) claimed.add(leg.toTransactionId);
+	}
+
+	const candidates = await db
+		.select({
+			id: transactions.id,
+			amount: transactions.amount,
+			accountingDate: transactions.accountingDate,
+			bankAccountId: transactions.bankAccountId,
+			description: transactions.description,
+			accountCurrency: bankAccounts.currency,
+			accountName: bankAccounts.displayName
+		})
+		.from(transactions)
+		.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
+		.where(
+			and(
+				eq(bankAccounts.workspaceId, workspaceId),
+				eq(transactions.isFxCandidate, true),
+				eq(transactions.isOpeningBalance, false)
+			)
+		)
+		.orderBy(asc(transactions.accountingDate));
+
+	// Group unclaimed candidates by exact instant so both legs of one conversion land
+	// in the same bucket regardless of which account they came from.
+	const byInstant = new Map<number, typeof candidates>();
+	for (const c of candidates) {
+		if (claimed.has(c.id)) continue;
+		const instant = (c.accountingDate as unknown as Date).getTime();
+		const bucket = byInstant.get(instant) ?? [];
+		bucket.push(c);
+		byInstant.set(instant, bucket);
+	}
 
 	const results: CurrencyConversionResult[] = [];
+	const touchedForeignAccounts = new Set<string>();
 
-	if (accountCurrency !== PRIMARY_CURRENCY) {
-		// Flow 1: new non-EUR transactions → find matching negative EUR transactions
-		const fxTxs = await db
-			.select({
-				id: transactions.id,
-				amount: transactions.amount,
-				accountingDate: transactions.accountingDate,
-				bankAccountId: transactions.bankAccountId,
-				description: transactions.description,
-				accountName: bankAccounts.displayName
-			})
-			.from(transactions)
-			.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
-			.where(
-				and(
-					inArray(transactions.id, insertedIds),
-					sql`${transactions.amount}::numeric > 0`,
-					eq(transactions.isFxCandidate, true),
-					isNull(transactions.conversionId)
-				)
-			);
+	for (const bucket of byInstant.values()) {
+		const eurLegs = bucket.filter((c) => c.accountCurrency === PRIMARY_CURRENCY);
+		const foreignLegs = bucket.filter((c) => c.accountCurrency !== PRIMARY_CURRENCY);
+		if (eurLegs.length === 0 || foreignLegs.length === 0) continue;
 
-		for (const fxTx of fxTxs) {
-			const txDate = fxTx.accountingDate as unknown as Date;
-			const txDateStr = toDateStr(txDate);
-
-			// Find matching negative EUR transactions in the same workspace (date window: C ≤ T ≤ C+3)
-			const eurCandidates = await db
-				.select({
-					id: transactions.id,
-					amount: transactions.amount,
-					accountingDate: transactions.accountingDate,
-					bankAccountId: transactions.bankAccountId,
-					description: transactions.description,
-					accountName: bankAccounts.displayName
-				})
-				.from(transactions)
-				.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
-				.where(
-					and(
-						eq(bankAccounts.workspaceId, workspaceId),
-						eq(bankAccounts.currency, PRIMARY_CURRENCY),
-						sql`${transactions.amount}::numeric < 0`,
-						eq(transactions.isFxCandidate, true),
-						// EUR outgoing must be ≤ FX settlement date, within 3 days
-						sql`${transactions.accountingDate} >= ${toDateStr(subDays(txDate, 3))}::date`,
-						sql`${transactions.accountingDate} <= ${txDateStr}::date`,
-						isNull(transactions.conversionId)
-					)
-				)
-				.orderBy(sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDateStr}::date)))`)
-				.limit(5);
-
-			if (eurCandidates.length === 0) continue;
-
-			const best = eurCandidates[0];
-			const fxAmount = parseFloat(fxTx.amount as unknown as string);
-			const eurAmount = Math.abs(parseFloat(best.amount as unknown as string));
-			const rate = fxAmount / eurAmount;
-			const effectiveFrom = best.accountingDate as unknown as Date;
-
-			const [conversion] = await db
-				.insert(currencyConversions)
-				.values({
-					workspaceId,
-					fromAccountId: best.bankAccountId,
-					toAccountId: fxTx.bankAccountId,
-					fromAmount: eurAmount.toFixed(4),
-					toAmount: fxAmount.toFixed(4),
-					exchangeRate: rate.toFixed(6),
-					effectiveFrom,
-					confidence: 'auto',
-					fromTransactionId: best.id,
-					toTransactionId: fxTx.id
-				})
-				.returning({ id: currencyConversions.id });
-
-			const count = await propagateRateToAccount(fxTx.bankAccountId);
-
-			results.push({
-				conversionId: conversion.id,
-				fromAccountId: best.bankAccountId,
-				toAccountId: fxTx.bankAccountId,
-				fromTransactionId: best.id,
-				toTransactionId: fxTx.id,
-				fromAmount: eurAmount,
-				toAmount: fxAmount,
-				exchangeRate: rate,
-				effectiveFrom,
-				affectedTxCount: count,
-				confidence: 'auto',
-				fromAccountName: best.accountName,
-				fromTransactionDescription: best.description,
-				toAccountName: fxTx.accountName,
-				toTransactionDescription: fxTx.description
+		const usedEur = new Set<string>();
+		for (const foreign of foreignLegs) {
+			const fxAmount = parseFloat(foreign.amount as unknown as string);
+			// Pair with the first unused EUR leg of opposite sign at the same instant.
+			const eur = eurLegs.find((e) => {
+				if (usedEur.has(e.id)) return false;
+				const eurAmount = parseFloat(e.amount as unknown as string);
+				return eurAmount !== 0 && fxAmount !== 0 && fxAmount > 0 !== eurAmount > 0;
 			});
-		}
-	} else {
-		// Flow 2: new EUR transactions → backfill existing unresolved foreign-currency transactions
-		const eurTxs = await db
-			.select({
-				id: transactions.id,
-				amount: transactions.amount,
-				accountingDate: transactions.accountingDate,
-				bankAccountId: transactions.bankAccountId,
-				description: transactions.description,
-				accountName: bankAccounts.displayName
-			})
-			.from(transactions)
-			.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
-			.where(
-				and(
-					inArray(transactions.id, insertedIds),
-					sql`${transactions.amount}::numeric < 0`,
-					eq(transactions.isFxCandidate, true)
-				)
-			);
+			if (!eur) continue;
+			usedEur.add(eur.id);
 
-		for (const eurTx of eurTxs) {
-			const txDate = eurTx.accountingDate as unknown as Date;
-			const txDateStr = toDateStr(txDate);
-			const eurAbsAmount = Math.abs(parseFloat(eurTx.amount as unknown as string));
-
-			// Find existing unresolved positive FX-candidate transactions on non-EUR accounts
-			// FX settlement T.date >= C.date, within 3 days
-			const fxCandidates = await db
-				.select({
-					id: transactions.id,
-					amount: transactions.amount,
-					accountingDate: transactions.accountingDate,
-					bankAccountId: transactions.bankAccountId,
-					description: transactions.description,
-					accountName: bankAccounts.displayName
-				})
-				.from(transactions)
-				.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
-				.where(
-					and(
-						eq(bankAccounts.workspaceId, workspaceId),
-						ne(bankAccounts.currency, PRIMARY_CURRENCY),
-						sql`${transactions.amount}::numeric > 0`,
-						eq(transactions.isFxCandidate, true),
-						isNull(transactions.conversionId),
-						sql`${transactions.accountingDate} >= ${txDateStr}::date`,
-						sql`${transactions.accountingDate} <= ${toDateStr(addDays(txDate, 3))}::date`
-					)
-				)
-				.orderBy(sql`ABS(EXTRACT(DAY FROM (${transactions.accountingDate} - ${txDateStr}::date)))`)
-				.limit(5);
-
-			if (fxCandidates.length === 0) continue;
-
-			const best = fxCandidates[0];
-			const fxAmount = parseFloat(best.amount as unknown as string);
-			const rate = fxAmount / eurAbsAmount;
-			const effectiveFrom = txDate;
+			const eurAmount = Math.abs(parseFloat(eur.amount as unknown as string));
+			const foreignAmount = Math.abs(fxAmount);
+			const rate = foreignAmount / eurAmount;
+			const effectiveFrom = foreign.accountingDate as unknown as Date;
 
 			const [conversion] = await db
 				.insert(currencyConversions)
 				.values({
 					workspaceId,
-					fromAccountId: eurTx.bankAccountId,
-					toAccountId: best.bankAccountId,
-					fromAmount: eurAbsAmount.toFixed(4),
-					toAmount: fxAmount.toFixed(4),
+					fromAccountId: eur.bankAccountId,
+					toAccountId: foreign.bankAccountId,
+					fromAmount: eurAmount.toFixed(4),
+					toAmount: foreignAmount.toFixed(4),
 					exchangeRate: rate.toFixed(6),
 					effectiveFrom,
 					confidence: 'auto',
-					fromTransactionId: eurTx.id,
-					toTransactionId: best.id
+					fromTransactionId: eur.id,
+					toTransactionId: foreign.id
 				})
 				.returning({ id: currencyConversions.id });
 
-			const count = await propagateRateToAccount(best.bankAccountId);
+			touchedForeignAccounts.add(foreign.bankAccountId);
 
 			results.push({
 				conversionId: conversion.id,
-				fromAccountId: eurTx.bankAccountId,
-				toAccountId: best.bankAccountId,
-				fromTransactionId: eurTx.id,
-				toTransactionId: best.id,
-				fromAmount: eurAbsAmount,
-				toAmount: fxAmount,
+				fromAccountId: eur.bankAccountId,
+				toAccountId: foreign.bankAccountId,
+				fromTransactionId: eur.id,
+				toTransactionId: foreign.id,
+				fromAmount: eurAmount,
+				toAmount: foreignAmount,
 				exchangeRate: rate,
 				effectiveFrom,
-				affectedTxCount: count,
+				affectedTxCount: 0,
 				confidence: 'auto',
-				fromAccountName: eurTx.accountName,
-				fromTransactionDescription: eurTx.description,
-				toAccountName: best.accountName,
-				toTransactionDescription: best.description
+				fromAccountName: eur.accountName,
+				fromTransactionDescription: eur.description,
+				toAccountName: foreign.accountName,
+				toTransactionDescription: foreign.description
 			});
 		}
 	}
 
+	// Re-propagate each touched foreign account once, after all its new rate windows exist.
+	for (const accountId of touchedForeignAccounts) {
+		const count = await propagateRateToAccount(accountId);
+		for (const r of results) {
+			if (r.toAccountId === accountId) r.affectedTxCount = count;
+		}
+	}
+
+	return results;
+}
+
+/**
+ * Detect cross-currency conversions across the whole workspace by (re)scanning every
+ * UNRESOLVED foreign anchor — not just the rows from the current import.
+ *
+ * Run on every import, this fixes two #30 failure modes at once:
+ *   - **Re-upload / late funder:** detection no longer hinges on a non-empty inserted
+ *     batch, so a EUR funder imported after the foreign leg (or a plain re-upload)
+ *     still links. This was the production silent-failure: a re-upload dedups to zero
+ *     inserts, so the old `insertedIds`-gated detector never ran.
+ *   - **Cross-bank funding:** the EUR leg no longer has to be flagged (see
+ *     `resolveForeignAnchor`), so funding from a non-Revolut EUR account links.
+ *
+ * The anchor must be a flagged foreign inbound (`isFxCandidate`) — the reliable signal
+ * a parser emits (e.g. Revolut 'Cambio'). Only the EUR funding leg is matched loosely.
+ * Foreign↔foreign conversions (no EUR leg) are intentionally out of scope.
+ */
+export async function rescanWorkspaceConversions(
+	workspaceId: string
+): Promise<CurrencyConversionResult[]> {
+	const anchors = await db
+		.select({
+			id: transactions.id,
+			amount: transactions.amount,
+			accountingDate: transactions.accountingDate,
+			bankAccountId: transactions.bankAccountId,
+			description: transactions.description,
+			accountName: bankAccounts.displayName
+		})
+		.from(transactions)
+		.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
+		.where(
+			and(
+				eq(bankAccounts.workspaceId, workspaceId),
+				ne(bankAccounts.currency, PRIMARY_CURRENCY),
+				sql`${transactions.amount}::numeric > 0`,
+				eq(transactions.isFxCandidate, true),
+				isNull(transactions.conversionId),
+				eq(transactions.isOpeningBalance, false)
+			)
+		)
+		// Oldest first so earlier conversions establish rate windows before later ones.
+		.orderBy(asc(transactions.accountingDate));
+
+	const results: CurrencyConversionResult[] = [];
+	for (const anchor of anchors) {
+		const result = await resolveForeignAnchor(anchor, workspaceId);
+		if (result) results.push(result);
+	}
 	return results;
 }
 
@@ -285,10 +372,10 @@ export async function propagateRateToAccount(accountId: string): Promise<number>
 		const dateRange =
 			nextConv !== undefined
 				? and(
-						sql`${transactions.accountingDate} >= ${effectiveFromStr}::date`,
-						sql`${transactions.accountingDate} < ${toDateStr(nextConv.effectiveFrom as unknown as Date)}::date`
+						sql`${transactions.accountingDate}::date >= ${effectiveFromStr}::date`,
+						sql`${transactions.accountingDate}::date < ${toDateStr(nextConv.effectiveFrom as unknown as Date)}::date`
 					)
-				: sql`${transactions.accountingDate} >= ${effectiveFromStr}::date`;
+				: sql`${transactions.accountingDate}::date >= ${effectiveFromStr}::date`;
 
 		const updated = await db
 			.update(transactions)

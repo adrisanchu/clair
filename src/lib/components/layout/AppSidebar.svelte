@@ -7,6 +7,7 @@
 		LayoutDashboard,
 		Landmark,
 		ArrowLeftRight,
+		Waypoints,
 		Upload,
 		Download,
 		Settings,
@@ -29,6 +30,7 @@
 		{ href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
 		{ href: '/accounts', label: 'Accounts', Icon: Landmark },
 		{ href: '/transactions', label: 'Transactions', Icon: ArrowLeftRight },
+		{ href: '/transfers', label: 'Transfers', Icon: Waypoints },
 		{ href: '/upload', label: 'Upload', Icon: Upload },
 		{ href: '/export', label: 'Export', Icon: Download }
 	];

@@ -44,14 +44,35 @@ const EXISTING_COLUMNS = {
 } as const;
 
 /**
+ * ISO calendar date (`yyyy-MM-dd`) for a `::date` SQL comparison.
+ *
+ * A raw `Date` interpolated into a `sql` template is serialised by the pg driver via
+ * `.toString()` (e.g. `Thu Jul 31 2025 …`), which PostgreSQL cannot cast to `::date`.
+ * Passing the date as a `yyyy-MM-dd` string sidesteps that. Uses UTC parts to match how
+ * `accountingDate` is stored (see parsers/normalizer.ts).
+ */
+function toDateStr(d: Date): string {
+	return d.toISOString().split('T')[0];
+}
+
+/**
  * Classify a normalised row before writing to the DB.
  *
  * Priority order:
  *  0. internalId match — an id echoed back by a Clair export+re-import (`transactions.id`).
  *     Exact and authoritative; makes edit attribution precise even for identical bank rows.
  *  1. externalId match (when the bank profile provides one)
- *  2. accountingDate + amount + description exact match
- *  3. accountingDate + amount only (description may have changed)
+ *  2. amount + description at the same instant, then (if none) on the same calendar day
+ *  3. amount only (description may have changed) at the same instant, then same calendar day
+ *
+ * accountingDate now carries the source CSV's hour/minute when it had one (else 00:00).
+ * Priorities 2 and 3 therefore match on the full timestamp first — this keeps two same-day
+ * purchases with an identical amount/description but different times apart, and lets a
+ * re-import of the exact same file pin each row to its own twin. When no same-instant row
+ * matches, they retry at day granularity (`::date`) so a re-import whose time was dropped
+ * (a date-only export) or shifted between statements (e.g. pending→posted) still dedupes.
+ * A date-only re-import of genuinely distinct same-day rows is inherently ambiguous — the
+ * day-only retry may merge them, which is the caller's responsibility to accept.
  *
  * On any match, an enrichment delta is computed from the row's (re-imported) Category /
  * Notes / City cells vs the stored values. When the effective category, notes, or city
@@ -66,11 +87,13 @@ export async function classifyRow(
 	bankAccountId: string,
 	externalId?: string
 ): Promise<DedupResult> {
+	// Day-only comparisons interpolate this string (not the raw Date) — see toDateStr.
+	const rowDate = toDateStr(row.accountingDate);
+
 	// Priority 0: internal id echoed back from a Clair export
 	if (row.internalId) {
 		const existing = await db.query.transactions.findFirst({
-			where: (t, { and, eq }) =>
-				and(eq(t.bankAccountId, bankAccountId), eq(t.id, row.internalId!)),
+			where: (t, { and, eq }) => and(eq(t.bankAccountId, bankAccountId), eq(t.id, row.internalId!)),
 			columns: EXISTING_COLUMNS
 		});
 		// Only trust the id when it resolves within this account; otherwise fall through.
@@ -87,21 +110,35 @@ export async function classifyRow(
 		if (existing) return resolveExactMatch(existing, row);
 	}
 
-	// Priority 2: accountingDate + amount + description (exact)
-	const sameExact = await db.query.transactions.findFirst({
-		where: (t, { and, eq, sql: s }) =>
-			and(
-				eq(t.bankAccountId, bankAccountId),
-				eq(t.accountingDate, row.accountingDate),
-				s`${t.amount}::numeric = ${row.amount}`,
-				s`md5(${t.description}) = md5(${row.description})`
-			),
-		columns: EXISTING_COLUMNS
-	});
+	// Priority 2: amount + description at the same instant, then the same calendar day.
+	// The exact-timestamp match keeps distinct same-day purchases apart; the day-only
+	// fallback still catches a re-import whose time was dropped or shifted.
+	const sameExact =
+		(await db.query.transactions.findFirst({
+			where: (t, { and, eq, sql: s }) =>
+				and(
+					eq(t.bankAccountId, bankAccountId),
+					eq(t.accountingDate, row.accountingDate),
+					s`${t.amount}::numeric = ${row.amount}`,
+					s`md5(${t.description}) = md5(${row.description})`
+				),
+			columns: EXISTING_COLUMNS
+		})) ??
+		(await db.query.transactions.findFirst({
+			where: (t, { and, eq, sql: s }) =>
+				and(
+					eq(t.bankAccountId, bankAccountId),
+					s`${t.accountingDate}::date = ${rowDate}::date`,
+					s`${t.amount}::numeric = ${row.amount}`,
+					s`md5(${t.description}) = md5(${row.description})`
+				),
+			columns: EXISTING_COLUMNS
+		}));
 	if (sameExact) return resolveExactMatch(sameExact, row);
 
-	// Priority 3: accountingDate + amount only (description may have changed)
-	const sameAmountDate = await db.query.transactions.findMany({
+	// Priority 3: amount only (description may have changed). Same instant first — so a
+	// same-day pair is disambiguated by time when possible — then the same calendar day.
+	let sameAmountDate = await db.query.transactions.findMany({
 		where: (t, { and, eq, sql: s }) =>
 			and(
 				eq(t.bankAccountId, bankAccountId),
@@ -110,6 +147,17 @@ export async function classifyRow(
 			),
 		columns: EXISTING_COLUMNS
 	});
+	if (sameAmountDate.length === 0) {
+		sameAmountDate = await db.query.transactions.findMany({
+			where: (t, { and, eq, sql: s }) =>
+				and(
+					eq(t.bankAccountId, bankAccountId),
+					s`${t.accountingDate}::date = ${rowDate}::date`,
+					s`${t.amount}::numeric = ${row.amount}`
+				),
+			columns: EXISTING_COLUMNS
+		});
+	}
 
 	if (sameAmountDate.length === 1) {
 		const existing = sameAmountDate[0];
@@ -133,7 +181,7 @@ function resolveExactMatch(existing: ExistingRow, row: NormalizedTransaction): D
 	if (statusTransition(existing.status, row.status))
 		return { action: 'update_status', existingId: existing.id, enrichment };
 	if (enrichment) return { action: 'update_enrichment', existingId: existing.id, enrichment };
-	return { action: 'skip' };
+	return { action: 'skip', existingId: existing.id };
 }
 
 /**

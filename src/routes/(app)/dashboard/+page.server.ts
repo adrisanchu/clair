@@ -4,7 +4,12 @@ import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
-import { queryRollingBalance, type Granularity } from '$lib/server/db/queries.js';
+import {
+	queryRollingBalance,
+	findActionableOrphans,
+	type Granularity,
+	type OrphanTransfer
+} from '$lib/server/db/queries.js';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) error(401);
@@ -37,14 +42,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			}[],
 			trendPercent: null as number | null,
 			balanceData: emptyBalance,
-			granularity
+			granularity,
+			orphans: [] as OrphanTransfer[]
 		};
 	}
 
 	const thirtyDaysAgo = new Date();
 	thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-	const [rows, recentSums, balanceData] = await Promise.all([
+	const [rows, recentSums, balanceData, orphans] = await Promise.all([
 		db
 			.select({
 				id: bankAccounts.id,
@@ -56,7 +62,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				status: bankAccounts.status,
 				ownerUserId: bankAccounts.ownerUserId,
 				txCount: count(transactions.id),
-				lastUploadedAt: sql<Date | null>`(SELECT MAX(${csvUploads.uploadedAt}) FROM ${csvUploads} WHERE ${csvUploads.bankAccountId} = ${bankAccounts.id})`
+				lastUploadedAt: sql<Date | null>`(SELECT to_char(MAX(${csvUploads.uploadedAt}), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM ${csvUploads} WHERE ${csvUploads.bankAccountId} = ${bankAccounts.id})`
 			})
 			.from(bankAccounts)
 			.leftJoin(
@@ -87,7 +93,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			)
 			.groupBy(transactions.bankAccountId),
 
-		queryRollingBalance(accessibleIds, granularity)
+		queryRollingBalance(accessibleIds, granularity),
+		findActionableOrphans(accessibleIds)
 	]);
 
 	const netChangeMap = new Map(
@@ -118,6 +125,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		accounts,
 		trendPercent,
 		balanceData,
-		granularity
+		granularity,
+		orphans
 	};
 };

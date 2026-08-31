@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatDistanceToNow } from 'date-fns';
+	import { formatRelativeTime } from '$lib/datetime';
 	import { DropdownMenu } from 'bits-ui';
 	import { Upload, EllipsisVertical, Pencil, Trash2 } from '@lucide/svelte';
 	import Amount from '$lib/components/Amount.svelte';
@@ -45,8 +45,7 @@
 	}
 
 	function formatLastUpload(date: Date | string | null): string {
-		if (!date) return 'No uploads yet';
-		return formatDistanceToNow(new Date(date), { addSuffix: true });
+		return formatRelativeTime(date);
 	}
 </script>
 

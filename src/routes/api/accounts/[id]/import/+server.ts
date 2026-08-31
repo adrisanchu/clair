@@ -23,9 +23,10 @@ import {
 import { upsertOpeningBalance, refreshCurrentBalance } from '$lib/server/balance.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { detectAndLinkTransfers } from '$lib/server/transfer-detector.js';
-import { detectAndCreateConversions } from '$lib/server/currency-converter.js';
+import { detectFxPairs, rescanWorkspaceConversions } from '$lib/server/currency-converter.js';
 import { autoTagUpload } from '$lib/server/ai/auto-tag.js';
 import type { NormalizedTransaction } from '$lib/server/parsers/types.js';
+import type { UploadOutcomeChange } from '$lib/server/db/schema.js';
 
 // ─── POST /api/accounts/[id]/import ───────────────────────────────────────────
 // Parse a CSV, dedup against existing transactions, and persist to DB.
@@ -105,6 +106,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	let enrichmentUpdatesCount = 0;
 	let flaggedCount = 0;
 
+	// Per-row outcomes for transparency: which existing rows were updated (and how)
+	// and which were exact duplicates. Inserted ids are collected after the batch insert.
+	const updatedIds: { id: string; change: UploadOutcomeChange }[] = [];
+	const duplicateIds: string[] = [];
+
 	const toInsert: (typeof transactions.$inferInsert)[] = [];
 
 	for (const row of rows) {
@@ -123,6 +129,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 				enrichmentUpdatesCount++;
 			}
 			statusUpdatesCount++;
+			updatedIds.push({ id: dedup.existingId, change: 'status' });
 		} else if (dedup.action === 'update_desc' && dedup.existingId) {
 			await applyDescUpdate(dedup.existingId, row);
 			if (dedup.enrichment) {
@@ -130,12 +137,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 				enrichmentUpdatesCount++;
 			}
 			statusUpdatesCount++;
+			updatedIds.push({ id: dedup.existingId, change: 'desc' });
 		} else if (dedup.action === 'update_enrichment' && dedup.existingId && dedup.enrichment) {
 			await applyEnrichmentUpdate(dedup.existingId, dedup.enrichment, locals.user.id);
 			enrichmentUpdatesCount++;
 			statusUpdatesCount++;
+			updatedIds.push({ id: dedup.existingId, change: 'enrichment' });
 		} else {
 			duplicateCount++;
+			if (dedup.existingId) duplicateIds.push(dedup.existingId);
 		}
 	}
 
@@ -148,14 +158,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		insertedIds.push(...inserted.map((r) => r.id));
 	}
 
-	// Update upload with actual counts
+	// Update upload with actual counts + per-row outcomes (for deep-linking)
 	await db
 		.update(csvUploads)
 		.set({
 			importedCount: importedCount + flaggedCount,
 			duplicateCount,
 			flaggedCount,
-			statusUpdates: statusUpdatesCount
+			statusUpdates: statusUpdatesCount,
+			outcome: { insertedIds, updatedIds, duplicateIds }
 		})
 		.where(eq(csvUploads.id, upload.id));
 
@@ -204,16 +215,23 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	// Detect and insert new categories from the CSV
 	const newCategories = await upsertNewCategories(rows, account.workspaceId);
 
-	// Transfer auto-detection and cross-currency conversion detection
-	const [unresolvedTransfers, detectedConversions] = await Promise.all([
+	// Transfer auto-detection (scoped to the new rows) and cross-currency conversion
+	// detection. Conversions rescan ALL unresolved foreign anchors in the workspace —
+	// not just this batch — so a re-upload or a late-arriving EUR funder still links.
+	// Exact-timestamp FX pairing runs first so it claims both legs (either direction)
+	// before the looser anchor rescan handles only cross-bank / off-timestamp leftovers.
+	const fxPairs = await detectFxPairs(account.workspaceId);
+	const [unresolvedTransfers, rescanConversions] = await Promise.all([
 		detectAndLinkTransfers(insertedIds, accessibleIds, locals.user.id),
-		detectAndCreateConversions(insertedIds, account.workspaceId, account.currency)
+		rescanWorkspaceConversions(account.workspaceId)
 	]);
+	const detectedConversions = [...fxPairs, ...rescanConversions];
 
 	// AI auto-tag uncategorised transactions (gracefully skips if no API key)
 	const aiTagResult = await autoTagUpload(upload.id, account.workspaceId);
 
 	return json({
+		uploadId: upload.id,
 		imported: importedCount,
 		flagged: flaggedCount,
 		statusUpdates: statusUpdatesCount,

@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import type { BankParserProfile, NormalizedTransaction } from './types.js';
 import {
 	normalizeRow,
+	resolveDateFormat,
 	detectOptionalColumn,
 	getUsedColumns,
 	CATEGORY_SYNONYMS,
@@ -202,9 +203,16 @@ function parseCSVStrict(
 	const optionalColumns = buildOptionalColumns(csvHeaders, columnOverrides);
 	const { columnMappings, unusedColumns } = buildColumnMeta(csvHeaders, profile, optionalColumns);
 
+	// Resolve the date format from the file itself: the profile's format is only a hint,
+	// and a re-saved export may use a different (but internally consistent) one.
+	const dateFormat = resolveDateFormat(
+		result.data.map((r) => r[profile.dateColumn]),
+		profile.dateFormat
+	);
+
 	for (let i = 0; i < result.data.length; i++) {
 		const raw = result.data[i];
-		let normalized = normalizeRow(raw, profile, optionalColumns);
+		let normalized = normalizeRow(raw, profile, optionalColumns, dateFormat);
 
 		if (!normalized) {
 			skippedCount++;
@@ -269,9 +277,16 @@ function parseXLSXStrict(
 	const optionalColumns = buildOptionalColumns(xlsxHeaders, columnOverrides);
 	const { columnMappings, unusedColumns } = buildColumnMeta(xlsxHeaders, profile, optionalColumns);
 
+	// Resolve the date format from the file itself: the profile's format is only a hint,
+	// and a re-saved export may use a different (but internally consistent) one.
+	const dateFormat = resolveDateFormat(
+		rowsData.map((r) => r[profile.dateColumn]),
+		profile.dateFormat
+	);
+
 	for (let i = 0; i < rowsData.length; i++) {
 		const raw = rowsData[i];
-		let normalized = normalizeRow(raw, profile, optionalColumns);
+		let normalized = normalizeRow(raw, profile, optionalColumns, dateFormat);
 
 		if (!normalized) {
 			skippedCount++;
