@@ -10,6 +10,15 @@ export interface CategoryRow {
 	createdAt: Date | string;
 }
 
+export interface CostGroupRow {
+	id: string;
+	workspaceId: string;
+	name: string;
+	color: string;
+	sortOrder: number;
+	createdAt: Date | string;
+}
+
 export interface Account {
 	id: string;
 	displayName: string;

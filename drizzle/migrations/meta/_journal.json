@@ -92,6 +92,20 @@
       "when": 1787940907077,
       "tag": "0012_goofy_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788173959544,
+      "tag": "0013_futuristic_scorpion",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788218125638,
+      "tag": "0014_sudden_ben_grimm",
+      "breakpoints": true
     }
   ]
 }

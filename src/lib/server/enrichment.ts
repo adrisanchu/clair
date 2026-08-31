@@ -9,6 +9,7 @@ export interface EnrichableExisting {
 	category: string | null; // raw bank-file value
 	categoryAI: string | null; // AI guess
 	categoryOverride: string | null; // human decision
+	costGroup: string | null; // cost bucket label (single source — no raw/AI split)
 	notes: string | null;
 	city: string | null;
 }
@@ -37,6 +38,12 @@ export function computeEnrichmentDelta(
 			existing.categoryOverride ?? existing.category ?? existing.categoryAI ?? null;
 		if (incomingCategory !== storedEffective) delta.categoryOverride = incomingCategory;
 	}
+
+	// Cost group has a single source (user/import), so we diff the incoming label directly
+	// against the stored column — no effective-value fallback like category.
+	const incomingCostGroup = row.costGroup?.trim();
+	if (incomingCostGroup && incomingCostGroup !== (existing.costGroup ?? null))
+		delta.costGroup = incomingCostGroup;
 
 	const incomingNotes = row.notes?.trim();
 	if (incomingNotes && incomingNotes !== (existing.notes ?? null)) delta.notes = incomingNotes;

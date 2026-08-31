@@ -5,6 +5,7 @@ import { db } from '$lib/server/db/index.js';
 import {
 	bankAccounts,
 	categories,
+	costGroups,
 	csvColumnMappings,
 	csvUploads,
 	transactions
@@ -212,8 +213,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	await refreshCurrentBalance(account.id);
 
-	// Detect and insert new categories from the CSV
+	// Detect and insert new categories + cost groups from the CSV
 	const newCategories = await upsertNewCategories(rows, account.workspaceId);
+	const newCostGroups = await upsertNewCostGroups(rows, account.workspaceId);
 
 	// Transfer auto-detection (scoped to the new rows) and cross-currency conversion
 	// detection. Conversions rescan ALL unresolved foreign anchors in the workspace —
@@ -240,6 +242,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		unresolvedTransfers,
 		detectedConversions,
 		newCategories,
+		newCostGroups,
 		aiTagged: aiTagResult.tagged
 	});
 };
@@ -298,6 +301,51 @@ async function upsertNewCategories(
 	return inserted;
 }
 
+/**
+ * Collect the unique cost-group labels carried by the CSV (only present when a Clair
+ * export is re-imported), find which ones don't exist yet in the workspace registry,
+ * insert them, and return the newly created cost-group names. Mirrors upsertNewCategories
+ * but flat — cost groups have no hierarchy — and resolves the label directly (no mapping UI).
+ */
+async function upsertNewCostGroups(
+	rows: NormalizedTransaction[],
+	workspaceId: string
+): Promise<Array<{ name: string; color: string }>> {
+	const csvCostGroups = [
+		...new Set(rows.map((r) => r.costGroup?.trim()).filter(Boolean) as string[])
+	];
+	if (csvCostGroups.length === 0) return [];
+
+	const existing = await db.query.costGroups.findMany({
+		where: eq(costGroups.workspaceId, workspaceId),
+		columns: { name: true }
+	});
+	const existingNames = new Set(existing.map((c) => c.name.toLowerCase()));
+
+	const toCreate = csvCostGroups.filter((name) => !existingNames.has(name.toLowerCase()));
+	if (toCreate.length === 0) return [];
+
+	const [{ maxOrder }] = await db
+		.select({ maxOrder: max(costGroups.sortOrder) })
+		.from(costGroups)
+		.where(eq(costGroups.workspaceId, workspaceId));
+	const startOrder = maxOrder != null ? maxOrder + 1 : 0;
+
+	const inserted = await db
+		.insert(costGroups)
+		.values(
+			toCreate.map((name, i) => ({
+				workspaceId,
+				name,
+				color: randomCategoryColor(),
+				sortOrder: startOrder + i
+			}))
+		)
+		.returning({ name: costGroups.name, color: costGroups.color });
+
+	return inserted;
+}
+
 function buildTxInsert(
 	row: NormalizedTransaction,
 	bankAccountId: string,
@@ -319,6 +367,7 @@ function buildTxInsert(
 		isTransfer: row.isTransferCandidate,
 		isFxCandidate: row.isFxCandidate,
 		category: row.category ?? null,
+		costGroup: row.costGroup ?? null,
 		city: row.city ?? null,
 		notes: row.notes ?? null,
 		originalOrder: row.sourceIndex,

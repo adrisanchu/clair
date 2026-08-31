@@ -123,6 +123,7 @@ export interface TxRow {
 	category: string | null; // raw bank-file value
 	categoryAI: string | null; // AI guess
 	categoryOverride: string | null; // human decision
+	costGroup: string | null; // cross-cutting cost bucket label
 	bankAccountId: string;
 	accountName: string | null;
 	bankProfileId: string | null;
@@ -150,6 +151,7 @@ export interface ExportTxRow {
 	category: string | null; // raw bank-file value
 	categoryAI: string | null; // AI guess
 	categoryOverride: string | null; // human decision (takes precedence on export)
+	costGroup: string | null; // cross-cutting cost bucket label — emitted as the Cost Group column
 	isTransfer: boolean; // transfer facet — emitted as the Type column, orthogonal to category
 	notes: string | null;
 	city: string | null;
@@ -188,6 +190,7 @@ export async function queryTransactionsForExport(
 			category: transactions.category,
 			categoryAI: transactions.categoryAI,
 			categoryOverride: transactions.categoryOverride,
+			costGroup: transactions.costGroup,
 			isTransfer: transactions.isTransfer,
 			notes: transactions.notes,
 			city: transactions.city
@@ -288,6 +291,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				category: transactions.category,
 				categoryAI: transactions.categoryAI,
 				categoryOverride: transactions.categoryOverride,
+				costGroup: transactions.costGroup,
 				bankAccountId: transactions.bankAccountId,
 				accountName: bankAccounts.displayName,
 				bankProfileId: bankAccounts.bankProfileId

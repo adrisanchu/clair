@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "categories_workspace_name_idx" ON "core"."categories" USING btree ("workspace_id","name");--> statement-breakpoint
+CREATE UNIQUE INDEX "cost_groups_workspace_name_idx" ON "core"."cost_groups" USING btree ("workspace_id","name");

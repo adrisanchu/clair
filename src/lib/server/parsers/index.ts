@@ -7,6 +7,7 @@ import {
 	detectOptionalColumn,
 	getUsedColumns,
 	CATEGORY_SYNONYMS,
+	COST_GROUP_SYNONYMS,
 	CITY_SYNONYMS,
 	NOTES_SYNONYMS,
 	ID_SYNONYMS,
@@ -130,12 +131,16 @@ const FIELD_LABELS: Record<'category' | 'city' | 'notes', string> = {
 };
 
 function buildOptionalColumns(headers: string[], overrides: ColumnOverrides): OptionalColumns {
-	// The id column is authoritative (not a user-chosen enrichment mapping), so it is
+	// The id and cost-group columns are authoritative (not user-chosen enrichment mappings):
+	// they only appear in a re-imported Clair export and map straight through, so they are
 	// always auto-detected from the headers even when explicit overrides are supplied.
 	const idColumn = detectOptionalColumn(headers, ID_SYNONYMS);
-	if (overrides) return { ...overrides, idColumn: overrides.idColumn ?? idColumn };
+	const costGroupColumn = detectOptionalColumn(headers, COST_GROUP_SYNONYMS);
+	if (overrides)
+		return { ...overrides, idColumn: overrides.idColumn ?? idColumn, costGroupColumn };
 	return {
 		categoryColumn: detectOptionalColumn(headers, CATEGORY_SYNONYMS),
+		costGroupColumn,
 		cityColumn: detectOptionalColumn(headers, CITY_SYNONYMS),
 		notesColumn: detectOptionalColumn(headers, NOTES_SYNONYMS),
 		idColumn
