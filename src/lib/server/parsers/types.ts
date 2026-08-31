@@ -14,6 +14,7 @@ export type SemanticField =
 	| 'type'
 	| 'fee'
 	| 'category'
+	| 'costGroup'
 	| 'city'
 	| 'notes';
 
@@ -87,6 +88,7 @@ export interface NormalizedTransaction {
 	isTransferCandidate: boolean; // derived from rawType + profile.transferTypes
 	isFxCandidate: boolean; // derived from rawType + profile.fxCandidateTypes
 	category: string | null; // from CSV if user pre-filled a category column; null otherwise
+	costGroup: string | null; // cost bucket label from CSV (e.g. a re-imported Clair export); null otherwise
 	city: string | null; // from CSV if user pre-filled a city column; null otherwise
 	notes: string | null; // from CSV if user pre-filled a notes column; null otherwise
 	internalId: string | null; // Clair transaction id echoed back by an exported+re-imported file; null otherwise
@@ -108,6 +110,7 @@ export type DedupAction =
  */
 export interface EnrichmentDelta {
 	categoryOverride?: string; // effective category changed → written as a human override
+	costGroup?: string; // cost group label changed → written directly (single source)
 	notes?: string;
 	city?: string;
 }

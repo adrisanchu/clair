@@ -33,6 +33,7 @@ export const EXPORT_HEADERS = [
 	'Currency',
 	'Account',
 	'Category',
+	'Cost Group',
 	'Type',
 	'Notes',
 	'City'
@@ -47,6 +48,8 @@ export const EXPORT_HEADERS = [
  * - Amount → plain dot-decimal, no thousands separators (parseAmount-friendly).
  * - Category → effective value: human override, else raw bank value, else AI guess,
  *   matching what the /transactions page shows.
+ * - Cost Group → the transaction's cost bucket label (a cross-cutting lens, orthogonal
+ *   to Category). Empty when unassigned. Re-imports straight back into `cost_group`.
  * - Type → `transfer` for transfer rows, else empty. Keeps the transfer facet out of
  *   the Category cell so a transfer's real category stays visible in the file.
  */
@@ -62,6 +65,7 @@ export function toCsv(
 		Currency: r.currency,
 		Account: r.accountName ?? '',
 		Category: r.categoryOverride ?? r.category ?? r.categoryAI ?? '',
+		'Cost Group': r.costGroup ?? '',
 		Type: r.isTransfer ? 'transfer' : '',
 		Notes: r.notes ?? '',
 		City: r.city ?? ''

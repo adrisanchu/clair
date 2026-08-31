@@ -149,6 +149,14 @@ export const SEMANTIC_SYNONYMS: Record<SemanticField, string[]> = {
 		'clasificación',
 		'clasificacion'
 	],
+	costGroup: [
+		'cost group',
+		'cost_group',
+		'costgroup',
+		'grupo de coste',
+		'grupo de gasto',
+		'grupo'
+	],
 	city: [
 		'city',
 		'ciudad',
@@ -208,6 +216,7 @@ const FIELD_PRIORITY: SemanticField[] = [
 	'fee',
 	'localAmount',
 	'category',
+	'costGroup',
 	'city',
 	'notes'
 ];

@@ -180,6 +180,14 @@ export const transactions = coreSchema.table(
 		categoryOverride: text('category_override'),
 		// categoryOverrideById references auth.user.id — enforced at app layer
 		categoryOverrideById: text('category_override_by_id'),
+
+		// Cross-cutting cost bucket (e.g. "Trip to Perú") that spans many categories.
+		// Stored as a label like `category`; the registry lives in `cost_groups`. Unlike
+		// category there is no raw/AI split — the only source is the user (in-app or import).
+		costGroup: text('cost_group'),
+		// costGroupById references auth.user.id — enforced at app layer
+		costGroupById: text('cost_group_by_id'),
+
 		notes: text('notes'),
 		city: text('city'),
 		tags: text('tags').array().default([]).notNull(),
@@ -296,6 +304,29 @@ export const categories = coreSchema.table('categories', {
 	sortOrder: integer('sort_order').default(0).notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull()
 });
+
+// ─── Cost groups ───────────────────────────────────────────────────────────
+// Cross-cutting cost buckets (e.g. "Trip to Perú", "Work expenses") that span many
+// categories. A view-only lens: assigning a transaction to a cost group changes no
+// totals. Flat (no hierarchy). Like categories, transactions reference these by name
+// (text label), not by id — the id/color/sortOrder here back the settings manager.
+
+export const costGroups = coreSchema.table('cost_groups', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	workspaceId: text('workspace_id')
+		.notNull()
+		.references(() => workspaces.id),
+	name: text('name').notNull(),
+	color: text('color').default('#6b7280').notNull(),
+	sortOrder: integer('sort_order').default(0).notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull()
+});
+
+export const costGroupsRelations = relations(costGroups, ({ one }) => ({
+	workspace: one(workspaces, { fields: [costGroups.workspaceId], references: [workspaces.id] })
+}));
 
 // ─── CSV column mappings ───────────────────────────────────────────────────
 

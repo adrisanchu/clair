@@ -39,6 +39,7 @@ const EXISTING_COLUMNS = {
 	category: true,
 	categoryAI: true,
 	categoryOverride: true,
+	costGroup: true,
 	notes: true,
 	city: true
 } as const;
@@ -283,6 +284,10 @@ export async function applyEnrichmentUpdate(
 	if (delta.categoryOverride !== undefined) {
 		set.categoryOverride = delta.categoryOverride;
 		set.categoryOverrideById = overrideById;
+	}
+	if (delta.costGroup !== undefined) {
+		set.costGroup = delta.costGroup;
+		set.costGroupById = overrideById;
 	}
 	if (delta.notes !== undefined) set.notes = delta.notes;
 	if (delta.city !== undefined) set.city = delta.city;

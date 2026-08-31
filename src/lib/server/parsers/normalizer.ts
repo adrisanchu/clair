@@ -6,6 +6,7 @@ import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 // ─── Optional column synonym lists (re-exported from detector for backward compat) ──
 
 export const CATEGORY_SYNONYMS = SEMANTIC_SYNONYMS.category;
+export const COST_GROUP_SYNONYMS = SEMANTIC_SYNONYMS.costGroup;
 export const CITY_SYNONYMS = SEMANTIC_SYNONYMS.city;
 export const NOTES_SYNONYMS = SEMANTIC_SYNONYMS.notes;
 export { ID_SYNONYMS };
@@ -13,6 +14,7 @@ export { ID_SYNONYMS };
 /** Shape of the optional (non-bank) columns detected from a file's headers. */
 export interface OptionalColumns {
 	categoryColumn: string | null;
+	costGroupColumn: string | null;
 	cityColumn: string | null;
 	notesColumn: string | null;
 	idColumn: string | null;
@@ -56,6 +58,7 @@ export function normalizeRow(
 	profile: BankParserProfile,
 	optionalColumns: OptionalColumns = {
 		categoryColumn: null,
+		costGroupColumn: null,
 		cityColumn: null,
 		notesColumn: null,
 		idColumn: null
@@ -118,6 +121,9 @@ export function normalizeRow(
 		isFxCandidate: rawType !== null && profile.fxCandidateTypes.includes(rawType),
 		category: optionalColumns.categoryColumn
 			? raw[optionalColumns.categoryColumn]?.trim() || null
+			: null,
+		costGroup: optionalColumns.costGroupColumn
+			? raw[optionalColumns.costGroupColumn]?.trim() || null
 			: null,
 		city: optionalColumns.cityColumn ? raw[optionalColumns.cityColumn]?.trim() || null : null,
 		notes: optionalColumns.notesColumn ? raw[optionalColumns.notesColumn]?.trim() || null : null,
