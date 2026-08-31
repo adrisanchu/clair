@@ -24,6 +24,7 @@
 
 	let notes = $state('');
 	let isTransfer = $state(false);
+	let costGroup = $state<string | null>(null);
 	let submitting = $state(false);
 	let fieldError = $state<string | null>(null);
 	let confirmUnlinkOpen = $state(false);
@@ -33,6 +34,7 @@
 		if (open && tx) {
 			notes = tx.notes ?? '';
 			isTransfer = tx.isTransfer;
+			costGroup = tx.costGroup ?? null;
 			fieldError = null;
 		}
 	});
@@ -44,7 +46,12 @@
 	// A transfer that is flagged but has no counterpart — un-checking is the fix.
 	const isOrphanTransfer = $derived(!!tx && tx.isTransfer && tx.transferCounterpartId === null);
 
-	const dirty = $derived(!!tx && (notes.trim() !== (tx.notes ?? '') || isTransfer !== tx.isTransfer));
+	const dirty = $derived(
+		!!tx &&
+			(notes.trim() !== (tx.notes ?? '') ||
+				isTransfer !== tx.isTransfer ||
+				costGroup !== (tx.costGroup ?? null))
+	);
 
 	// Turning off the transfer flag on a row that is linked to a counterpart breaks the
 	// pair on both sides — a destructive change we confirm before applying (server also
@@ -71,7 +78,7 @@
 			const res = await fetch(`/api/transactions/${tx.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ notes: notes.trim() || null, isTransfer })
+				body: JSON.stringify({ notes: notes.trim() || null, isTransfer, costGroup })
 			});
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({ message: 'Something went wrong' }));
@@ -122,16 +129,11 @@
 				</dl>
 
 				<!-- Cost group — a cross-cutting bucket (e.g. a trip) spanning categories.
-				     Edited here (not in the crowded table); PATCHes immediately, then
-				     refreshes the list so the row's cost-group tag updates. -->
+				     Edited here (not in the crowded table); saved with the Save button
+				     alongside notes / transfer flag. -->
 				<div class="grid gap-1.5">
 					<Label for="tx-cost-group">Cost group</Label>
-					<CostGroupSelector
-						txId={tx.id}
-						costGroup={tx.costGroup}
-						{costGroups}
-						onchange={() => invalidateAll()}
-					/>
+					<CostGroupSelector bind:value={costGroup} {costGroups} disabled={submitting} />
 					<p class="text-xs text-text-tertiary">
 						Group this transaction with others across categories — a trip, a project, a shared cost.
 					</p>
