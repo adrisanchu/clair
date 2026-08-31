@@ -41,6 +41,7 @@ const rows = [
 		category: null, // no raw bank value
 		categoryAI: 'Groceries', // AI tag
 		categoryOverride: 'Coffee', // user override → wins on export
+		costGroup: 'Copenhagen trip', // cross-cutting cost bucket
 		isTransfer: false,
 		notes: 'CPH Day 1',
 		city: 'Copenhagen'
@@ -55,6 +56,7 @@ const rows = [
 		category: null,
 		categoryAI: null,
 		categoryOverride: null,
+		costGroup: null,
 		isTransfer: false,
 		notes: null,
 		city: null
@@ -73,6 +75,7 @@ const rows = [
 		category: 'Savings',
 		categoryAI: null,
 		categoryOverride: null,
+		costGroup: null,
 		isTransfer: true,
 		notes: null,
 		city: null
@@ -99,15 +102,21 @@ assert('id column emitted first', lines[1].startsWith('tx-0001,'), `got: ${lines
 assert('date formatted yyyy-MM-dd', lines[1].startsWith('tx-0001,2024-06-24,'), `got: ${lines[1]}`);
 assert('amount is dot-decimal', lines[1].includes(',-12.5,'), `got: ${lines[1]}`);
 assert('effective category uses user override', lines[1].includes(',Coffee,'), `got: ${lines[1]}`);
+assert('Cost Group column present in header', EXPORT_HEADERS.includes('Cost Group'));
 assert('Type column present in header', EXPORT_HEADERS.includes('Type'));
 assert(
-	'non-transfer row has empty Type (category then empty Type cell)',
-	lines[1].includes(',Coffee,,'),
+	'cost group emitted after category',
+	lines[1].includes(',Coffee,Copenhagen trip,'),
 	`got: ${lines[1]}`
 );
 assert(
-	'null enrichment → empty cells (salary row ends with commas)',
-	/,,,,$/.test(lines[2]),
+	'non-transfer row has empty Type (category, cost group, then empty Type cell)',
+	lines[1].includes(',Coffee,Copenhagen trip,,'),
+	`got: ${lines[1]}`
+);
+assert(
+	'null enrichment → empty cells (salary row ends with commas: cost group, type, notes, city)',
+	/,,,,,$/.test(lines[2]),
 	`got: ${lines[2]}`
 );
 // #43: transfer row keeps its real category AND is marked transfer via the Type column.
@@ -117,8 +126,8 @@ assert(
 	`got: ${lines[3]}`
 );
 assert(
-	'transfer row marked in Type column (Category then Type=transfer)',
-	lines[3].includes(',Savings,transfer,'),
+	'transfer row marked in Type column (Category, empty Cost Group, then Type=transfer)',
+	lines[3].includes(',Savings,,transfer,'),
 	`got: ${lines[3]}`
 );
 
@@ -150,6 +159,11 @@ assert(
 );
 assert('row 0 currency round-trips', r0?.currency === 'EUR', `got: ${r0?.currency}`);
 assert('row 0 category = override value', r0?.category === 'Coffee', `got: ${r0?.category}`);
+assert(
+	'row 0 cost group round-trips',
+	r0?.costGroup === 'Copenhagen trip',
+	`got: ${r0?.costGroup}`
+);
 assert('row 0 notes round-trips', r0?.notes === 'CPH Day 1', `got: ${r0?.notes}`);
 assert('row 0 city round-trips', r0?.city === 'Copenhagen', `got: ${r0?.city}`);
 assert('row 0 internal id round-trips', r0?.internalId === 'tx-0001', `got: ${r0?.internalId}`);

@@ -99,6 +99,7 @@ const EXISTING_COLUMNS = {
 	category: true,
 	categoryAI: true,
 	categoryOverride: true,
+	costGroup: true,
 	notes: true,
 	city: true
 } as const;
