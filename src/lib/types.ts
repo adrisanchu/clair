@@ -10,6 +10,13 @@ export interface CategoryRow {
 	createdAt: Date | string;
 }
 
+/** One node in a batch category reorder/re-nest request. */
+export interface CategoryReorderItem {
+	id: string;
+	parentId: string | null;
+	sortOrder: number;
+}
+
 export interface CostGroupRow {
 	id: string;
 	workspaceId: string;

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { DropdownMenu } from 'bits-ui';
-	import { EllipsisVertical, Pencil, Trash2, Plus } from '@lucide/svelte';
+	import { EllipsisVertical, Pencil, Trash2, Plus, GripVertical } from '@lucide/svelte';
 	import CategoryFormSheet from './CategoryFormSheet.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import type { CategoryRow } from '$lib/types';
@@ -12,9 +12,21 @@
 		/** Indented display for subcategories */
 		isChild?: boolean;
 		childCount?: number;
+		/** Drag-and-drop wiring (owner only) — provided by CategoryList */
+		dragDisabled?: boolean;
+		onGrab?: (e: MouseEvent | TouchEvent) => void;
+		onGrabKeydown?: (e: KeyboardEvent) => void;
 	}
 
-	let { category, isOwner, isChild = false, childCount = 0 }: Props = $props();
+	let {
+		category,
+		isOwner,
+		isChild = false,
+		childCount = 0,
+		dragDisabled = true,
+		onGrab,
+		onGrabKeydown
+	}: Props = $props();
 
 	let isRenaming = $state(false);
 	let renameValue = $state('');
@@ -53,10 +65,25 @@
 </script>
 
 <div
-	class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-sunken {isChild
-		? 'ml-6'
-		: ''} {isDeleting ? 'opacity-50' : ''}"
+	class="flex items-center gap-2 rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-sunken {isDeleting
+		? 'opacity-50'
+		: ''}"
 >
+	<!-- Drag handle (owner only) -->
+	{#if isOwner}
+		<button
+			type="button"
+			class="shrink-0 cursor-grab touch-none rounded p-0.5 text-text-tertiary transition-colors hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 active:cursor-grabbing"
+			aria-label="Drag to reorder or nest"
+			tabindex={dragDisabled ? 0 : -1}
+			onmousedown={onGrab}
+			ontouchstart={onGrab}
+			onkeydown={onGrabKeydown}
+		>
+			<GripVertical size={14} />
+		</button>
+	{/if}
+
 	<!-- Color dot -->
 	<span class="h-3 w-3 shrink-0 rounded-full" style="background-color: {category.color}"></span>
 
