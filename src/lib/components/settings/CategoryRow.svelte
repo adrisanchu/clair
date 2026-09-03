@@ -12,21 +12,15 @@
 		/** Indented display for subcategories */
 		isChild?: boolean;
 		childCount?: number;
-		/** Drag-and-drop wiring (owner only) — provided by CategoryList */
-		dragDisabled?: boolean;
-		onGrab?: (e: MouseEvent | TouchEvent) => void;
-		onGrabKeydown?: (e: KeyboardEvent) => void;
 	}
 
-	let {
-		category,
-		isOwner,
-		isChild = false,
-		childCount = 0,
-		dragDisabled = true,
-		onGrab,
-		onGrabKeydown
-	}: Props = $props();
+	let { category, isOwner, isChild = false, childCount = 0 }: Props = $props();
+
+	// Keep clicks on the action buttons from being read as a drag-start by the
+	// surrounding svelte-dnd-action zone (the whole row is draggable).
+	function stopDrag(e: MouseEvent) {
+		e.stopPropagation();
+	}
 
 	let isRenaming = $state(false);
 	let renameValue = $state('');
@@ -69,19 +63,14 @@
 		? 'opacity-50'
 		: ''}"
 >
-	<!-- Drag handle (owner only) -->
+	<!-- Drag handle (owner only) — visual affordance; the whole row is draggable -->
 	{#if isOwner}
-		<button
-			type="button"
-			class="shrink-0 cursor-grab touch-none rounded p-0.5 text-text-tertiary transition-colors hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 active:cursor-grabbing"
-			aria-label="Drag to reorder or nest"
-			tabindex={dragDisabled ? 0 : -1}
-			onmousedown={onGrab}
-			ontouchstart={onGrab}
-			onkeydown={onGrabKeydown}
+		<span
+			class="shrink-0 cursor-grab text-text-tertiary active:cursor-grabbing"
+			aria-hidden="true"
 		>
 			<GripVertical size={14} />
-		</button>
+		</span>
 	{/if}
 
 	<!-- Color dot -->
@@ -114,7 +103,8 @@
 
 	<!-- Owner actions -->
 	{#if isOwner}
-		<div class="flex shrink-0 items-center gap-0.5">
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="flex shrink-0 items-center gap-0.5" onmousedown={stopDrag}>
 			{#if !isChild}
 				<button
 					class="rounded p-1 text-text-tertiary transition-colors hover:text-text-secondary"

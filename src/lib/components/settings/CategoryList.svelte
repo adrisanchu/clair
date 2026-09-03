@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Tags } from '@lucide/svelte';
 	import { flip } from 'svelte/animate';
-	import { dndzone, SOURCES, TRIGGERS, type DndEvent } from 'svelte-dnd-action';
+	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import CategoryRow from './CategoryRow.svelte';
@@ -50,10 +50,21 @@
 	}
 
 	// ─── Drag state ────────────────────────────────────────────────────────────
-	let dragDisabled = $state(true);
+	// Constant per owner — never toggled mid-gesture. svelte-dnd-action only attaches
+	// its mousedown listener while dragging is enabled, so toggling it on grab would
+	// swallow the first click. The whole row is the drag target; the handle is decorative.
+	const dragDisabled = $derived(!isOwner);
 	let isDragging = $state(false);
+	let draggedId = $state<string | null>(null);
 	let hint = $state('');
 	let hintTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// A parent with subcategories can't be nested (would create a 3rd level). While
+	// one is being dragged we disable drops on every child zone so the drop falls
+	// through to the root zone — turning an otherwise-rejected move into a clean reorder.
+	const draggedHasChildren = $derived(
+		draggedId ? (childMap[draggedId]?.length ?? 0) > 0 : false
+	);
 
 	function showHint(msg: string) {
 		hint = msg;
@@ -61,29 +72,15 @@
 		hintTimer = setTimeout(() => (hint = ''), 4000);
 	}
 
-	function startGrab(e: MouseEvent | TouchEvent) {
-		if (!isOwner) return;
-		e.preventDefault();
-		dragDisabled = false;
-	}
-
-	function grabKeydown(e: KeyboardEvent) {
-		if (!isOwner) return;
-		if ((e.key === 'Enter' || e.key === ' ') && dragDisabled) {
-			e.preventDefault();
-			dragDisabled = false;
-		}
-	}
-
 	function syncDragState(e: CustomEvent<DndEvent<CategoryRowType>>) {
 		isDragging = true;
-		const { source, trigger } = e.detail.info;
-		if (source === SOURCES.KEYBOARD && trigger === TRIGGERS.DRAG_STOPPED) dragDisabled = true;
+		const { id } = e.detail.info;
+		if (id) draggedId = id;
 	}
 
-	function finishDrag(e: CustomEvent<DndEvent<CategoryRowType>>) {
+	function finishDrag() {
 		isDragging = false;
-		if (e.detail.info.source === SOURCES.POINTER) dragDisabled = true;
+		draggedId = null;
 		scheduleValidateAndPersist();
 	}
 
@@ -94,7 +91,7 @@
 	}
 	function finalizeRoot(e: CustomEvent<DndEvent<CategoryRowType>>) {
 		rootItems = e.detail.items;
-		finishDrag(e);
+		finishDrag();
 	}
 	function considerChild(parentId: string, e: CustomEvent<DndEvent<CategoryRowType>>) {
 		childMap[parentId] = e.detail.items;
@@ -102,7 +99,7 @@
 	}
 	function finalizeChild(parentId: string, e: CustomEvent<DndEvent<CategoryRowType>>) {
 		childMap[parentId] = e.detail.items;
-		finishDrag(e);
+		finishDrag();
 	}
 
 	// ─── Persist ───────────────────────────────────────────────────────────────
@@ -200,20 +197,20 @@
 							{isOwner}
 							isChild={false}
 							childCount={(childMap[parent.id] ?? []).length}
-							{dragDisabled}
-							onGrab={startGrab}
-							onGrabKeydown={grabKeydown}
 						/>
 
-						<!-- Nested child zone: accepts reordering + re-nesting into this parent -->
+						<!-- Nested child zone: accepts reordering + re-nesting into this parent.
+						     Refuses foreign drops while a parent-with-children is dragged so the
+						     drop falls through to the root zone (clean reorder, no 3rd level). -->
 						<div
-							class="ml-6 min-h-2 {isDragging
+							class="ml-6 min-h-2 {isDragging && !draggedHasChildren
 								? 'my-1 rounded-lg border border-dashed border-border/70'
 								: ''}"
 							use:dndzone={{
 								items: childMap[parent.id] ?? [],
 								dragDisabled,
 								flipDurationMs,
+								dropFromOthersDisabled: draggedHasChildren,
 								dropTargetStyle: {},
 								dropTargetClasses,
 								type: 'categories'
@@ -223,14 +220,7 @@
 						>
 							{#each childMap[parent.id] ?? [] as child (child.id)}
 								<div animate:flip={{ duration: flipDurationMs }}>
-									<CategoryRow
-										category={child}
-										{isOwner}
-										isChild={true}
-										{dragDisabled}
-										onGrab={startGrab}
-										onGrabKeydown={grabKeydown}
-									/>
+									<CategoryRow category={child} {isOwner} isChild={true} />
 								</div>
 							{/each}
 						</div>

@@ -16,7 +16,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.from(categories)
 			.where(eq(categories.workspaceId, workspaceId))
 			.orderBy(
-				sql`COALESCE(${categories.parentId}, ${categories.id})`,
+				sql`coalesce((select p.sort_order from ${categories} p where p.id = ${categories.parentId}), ${categories.sortOrder})`,
+				sql`(${categories.parentId} is not null)`,
 				asc(categories.sortOrder),
 				asc(categories.name)
 			),
