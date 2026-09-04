@@ -19,8 +19,11 @@ export const GET: RequestHandler = async ({ locals }) => {
 		.select()
 		.from(categories)
 		.where(eq(categories.workspaceId, locals.user.workspaceId))
+		// Root's sort_order first (children borrow their parent's), parent before its
+		// children, then siblings by their own sort_order.
 		.orderBy(
-			sql`COALESCE(${categories.parentId}, ${categories.id})`,
+			sql`coalesce((select p.sort_order from ${categories} p where p.id = ${categories.parentId}), ${categories.sortOrder})`,
+			sql`(${categories.parentId} is not null)`,
 			asc(categories.sortOrder),
 			asc(categories.name)
 		);

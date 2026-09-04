@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { DropdownMenu } from 'bits-ui';
-	import { EllipsisVertical, Pencil, Trash2, Plus } from '@lucide/svelte';
+	import { EllipsisVertical, Pencil, Trash2, Plus, GripVertical } from '@lucide/svelte';
 	import CategoryFormSheet from './CategoryFormSheet.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import type { CategoryRow } from '$lib/types';
@@ -15,6 +15,12 @@
 	}
 
 	let { category, isOwner, isChild = false, childCount = 0 }: Props = $props();
+
+	// Keep clicks on the action buttons from being read as a drag-start by the
+	// surrounding svelte-dnd-action zone (the whole row is draggable).
+	function stopDrag(e: MouseEvent) {
+		e.stopPropagation();
+	}
 
 	let isRenaming = $state(false);
 	let renameValue = $state('');
@@ -53,10 +59,20 @@
 </script>
 
 <div
-	class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-sunken {isChild
-		? 'ml-6'
-		: ''} {isDeleting ? 'opacity-50' : ''}"
+	class="flex items-center gap-2 rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-sunken {isDeleting
+		? 'opacity-50'
+		: ''}"
 >
+	<!-- Drag handle (owner only) — visual affordance; the whole row is draggable -->
+	{#if isOwner}
+		<span
+			class="shrink-0 cursor-grab text-text-tertiary active:cursor-grabbing"
+			aria-hidden="true"
+		>
+			<GripVertical size={14} />
+		</span>
+	{/if}
+
 	<!-- Color dot -->
 	<span class="h-3 w-3 shrink-0 rounded-full" style="background-color: {category.color}"></span>
 
@@ -87,7 +103,8 @@
 
 	<!-- Owner actions -->
 	{#if isOwner}
-		<div class="flex shrink-0 items-center gap-0.5">
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="flex shrink-0 items-center gap-0.5" onmousedown={stopDrag}>
 			{#if !isChild}
 				<button
 					class="rounded p-1 text-text-tertiary transition-colors hover:text-text-secondary"

@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { Tags } from '@lucide/svelte';
+	import { flip } from 'svelte/animate';
+	import { dndzone, type DndEvent } from 'svelte-dnd-action';
+	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import CategoryRow from './CategoryRow.svelte';
 	import CategoryFormSheet from './CategoryFormSheet.svelte';
-	import type { CategoryRow as CategoryRowType } from '$lib/types';
+	import type { CategoryRow as CategoryRowType, CategoryReorderItem } from '$lib/types';
 
 	interface Props {
 		categories: CategoryRowType[];
@@ -13,36 +16,149 @@
 	let { categories, isOwner }: Props = $props();
 
 	let addOpen = $state(false);
+	const flipDurationMs = 150;
 
-	interface CategoryGroup {
-		parent: CategoryRowType;
-		children: CategoryRowType[];
+	// ─── Local, drag-mutable tree ──────────────────────────────────────────────
+	// Seeded from the server `categories` prop; drops mutate these optimistically,
+	// then we persist and re-sync via invalidateAll(). Never mutates category names,
+	// so transaction labels (which link by name) are unaffected.
+
+	function buildTree(source: CategoryRowType[]) {
+		const parents = source.filter((c) => c.parentId === null);
+		const map: Record<string, CategoryRowType[]> = {};
+		for (const p of parents) map[p.id] = [];
+		for (const c of source) {
+			if (c.parentId !== null && map[c.parentId]) map[c.parentId].push(c);
+		}
+		return { parents, map };
 	}
 
-	// Build tree: group subcategories under their parents
-	const groups = $derived.by(() => {
-		const parents = categories.filter((c) => c.parentId === null);
-		const childMap = new Map<string, CategoryRowType[]>();
+	const seed = buildTree(categories);
+	let rootItems = $state<CategoryRowType[]>(seed.parents);
+	let childMap = $state<Record<string, CategoryRowType[]>>(seed.map);
 
-		for (const c of categories) {
-			if (c.parentId !== null) {
-				const arr = childMap.get(c.parentId) ?? [];
-				arr.push(c);
-				childMap.set(c.parentId, arr);
+	// Re-sync whenever the server data changes (initial mount + after invalidateAll).
+	// Not tracked during a drag because only rootItems/childMap change then, not `categories`.
+	$effect(() => {
+		resetFromServer();
+	});
+
+	function resetFromServer() {
+		const { parents, map } = buildTree(categories);
+		rootItems = parents;
+		childMap = map;
+	}
+
+	// ─── Drag state ────────────────────────────────────────────────────────────
+	// Constant per owner — never toggled mid-gesture. svelte-dnd-action only attaches
+	// its mousedown listener while dragging is enabled, so toggling it on grab would
+	// swallow the first click. The whole row is the drag target; the handle is decorative.
+	const dragDisabled = $derived(!isOwner);
+	let isDragging = $state(false);
+	let draggedId = $state<string | null>(null);
+	let hint = $state('');
+	let hintTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// A parent with subcategories can't be nested (would create a 3rd level). While
+	// one is being dragged we disable drops on every child zone so the drop falls
+	// through to the root zone — turning an otherwise-rejected move into a clean reorder.
+	const draggedHasChildren = $derived(
+		draggedId ? (childMap[draggedId]?.length ?? 0) > 0 : false
+	);
+
+	function showHint(msg: string) {
+		hint = msg;
+		clearTimeout(hintTimer);
+		hintTimer = setTimeout(() => (hint = ''), 4000);
+	}
+
+	function syncDragState(e: CustomEvent<DndEvent<CategoryRowType>>) {
+		isDragging = true;
+		const { id } = e.detail.info;
+		if (id) draggedId = id;
+	}
+
+	function finishDrag() {
+		isDragging = false;
+		draggedId = null;
+		scheduleValidateAndPersist();
+	}
+
+	// ─── Zone handlers ─────────────────────────────────────────────────────────
+	function considerRoot(e: CustomEvent<DndEvent<CategoryRowType>>) {
+		rootItems = e.detail.items;
+		syncDragState(e);
+	}
+	function finalizeRoot(e: CustomEvent<DndEvent<CategoryRowType>>) {
+		rootItems = e.detail.items;
+		finishDrag();
+	}
+	function considerChild(parentId: string, e: CustomEvent<DndEvent<CategoryRowType>>) {
+		childMap[parentId] = e.detail.items;
+		syncDragState(e);
+	}
+	function finalizeChild(parentId: string, e: CustomEvent<DndEvent<CategoryRowType>>) {
+		childMap[parentId] = e.detail.items;
+		finishDrag();
+	}
+
+	// ─── Persist ───────────────────────────────────────────────────────────────
+	// A cross-zone move fires finalize on both source and target zones; coalesce
+	// into a single validate + persist pass via a microtask.
+	let persistScheduled = false;
+	function scheduleValidateAndPersist() {
+		if (persistScheduled) return;
+		persistScheduled = true;
+		queueMicrotask(() => {
+			persistScheduled = false;
+			validateAndPersist();
+		});
+	}
+
+	function buildPayload(): CategoryReorderItem[] {
+		const out: CategoryReorderItem[] = [];
+		rootItems.forEach((p, i) => {
+			out.push({ id: p.id, parentId: null, sortOrder: i });
+			(childMap[p.id] ?? []).forEach((c, j) => {
+				out.push({ id: c.id, parentId: p.id, sortOrder: j });
+			});
+		});
+		return out;
+	}
+
+	async function validateAndPersist() {
+		// Illegal nesting: a category dropped one level deep that itself has children
+		// would create a 3rd level. Block it, revert, and hint.
+		for (const p of rootItems) {
+			for (const c of childMap[p.id] ?? []) {
+				if ((childMap[c.id]?.length ?? 0) > 0) {
+					showHint(`"${c.name}" has subcategories — move those out before nesting it.`);
+					resetFromServer();
+					return;
+				}
 			}
 		}
 
-		return parents.map(
-			(p): CategoryGroup => ({
-				parent: p,
-				children: childMap.get(p.id) ?? []
-			})
-		);
-	});
+		const res = await fetch('/api/settings/categories/reorder', {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ items: buildPayload() })
+		});
+
+		if (!res.ok) {
+			showHint('Could not save the new order — reverted.');
+			resetFromServer();
+			return;
+		}
+
+		await invalidateAll();
+	}
+
+	const dropTargetClasses = ['rounded-lg', 'ring-1', 'ring-primary-500/30', 'bg-primary-500/5'];
 </script>
 
 <div class="space-y-1">
-	{#if groups.length === 0}
+	{#if rootItems.length === 0}
 		<div
 			class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-12"
 		>
@@ -59,21 +175,63 @@
 		</div>
 	{:else}
 		<div class="rounded-xl border border-border bg-surface">
-			{#each groups as group, i (group.parent.id)}
-				{#if i > 0}
-					<div class="mx-3 h-px bg-border"></div>
-				{/if}
-				<CategoryRow
-					category={group.parent}
-					{isOwner}
-					isChild={false}
-					childCount={group.children.length}
-				/>
-				{#each group.children as child (child.id)}
-					<CategoryRow category={child} {isOwner} isChild={true} />
+			<div
+				use:dndzone={{
+					items: rootItems,
+					dragDisabled,
+					flipDurationMs,
+					dropTargetStyle: {},
+					dropTargetClasses,
+					type: 'categories'
+				}}
+				onconsider={considerRoot}
+				onfinalize={finalizeRoot}
+			>
+				{#each rootItems as parent, i (parent.id)}
+					<div animate:flip={{ duration: flipDurationMs }}>
+						{#if i > 0}
+							<div class="mx-3 h-px bg-border"></div>
+						{/if}
+						<CategoryRow
+							category={parent}
+							{isOwner}
+							isChild={false}
+							childCount={(childMap[parent.id] ?? []).length}
+						/>
+
+						<!-- Nested child zone: accepts reordering + re-nesting into this parent.
+						     Refuses foreign drops while a parent-with-children is dragged so the
+						     drop falls through to the root zone (clean reorder, no 3rd level). -->
+						<div
+							class="ml-6 min-h-2 {isDragging && !draggedHasChildren
+								? 'my-1 rounded-lg border border-dashed border-border/70'
+								: ''}"
+							use:dndzone={{
+								items: childMap[parent.id] ?? [],
+								dragDisabled,
+								flipDurationMs,
+								dropFromOthersDisabled: draggedHasChildren,
+								dropTargetStyle: {},
+								dropTargetClasses,
+								type: 'categories'
+							}}
+							onconsider={(e) => considerChild(parent.id, e)}
+							onfinalize={(e) => finalizeChild(parent.id, e)}
+						>
+							{#each childMap[parent.id] ?? [] as child (child.id)}
+								<div animate:flip={{ duration: flipDurationMs }}>
+									<CategoryRow category={child} {isOwner} isChild={true} />
+								</div>
+							{/each}
+						</div>
+					</div>
 				{/each}
-			{/each}
+			</div>
 		</div>
+
+		{#if hint}
+			<p class="px-1 pt-1 text-xs text-danger-600">{hint}</p>
+		{/if}
 
 		{#if isOwner}
 			<div class="pt-2">
