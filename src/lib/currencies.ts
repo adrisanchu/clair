@@ -25,6 +25,9 @@ export const CURRENCIES: { code: string; label: string }[] = [
 	{ code: 'INR', label: 'INR — Indian Rupee' },
 	{ code: 'BRL', label: 'BRL — Brazilian Real' },
 	{ code: 'MXN', label: 'MXN — Mexican Peso' },
+	{ code: 'PEN', label: 'PEN — Peruvian Sol' },
+	{ code: 'COP', label: 'COP — Colombian Peso' },
+	{ code: 'VES', label: 'VES — Venezuelan Bolívar' },
 	{ code: 'ZAR', label: 'ZAR — South African Rand' },
 	{ code: 'TRY', label: 'TRY — Turkish Lira' },
 	{ code: 'PLN', label: 'PLN — Polish Zloty' },
@@ -34,8 +37,10 @@ export const CURRENCIES: { code: string; label: string }[] = [
 	{ code: 'BGN', label: 'BGN — Bulgarian Lev' },
 	{ code: 'ISK', label: 'ISK — Icelandic Króna' },
 	{ code: 'THB', label: 'THB — Thai Baht' },
+	{ code: 'VND', label: 'VND — Vietnamese Dong' },
 	{ code: 'MYR', label: 'MYR — Malaysian Ringgit' },
-	{ code: 'IDR', label: 'IDR — Indonesian Rupiah' }
+	{ code: 'IDR', label: 'IDR — Indonesian Rupiah' },
+	{ code: 'LKR', label: 'LKR — Sri Lankan Rupee' },
 ];
 
 export const CURRENCY_CODES = CURRENCIES.map((c) => c.code);
