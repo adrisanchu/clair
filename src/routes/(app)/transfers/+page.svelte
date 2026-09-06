@@ -7,6 +7,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TransferPairCard from '$lib/components/transfers/TransferPairCard.svelte';
 	import TransferPairDialog from '$lib/components/transfers/TransferPairDialog.svelte';
+	import ConversionAdvice from '$lib/components/transfers/ConversionAdvice.svelte';
 	import { buttonVariants } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
 	import type { PageData } from './$types';
@@ -93,6 +94,10 @@
 					{orphan.candidateCount}
 					possible {orphan.candidateCount === 1 ? 'match' : 'matches'} in another account
 				</p>
+			{:else if orphan.kind === 'conversion' && orphan.advice}
+				<div class="mt-0.5">
+					<ConversionAdvice advice={orphan.advice} />
+				</div>
 			{:else}
 				<p class="mt-0.5 text-[11px] text-text-tertiary">No match in your accounts — likely external</p>
 			{/if}
