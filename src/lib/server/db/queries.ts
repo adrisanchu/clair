@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, ne, or, sql
 import { addDays, subDays } from 'date-fns';
 import { db } from './index.js';
 import { transactions, bankAccounts, currencyConversions, csvUploads } from './schema.js';
-import { PRIMARY_CURRENCY } from '$lib/currencies.js';
+import { PRIMARY_CURRENCY, parseCurrencyFromDescription } from '$lib/currencies.js';
 import { TRANSFER_MATCH_WINDOW_DAYS } from '$lib/constants/transfers.js';
 
 export const TX_PAGE_SIZE = 25;
@@ -402,10 +402,27 @@ export interface TransferPair {
  * attention"), 0 means an external transfer with no in-app match ("unmatched").
  * `kind` distinguishes a same-currency transfer from a cross-currency FX candidate.
  */
+/**
+ * Advisor metadata for an unmatched conversion: what currency the missing counterpart leg
+ * should be in, whether an account of that currency exists, and the date window it would sit in.
+ * Drives the guidance line on the /transfers page. Only set for unmatched conversions.
+ */
+export interface OrphanAdvice {
+	/** Currency the missing counterpart leg should be in; null when it can't be inferred. */
+	expectedCurrency: string | null;
+	/** Whether an accessible account already uses that currency. */
+	hasAccount: boolean;
+	/** ± window around the orphan's date where the counterpart would sit. */
+	windowStart: Date;
+	windowEnd: Date;
+}
+
 export interface OrphanTransfer {
 	tx: TxLeg;
 	kind: 'transfer' | 'conversion';
 	candidateCount: number;
+	/** Guidance for clearing an unmatched conversion (see OrphanAdvice). */
+	advice?: OrphanAdvice;
 }
 
 export interface TransferPairsResult {
@@ -565,7 +582,7 @@ export async function findActionableOrphans(accessibleIds: string[]): Promise<Or
 export async function queryTransferPairs(accessibleIds: string[]): Promise<TransferPairsResult> {
 	if (accessibleIds.length === 0) return { settled: [], orphans: [] };
 
-	const [legs, conversions, orphans] = await Promise.all([
+	const [legs, conversions, orphans, accountCurrencyRows] = await Promise.all([
 		fetchAccessibleLegs(accessibleIds),
 		db
 			.select()
@@ -576,8 +593,13 @@ export async function queryTransferPairs(accessibleIds: string[]): Promise<Trans
 					isNotNull(currencyConversions.toTransactionId)
 				)
 			),
-		computeOrphans(accessibleIds)
+		computeOrphans(accessibleIds),
+		db
+			.select({ currency: bankAccounts.currency })
+			.from(bankAccounts)
+			.where(inArray(bankAccounts.id, accessibleIds))
 	]);
+	const accountCurrencies = new Set(accountCurrencyRows.map((r) => r.currency));
 
 	const byId = new Map<string, RawLeg>(legs.map((l) => [l.id, l]));
 	const orient = (a: TxLeg, b: TxLeg): { out: TxLeg; in: TxLeg } =>
@@ -615,7 +637,32 @@ export async function queryTransferPairs(accessibleIds: string[]): Promise<Trans
 	}
 
 	settled.sort((a, b) => b.out.accountingDate.getTime() - a.out.accountingDate.getTime());
-	return { settled, orphans };
+
+	// Annotate unmatched conversions with advice on what's missing (currency account or the
+	// specific statement) so the /transfers page can guide the user to reconcile them.
+	const advisedOrphans = orphans.map((o) => {
+		if (o.kind !== 'conversion' || o.candidateCount > 0) return o;
+		const isForeignLeg = o.tx.currency !== PRIMARY_CURRENCY;
+		let expectedCurrency: string | null;
+		if (isForeignLeg) {
+			expectedCurrency = PRIMARY_CURRENCY; // counterpart of a foreign leg is the EUR leg
+		} else {
+			const parsed = parseCurrencyFromDescription(o.tx.description);
+			expectedCurrency = parsed && parsed !== PRIMARY_CURRENCY ? parsed : null;
+		}
+		const d = o.tx.accountingDate;
+		return {
+			...o,
+			advice: {
+				expectedCurrency,
+				hasAccount: expectedCurrency ? accountCurrencies.has(expectedCurrency) : false,
+				windowStart: subDays(d, TRANSFER_MATCH_WINDOW_DAYS),
+				windowEnd: addDays(d, TRANSFER_MATCH_WINDOW_DAYS)
+			}
+		};
+	});
+
+	return { settled, orphans: advisedOrphans };
 }
 
 export interface TransferCandidateItem extends TxLeg {

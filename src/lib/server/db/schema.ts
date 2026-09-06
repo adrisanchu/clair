@@ -209,6 +209,10 @@ export const transactions = coreSchema.table(
 		// Conversion linking — self-referential, set on BOTH legs when a conversion is created
 		// (mirrors transferCounterpartId). Non-null ⇔ this row is a settled conversion leg. → transactions.id
 		conversionCounterpartId: text('conversion_counterpart_id'),
+		// User opt-out: when true, automatic conversion detection ignores this row (set when the
+		// user rejects/unlinks an auto-detected pair, so re-imports don't recreate it). Cleared
+		// when the user manually links the row as a conversion.
+		fxDetectionExcluded: boolean('fx_detection_excluded').default(false).notNull(),
 		// Locked exchange rate used to compute amountEur (foreign-currency / EUR)
 		exchangeRate: numeric('exchange_rate', { precision: 14, scale: 6 }),
 

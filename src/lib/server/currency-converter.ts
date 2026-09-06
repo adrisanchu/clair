@@ -3,7 +3,7 @@ import { addDays, subDays } from 'date-fns';
 import { db } from './db/index.js';
 import { bankAccounts, currencyConversions, transactions } from './db/schema.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
-import { FX_ANCHOR_WINDOW_DAYS } from '$lib/constants/transfers.js';
+import { FX_ANCHOR_WINDOW_DAYS, FX_RATE_TOLERANCE } from '$lib/constants/transfers.js';
 
 /**
  * Converts a Date (or Drizzle date result) to a plain `YYYY-MM-DD` string.
@@ -61,6 +61,35 @@ interface ForeignAnchor {
 	bankAccountId: string;
 	description: string;
 	accountName: string;
+	accountCurrency: string;
+}
+
+/**
+ * Median foreign-per-EUR rate of the conversions already recorded for `currency` in the
+ * workspace, or null when none exist yet. Used as the baseline for the rate-plausibility
+ * guard so a new auto-match with a wildly off rate (an unrelated EUR leg) is rejected.
+ */
+async function referenceRateForCurrency(
+	workspaceId: string,
+	currency: string
+): Promise<number | null> {
+	const rows = await db
+		.select({ rate: currencyConversions.exchangeRate })
+		.from(currencyConversions)
+		.innerJoin(bankAccounts, eq(currencyConversions.toAccountId, bankAccounts.id))
+		.where(
+			and(
+				eq(currencyConversions.workspaceId, workspaceId),
+				eq(bankAccounts.currency, currency)
+			)
+		);
+	const rates = rows
+		.map((r) => parseFloat(r.rate as unknown as string))
+		.filter((r) => Number.isFinite(r) && r > 0)
+		.sort((a, b) => a - b);
+	if (rates.length === 0) return null;
+	const mid = Math.floor(rates.length / 2);
+	return rates.length % 2 === 0 ? (rates[mid - 1] + rates[mid]) / 2 : rates[mid];
 }
 
 /**
@@ -73,13 +102,15 @@ interface ForeignAnchor {
  *     so match the nearest opposite-sign EUR **incoming** in `[T, T + W]`.
  * (W = `FX_ANCHOR_WINDOW_DAYS`.)
  *
- * Matching strategy (#30): the flagged foreign leg is the **anchor**; the EUR leg is
- * matched structurally — the nearest opposite-sign EUR row in the window — **without
- * requiring the EUR leg to be flagged**. A flagged EUR leg is merely preferred (it ranks
- * first). This is what lets cross-bank funding link: a €250 wire from an unflagged
- * Spanish EUR bank now matches the Revolut 'Cambio' it funded. Because FX legs cannot be
- * amount-matched across currencies, keeping the flagged foreign leg as the anchor is what
- * guards against over-pairing.
+ * Matching strategy: the flagged foreign leg is the **anchor**; the EUR leg is the nearest
+ * opposite-sign EUR row in the window that is **itself a flagged FX leg** (`isFxCandidate`).
+ * Requiring the EUR leg to be flagged is what stops the matcher inventing nonsense pairs —
+ * without it, an anchor bound to whatever EUR row happened to be nearby (a card purchase, an
+ * ATM withdrawal), producing a wildly off rate. As a second guard, when earlier conversions
+ * already exist for this currency the implied rate must be within `FX_RATE_TOLERANCE` of the
+ * median known rate, otherwise the match is rejected and the anchor left for manual linking.
+ * Because FX legs cannot be amount-matched across currencies, the flagged-both-sides
+ * requirement is what guards against over-pairing.
  *
  * The conversion is stored NORMALISED (`fromAccount = EUR`, `toAccount = foreign`,
  * rate = foreign-per-EUR) regardless of physical direction — a pure rate anchor, so
@@ -121,6 +152,11 @@ async function resolveForeignAnchor(
 				eq(bankAccounts.workspaceId, workspaceId),
 				eq(bankAccounts.currency, PRIMARY_CURRENCY),
 				eurSignCond,
+				// The EUR leg must itself be a flagged FX row — the guard against binding an
+				// anchor to an unrelated EUR purchase/withdrawal (which yields a garbage rate).
+				eq(transactions.isFxCandidate, true),
+				// A user-excluded EUR leg is off-limits to auto-detection.
+				eq(transactions.fxDetectionExcluded, false),
 				// An EUR leg already used in a conversion must not fund another. Its own
 				// `conversionId` column is never set (propagation only tags the foreign
 				// account), so membership is checked against currency_conversions directly —
@@ -135,9 +171,8 @@ async function resolveForeignAnchor(
 				sql`${transactions.accountingDate}::date <= ${upperStr}::date`
 			)
 		)
-		// Prefer a flagged EUR leg (both sides typed as FX), then the closest by date.
+		// Closest by date (both sides are already flagged FX legs).
 		.orderBy(
-			sql`${transactions.isFxCandidate} DESC`,
 			// date − date yields an integer day count directly (no EXTRACT needed).
 			sql`ABS(${transactions.accountingDate}::date - ${txDateStr}::date)`
 		)
@@ -150,6 +185,14 @@ async function resolveForeignAnchor(
 	const eurAmount = Math.abs(parseFloat(best.amount as unknown as string));
 	if (eurAmount === 0) return null;
 	const rate = foreignAmount / eurAmount;
+
+	// Rate-plausibility guard: reject a match whose implied rate is far from the median rate
+	// of conversions already recorded for this currency (leaves the anchor for manual linking).
+	const reference = await referenceRateForCurrency(workspaceId, fxTx.accountCurrency);
+	if (reference !== null && Math.abs(rate - reference) / reference > FX_RATE_TOLERANCE) {
+		return null;
+	}
+
 	const effectiveFrom = best.accountingDate as unknown as Date;
 
 	const [conversion] = await db
@@ -245,6 +288,8 @@ export async function detectFxPairs(workspaceId: string): Promise<CurrencyConver
 			and(
 				eq(bankAccounts.workspaceId, workspaceId),
 				eq(transactions.isFxCandidate, true),
+				// Rows the user opted out of auto-detection never take part in exact pairing.
+				eq(transactions.fxDetectionExcluded, false),
 				eq(transactions.isOpeningBalance, false)
 			)
 		)
@@ -364,7 +409,8 @@ export async function rescanWorkspaceConversions(
 			accountingDate: transactions.accountingDate,
 			bankAccountId: transactions.bankAccountId,
 			description: transactions.description,
-			accountName: bankAccounts.displayName
+			accountName: bankAccounts.displayName,
+			accountCurrency: bankAccounts.currency
 		})
 		.from(transactions)
 		.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
@@ -374,6 +420,8 @@ export async function rescanWorkspaceConversions(
 				ne(bankAccounts.currency, PRIMARY_CURRENCY),
 				eq(transactions.isFxCandidate, true),
 				isNull(transactions.conversionId),
+				// Anchors the user opted out of auto-detection are skipped (they link manually).
+				eq(transactions.fxDetectionExcluded, false),
 				eq(transactions.isOpeningBalance, false)
 			)
 		)

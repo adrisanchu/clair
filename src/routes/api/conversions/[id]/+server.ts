@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { and, eq, or } from 'drizzle-orm';
+import { and, eq, inArray, or } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { authUser, bankAccounts, currencyConversions, transactions } from '$lib/server/db/schema.js';
@@ -106,6 +106,18 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 
 	// Break the symmetric leg link on both sides.
 	await unlinkConversionLegs([conversion.fromTransactionId, conversion.toTransactionId]);
+
+	// Remember the user's rejection: opt both legs out of automatic detection so a re-import
+	// or workspace rescan doesn't recreate this pair. Cleared if they later link it manually.
+	const legIds = [conversion.fromTransactionId, conversion.toTransactionId].filter(
+		(x): x is string => !!x
+	);
+	if (legIds.length > 0) {
+		await db
+			.update(transactions)
+			.set({ fxDetectionExcluded: true })
+			.where(inArray(transactions.id, legIds));
+	}
 
 	// Reset the foreign account's rate tags, then recompute from remaining windows.
 	await db

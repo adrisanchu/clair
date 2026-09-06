@@ -118,7 +118,12 @@ export function normalizeRow(
 		status,
 		rawType,
 		isTransferCandidate: rawType !== null && profile.transferTypes.includes(rawType),
-		isFxCandidate: rawType !== null && profile.fxCandidateTypes.includes(rawType),
+		isFxCandidate:
+			(rawType !== null && profile.fxCandidateTypes.includes(rawType)) ||
+			(profile.fxCandidateDescriptionPattern?.test(
+				raw[profile.descriptionColumn]?.trim() ?? ''
+			) ??
+				false),
 		category: optionalColumns.categoryColumn
 			? raw[optionalColumns.categoryColumn]?.trim() || null
 			: null,

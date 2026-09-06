@@ -44,3 +44,15 @@ export const CURRENCIES: { code: string; label: string }[] = [
 ];
 
 export const CURRENCY_CODES = CURRENCIES.map((c) => c.code);
+
+/**
+ * Extract a known ISO currency code from a transaction description, e.g.
+ * "Conversión a JPY" → 'JPY', "Cambio de divisas a CZK" → 'CZK', "Conversión a EUR" → 'EUR'.
+ * Returns the first whole-word token that matches a supported currency, or null.
+ * Used to advise which account currency is missing for an unmatched conversion.
+ */
+export function parseCurrencyFromDescription(desc: string): string | null {
+	const tokens = desc.toUpperCase().match(/\b[A-Z]{3}\b/g);
+	if (!tokens) return null;
+	return tokens.find((t) => CURRENCY_CODES.includes(t)) ?? null;
+}
