@@ -3,7 +3,7 @@ import { and, eq, or } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { authUser, bankAccounts, currencyConversions, transactions } from '$lib/server/db/schema.js';
-import { propagateRateToAccount } from '$lib/server/currency-converter.js';
+import { propagateRateToAccount, unlinkConversionLegs } from '$lib/server/currency-converter.js';
 
 // ─── PATCH /api/conversions/[id] ────────────────────────────────────────────
 // Confirm an auto-detected conversion or update its exchange rate.
@@ -103,6 +103,9 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 	if (!ownedAccount) throw error(403, 'Forbidden');
 
 	await db.delete(currencyConversions).where(eq(currencyConversions.id, params.id));
+
+	// Break the symmetric leg link on both sides.
+	await unlinkConversionLegs([conversion.fromTransactionId, conversion.toTransactionId]);
 
 	// Reset the foreign account's rate tags, then recompute from remaining windows.
 	await db

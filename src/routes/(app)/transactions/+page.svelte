@@ -8,6 +8,7 @@
 		ChevronDown,
 		X,
 		ArrowLeftRight,
+		Repeat,
 		AlertTriangle,
 		ChevronLeft,
 		ChevronRight,
@@ -365,11 +366,11 @@
 							{@const isReverted = tx.status === 'reverted'}
 							{@const isPending = tx.status === 'pending'}
 							{@const isTransfer = tx.isTransfer}
-							{@const showTransferBadge = tx.isTransfer || tx.isFxCandidate}
-							{@const transferSettled = !!(
-								tx.transferCounterpartId ||
-								(tx.isFxCandidate && tx.conversionId)
-							)}
+							{@const isConversionLeg = tx.isConversionLeg}
+							{@const isConversion = isConversionLeg || tx.isFxCandidate}
+							{@const showTransferBadge =
+								tx.isTransfer || tx.isFxCandidate || isConversionLeg || tx.transferCounterpartId != null}
+							{@const transferSettled = tx.transferCounterpartId != null || isConversionLeg}
 							{@const isOpening = tx.isOpeningBalance}
 
 							{#if isOpening}
@@ -455,6 +456,7 @@
 												/>
 												{#if showTransferBadge}
 													<TransferHint
+														kind={isConversion ? 'conversion' : 'transfer'}
 														status={transferSettled ? 'settled' : 'candidate'}
 														onclick={() => (dialogTxId = tx.id)}
 													/>
@@ -488,6 +490,8 @@
 											<div class="flex min-w-0 flex-1 items-center gap-2">
 												{#if isTransfer}
 													<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
+												{:else if isConversionLeg}
+													<Repeat size={13} class="shrink-0 text-primary-500" />
 												{:else if isReview}
 													<AlertTriangle size={13} class="shrink-0 text-amber-500" />
 												{/if}
@@ -651,4 +655,12 @@
 	onchange={() => invalidateAll()}
 />
 
-<TransactionDetailSheet bind:open={detailOpen} tx={detailTx} costGroups={data.costGroups} />
+<TransactionDetailSheet
+	bind:open={detailOpen}
+	tx={detailTx}
+	costGroups={data.costGroups}
+	onlink={(id) => {
+		detailOpen = false;
+		dialogTxId = id;
+	}}
+/>

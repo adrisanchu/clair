@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { format } from 'date-fns';
+	import { Link2, Repeat } from '@lucide/svelte';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button } from '$lib/components/ui/button';
@@ -18,9 +19,11 @@
 		costGroups?: CostGroupRow[];
 		/** Called after a successful save (in addition to invalidateAll). */
 		onsaved?: () => void;
+		/** Open the reconcile dialog for this transaction (manual transfer/conversion link). */
+		onlink?: (txId: string) => void;
 	}
 
-	let { tx = null, open = $bindable(false), costGroups = [], onsaved }: Props = $props();
+	let { tx = null, open = $bindable(false), costGroups = [], onsaved, onlink }: Props = $props();
 
 	let notes = $state('');
 	let isTransfer = $state(false);
@@ -98,7 +101,7 @@
 	<Sheet.Content side="right" class="flex w-full flex-col sm:max-w-md">
 		<Sheet.Header>
 			<Sheet.Title>Transaction details</Sheet.Title>
-			<Sheet.Description>Edit the note or correct the transfer flag.</Sheet.Description>
+			<Sheet.Description>Edit the note, or link this as a transfer or conversion.</Sheet.Description>
 		</Sheet.Header>
 
 		{#if tx}
@@ -153,27 +156,85 @@
 					></textarea>
 				</div>
 
-				<!-- Transfer flag -->
-				<label class="flex items-start gap-2.5 text-sm">
-					<input
-						type="checkbox"
-						bind:checked={isTransfer}
-						disabled={submitting}
-						class="mt-0.5 size-4 shrink-0 rounded border-input accent-primary-500"
-					/>
-					<span class="min-w-0">
-						<span class="font-medium text-text-primary">This is a transfer</span>
-						<span class="mt-0.5 block text-xs text-text-tertiary">
-							{#if tx.transferCounterpartId}
-								Un-checking breaks the link with its paired transaction.
-							{:else if isOrphanTransfer}
-								Flagged as a transfer but not linked. Un-check if it isn't one.
-							{:else}
-								Movement between your own accounts, not an expense or income.
-							{/if}
+				{#if tx.isConversionLeg}
+					<!-- Currency conversion — a cross-currency exchange, established by linking two
+					     legs (not a same-currency transfer). Surface the state; the dialog owns the
+					     rate, the paired leg, and unlink. -->
+					<div class="grid gap-1.5">
+						<span
+							class="inline-flex w-fit items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-600"
+						>
+							<Repeat size={12} />
+							Currency conversion
 						</span>
-					</span>
-				</label>
+						<p class="text-xs text-text-tertiary">
+							Linked with a transaction in another account (EUR ↔ foreign). Open it to see the
+							rate and paired leg, or to unlink.
+						</p>
+						{#if onlink}
+							<Button
+								type="button"
+								variant="outline"
+								class="mt-1 w-full"
+								disabled={submitting}
+								onclick={() => {
+									if (tx) onlink(tx.id);
+									open = false;
+								}}
+							>
+								<Repeat size={14} />
+								View conversion
+							</Button>
+						{/if}
+					</div>
+				{:else}
+					<!-- Transfer flag (same-currency movement between your own accounts) -->
+					<label class="flex items-start gap-2.5 text-sm">
+						<input
+							type="checkbox"
+							bind:checked={isTransfer}
+							disabled={submitting}
+							class="mt-0.5 size-4 shrink-0 rounded border-input accent-primary-500"
+						/>
+						<span class="min-w-0">
+							<span class="font-medium text-text-primary">This is a transfer</span>
+							<span class="mt-0.5 block text-xs text-text-tertiary">
+								{#if tx.transferCounterpartId}
+									Un-checking breaks the link with its paired transaction.
+								{:else if isOrphanTransfer}
+									Flagged as a transfer but not linked. Un-check if it isn't one.
+								{:else}
+									Movement between your own accounts, not an expense or income.
+								{/if}
+							</span>
+						</span>
+					</label>
+
+					<!-- Manual link — the universal entry point to pair this transaction with one in
+					     another account, as either a same-currency transfer or a cross-currency
+					     conversion. Works regardless of whether the parser flagged it. -->
+					{#if onlink}
+						<div class="grid gap-1.5">
+							<Button
+								type="button"
+								variant="outline"
+								class="w-full"
+								disabled={submitting}
+								onclick={() => {
+									if (tx) onlink(tx.id);
+									open = false;
+								}}
+							>
+								<Link2 size={14} />
+								Link transfer or conversion…
+							</Button>
+							<p class="text-xs text-text-tertiary">
+								Pair this with a transaction in another account — a transfer (same currency) or a
+								currency conversion (EUR ↔ foreign).
+							</p>
+						</div>
+					{/if}
+				{/if}
 
 				{#if fieldError}
 					<p class="text-sm text-danger-600">{fieldError}</p>

@@ -1,7 +1,9 @@
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
+import { addDays, subDays } from 'date-fns';
 import { db } from './index.js';
 import { transactions, bankAccounts, currencyConversions, csvUploads } from './schema.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
+import { TRANSFER_MATCH_WINDOW_DAYS } from '$lib/constants/transfers.js';
 
 export const TX_PAGE_SIZE = 25;
 
@@ -114,6 +116,9 @@ export interface TxRow {
 	amountEur: number | null;
 	exchangeRate: number | null;
 	conversionId: string | null;
+	/** True when this row is an actual leg of a currency conversion (EUR or foreign side).
+	 * Authoritative — unlike `conversionId`, which on foreign rows only marks the rate source. */
+	isConversionLeg: boolean;
 	status: 'pending' | 'posted' | 'review' | 'reverted';
 	isTransfer: boolean;
 	transferCounterpartId: string | null;
@@ -282,6 +287,8 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				amountEur: transactions.amountEur,
 				exchangeRate: transactions.exchangeRate,
 				conversionId: transactions.conversionId,
+				// Authoritative conversion-leg signal: the symmetric self-link, set on both legs.
+				isConversionLeg: sql<boolean>`${transactions.conversionCounterpartId} IS NOT NULL`,
 				status: transactions.status,
 				isTransfer: transactions.isTransfer,
 				transferCounterpartId: transactions.transferCounterpartId,
@@ -627,10 +634,12 @@ export interface TransferCandidatesResult {
 
 /**
  * Everything the pairing dialog needs for `txId` in one round-trip: the settled pair
- * if already linked, otherwise the candidate counterparts. Mode is inferred from the
- * source — an FX candidate looks for a cross-currency, opposite-sign leg (→ create a
- * conversion); anything else looks for a same-currency mirror amount (→ link-transfer).
- * Window is a generous ±7 days for manual reconciliation.
+ * if already linked, otherwise the candidate counterparts. Each candidate is evaluated
+ * on its own merits rather than a hard source-derived mode: a same-currency mirror
+ * amount surfaces as a transfer, an opposite currency-class leg as a cross-currency
+ * conversion. The conversion side does NOT require the counterpart to be flagged
+ * `isFxCandidate` (mirroring `resolveForeignAnchor`), so unflagged / cross-bank legs
+ * still appear. Window is ±`TRANSFER_MATCH_WINDOW_DAYS` for manual reconciliation.
  */
 export async function queryTransferCandidates(
 	accessibleIds: string[],
@@ -700,6 +709,8 @@ export async function queryTransferCandidates(
 	const srcAmount = parseFloat(source.amount);
 	const srcDate = source.accountingDate as unknown as Date;
 	const srcPrimary = source.accountCurrency === PRIMARY_CURRENCY;
+	// `mode` is only a label hint for the dialog title; each candidate below carries its
+	// own `crossCurrency` flag and the dialog routes the link (transfer vs conversion) by it.
 	const mode: 'transfer' | 'conversion' = source.isFxCandidate ? 'conversion' : 'transfer';
 
 	const candidates: TransferCandidateItem[] = [];
@@ -708,11 +719,19 @@ export async function queryTransferCandidates(
 		const cAmount = parseFloat(c.amount);
 		if (cAmount === 0 || srcAmount === 0 || cAmount > 0 === srcAmount > 0) continue; // opposite sign
 		const days = dayDiff(srcDate, c.accountingDate as unknown as Date);
-		if (days > 7) continue;
+		if (days > TRANSFER_MATCH_WINDOW_DAYS) continue;
+		if (c.transferCounterpartId !== null) continue; // already linked as a transfer
 
-		if (mode === 'conversion') {
-			if (!c.isFxCandidate || claimed.has(c.id)) continue;
-			if ((c.accountCurrency === PRIMARY_CURRENCY) === srcPrimary) continue; // must be opposite class
+		// Same-currency mirror amount → a transfer link.
+		if (c.currency === source.currency && Math.abs(cAmount) === Math.abs(srcAmount)) {
+			candidates.push({ ...toLeg(c), crossCurrency: false, impliedRate: null, daysDiff: days });
+			continue;
+		}
+
+		// Opposite currency class (one EUR, one foreign) → a cross-currency conversion.
+		// The counterpart need NOT be flagged `isFxCandidate` — matching mirrors
+		// `resolveForeignAnchor` so unflagged / cross-bank legs still surface.
+		if (!claimed.has(c.id) && (c.accountCurrency === PRIMARY_CURRENCY) !== srcPrimary) {
 			const eurAmt = srcPrimary ? Math.abs(srcAmount) : Math.abs(cAmount);
 			const foreignAmt = srcPrimary ? Math.abs(cAmount) : Math.abs(srcAmount);
 			candidates.push({
@@ -721,11 +740,6 @@ export async function queryTransferCandidates(
 				impliedRate: eurAmt > 0 ? foreignAmt / eurAmt : null,
 				daysDiff: days
 			});
-		} else {
-			if (c.transferCounterpartId !== null) continue;
-			if (c.currency !== source.currency) continue;
-			if (Math.abs(cAmount) !== Math.abs(srcAmount)) continue;
-			candidates.push({ ...toLeg(c), crossCurrency: false, impliedRate: null, daysDiff: days });
 		}
 	}
 
@@ -802,6 +816,13 @@ export async function queryPairableTransactions(
 		? or(ilike(transactions.description, `%${term}%`), ilike(transactions.notes, `%${term}%`))
 		: undefined;
 
+	// Bound the browse to ±TRANSFER_MATCH_WINDOW_DAYS around the source date so the LIMIT
+	// stays meaningful and the user isn't shown unrelated far-off transactions. Compare on
+	// `::date` (whole-day, matching `dayDiff`).
+	const windowDate = source.accountingDate as unknown as Date;
+	const lowerStr = subDays(windowDate, TRANSFER_MATCH_WINDOW_DAYS).toISOString().split('T')[0];
+	const upperStr = addDays(windowDate, TRANSFER_MATCH_WINDOW_DAYS).toISOString().split('T')[0];
+
 	const rows = (await db
 		.select({
 			id: transactions.id,
@@ -823,6 +844,8 @@ export async function queryPairableTransactions(
 				ne(transactions.bankAccountId, source.bankAccountId),
 				eq(transactions.isOpeningBalance, false),
 				isNull(transactions.transferCounterpartId),
+				sql`${transactions.accountingDate}::date >= ${lowerStr}::date`,
+				sql`${transactions.accountingDate}::date <= ${upperStr}::date`,
 				search
 			)
 		)
