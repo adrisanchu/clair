@@ -116,6 +116,9 @@ export interface TxRow {
 	amountEur: number | null;
 	exchangeRate: number | null;
 	conversionId: string | null;
+	/** True when this row is an actual leg of a currency conversion (EUR or foreign side).
+	 * Authoritative — unlike `conversionId`, which on foreign rows only marks the rate source. */
+	isConversionLeg: boolean;
 	status: 'pending' | 'posted' | 'review' | 'reverted';
 	isTransfer: boolean;
 	transferCounterpartId: string | null;
@@ -284,6 +287,8 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				amountEur: transactions.amountEur,
 				exchangeRate: transactions.exchangeRate,
 				conversionId: transactions.conversionId,
+				// Authoritative conversion-leg signal: the symmetric self-link, set on both legs.
+				isConversionLeg: sql<boolean>`${transactions.conversionCounterpartId} IS NOT NULL`,
 				status: transactions.status,
 				isTransfer: transactions.isTransfer,
 				transferCounterpartId: transactions.transferCounterpartId,

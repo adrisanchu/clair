@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, currencyConversions, transactions } from '$lib/server/db/schema.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
-import { propagateRateToAccount } from '$lib/server/currency-converter.js';
+import { linkConversionLegs, propagateRateToAccount } from '$lib/server/currency-converter.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 // ─── POST /api/conversions ────────────────────────────────────────────────────
@@ -92,6 +92,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		})
 		.returning({ id: currencyConversions.id });
 
+	await linkConversionLegs(eur.id, foreign.id);
 	const affectedCount = await propagateRateToAccount(foreign.bankAccountId);
 
 	return json({ ok: true, conversionId: conversion.id, exchangeRate: rate, affectedCount });

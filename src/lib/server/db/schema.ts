@@ -202,8 +202,13 @@ export const transactions = coreSchema.table(
 		// FX — populated at import time from the bank CSV type column
 		// true for rows that represent a currency exchange (e.g. Revolut 'Cambio')
 		isFxCandidate: boolean('is_fx_candidate').default(false).notNull(),
-		// conversionId → core.currency_conversions.id; null until a conversion is matched
+		// conversionId → core.currency_conversions.id. NOTE: this is a rate-window tag set on
+		// EVERY foreign row by propagateRateToAccount — NOT conversion-leg membership. Use
+		// conversionCounterpartId (below) to tell whether a row is an actual conversion leg.
 		conversionId: text('conversion_id'),
+		// Conversion linking — self-referential, set on BOTH legs when a conversion is created
+		// (mirrors transferCounterpartId). Non-null ⇔ this row is a settled conversion leg. → transactions.id
+		conversionCounterpartId: text('conversion_counterpart_id'),
 		// Locked exchange rate used to compute amountEur (foreign-currency / EUR)
 		exchangeRate: numeric('exchange_rate', { precision: 14, scale: 6 }),
 

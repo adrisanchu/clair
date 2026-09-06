@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { addDays, subDays } from 'date-fns';
 import { db } from './db/index.js';
 import { bankAccounts, currencyConversions, transactions } from './db/schema.js';
@@ -14,6 +14,26 @@ import { FX_ANCHOR_WINDOW_DAYS } from '$lib/constants/transfers.js';
 function toDateStr(d: unknown): string {
 	const date = d instanceof Date ? d : new Date(d as string);
 	return date.toISOString().split('T')[0];
+}
+
+/**
+ * Set the symmetric `conversionCounterpartId` self-link on both legs of a conversion
+ * (mirrors `transferCounterpartId`). Non-null on a row ⇔ it is a settled conversion leg —
+ * the reliable, join-free signal, unlike the overloaded `conversionId` rate tag.
+ */
+export async function linkConversionLegs(aId: string, bId: string): Promise<void> {
+	await db.update(transactions).set({ conversionCounterpartId: bId }).where(eq(transactions.id, aId));
+	await db.update(transactions).set({ conversionCounterpartId: aId }).where(eq(transactions.id, bId));
+}
+
+/** Clear the `conversionCounterpartId` link on the given legs (on unlink). */
+export async function unlinkConversionLegs(ids: (string | null)[]): Promise<void> {
+	const valid = ids.filter((x): x is string => !!x);
+	if (valid.length === 0) return;
+	await db
+		.update(transactions)
+		.set({ conversionCounterpartId: null })
+		.where(inArray(transactions.id, valid));
 }
 
 export interface CurrencyConversionResult {
@@ -101,7 +121,15 @@ async function resolveForeignAnchor(
 				eq(bankAccounts.workspaceId, workspaceId),
 				eq(bankAccounts.currency, PRIMARY_CURRENCY),
 				eurSignCond,
-				isNull(transactions.conversionId),
+				// An EUR leg already used in a conversion must not fund another. Its own
+				// `conversionId` column is never set (propagation only tags the foreign
+				// account), so membership is checked against currency_conversions directly —
+				// this is the guard that prevents one EUR outflow backing many foreign anchors.
+				sql`NOT EXISTS (
+					SELECT 1 FROM ${currencyConversions}
+					WHERE ${currencyConversions.fromTransactionId} = ${transactions.id}
+					   OR ${currencyConversions.toTransactionId} = ${transactions.id}
+				)`,
 				eq(transactions.isOpeningBalance, false),
 				sql`${transactions.accountingDate}::date >= ${lowerStr}::date`,
 				sql`${transactions.accountingDate}::date <= ${upperStr}::date`
@@ -140,6 +168,7 @@ async function resolveForeignAnchor(
 		})
 		.returning({ id: currencyConversions.id });
 
+	await linkConversionLegs(best.id, fxTx.id);
 	const count = await propagateRateToAccount(fxTx.bankAccountId);
 
 	return {
@@ -273,6 +302,7 @@ export async function detectFxPairs(workspaceId: string): Promise<CurrencyConver
 				})
 				.returning({ id: currencyConversions.id });
 
+			await linkConversionLegs(eur.id, foreign.id);
 			touchedForeignAccounts.add(foreign.bankAccountId);
 
 			results.push({
