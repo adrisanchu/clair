@@ -1,8 +1,9 @@
 import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
-import { subDays } from 'date-fns';
+import { addDays, subDays } from 'date-fns';
 import { db } from './db/index.js';
 import { bankAccounts, currencyConversions, transactions } from './db/schema.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
+import { FX_ANCHOR_WINDOW_DAYS } from '$lib/constants/transfers.js';
 
 /**
  * Converts a Date (or Drizzle date result) to a plain `YYYY-MM-DD` string.
@@ -43,19 +44,28 @@ interface ForeignAnchor {
 }
 
 /**
- * Resolve a single foreign-currency anchor — a flagged inbound (`isFxCandidate`,
- * e.g. Revolut 'Cambio') on a non-EUR account — to its EUR funding leg, and create
- * the `currency_conversions` record.
+ * Resolve a single foreign-currency anchor — a flagged FX leg (`isFxCandidate`,
+ * e.g. Revolut 'Cambio') on a non-EUR account — to its EUR counterpart leg, and create
+ * the `currency_conversions` record. Handles BOTH directions:
+ *   - foreign **inbound** (amount > 0, "Conversión a SEK"): EUR is spent to buy foreign,
+ *     so match the nearest opposite-sign EUR **outgoing** in `[T − W, T]`.
+ *   - foreign **outbound** (amount < 0, "Conversión a EUR"): foreign is sold for EUR,
+ *     so match the nearest opposite-sign EUR **incoming** in `[T, T + W]`.
+ * (W = `FX_ANCHOR_WINDOW_DAYS`.)
  *
- * Matching strategy (#30): the flagged foreign leg is the **anchor**; the EUR funding
- * leg is matched structurally — the nearest opposite-sign EUR row in a `[T-3, T]`
- * window — **without requiring the EUR leg to be flagged**. A flagged EUR leg is
- * merely preferred (it ranks first). This is what lets cross-bank funding link: a
- * €250 wire from an unflagged Spanish EUR bank now matches the Revolut 'Cambio' it
- * funded. Because FX legs cannot be amount-matched across currencies, keeping the
- * flagged foreign leg as the anchor is what guards against over-pairing.
+ * Matching strategy (#30): the flagged foreign leg is the **anchor**; the EUR leg is
+ * matched structurally — the nearest opposite-sign EUR row in the window — **without
+ * requiring the EUR leg to be flagged**. A flagged EUR leg is merely preferred (it ranks
+ * first). This is what lets cross-bank funding link: a €250 wire from an unflagged
+ * Spanish EUR bank now matches the Revolut 'Cambio' it funded. Because FX legs cannot be
+ * amount-matched across currencies, keeping the flagged foreign leg as the anchor is what
+ * guards against over-pairing.
  *
- * Returns the created conversion, or null when no EUR funder exists in the window.
+ * The conversion is stored NORMALISED (`fromAccount = EUR`, `toAccount = foreign`,
+ * rate = foreign-per-EUR) regardless of physical direction — a pure rate anchor, so
+ * `propagateRateToAccount` keeps its `amountEur = amount / rate` semantics.
+ *
+ * Returns the created conversion, or null when no EUR counterpart exists in the window.
  */
 async function resolveForeignAnchor(
 	fxTx: ForeignAnchor,
@@ -63,6 +73,17 @@ async function resolveForeignAnchor(
 ): Promise<CurrencyConversionResult | null> {
 	const txDate = fxTx.accountingDate as unknown as Date;
 	const txDateStr = toDateStr(txDate);
+	const fxAmount = parseFloat(fxTx.amount as unknown as string);
+	if (fxAmount === 0) return null;
+
+	// Direction: inbound foreign is funded by an earlier EUR outflow; outbound foreign
+	// pays out to a later EUR inflow. The EUR leg always has the opposite sign.
+	const inbound = fxAmount > 0;
+	const eurSignCond = inbound
+		? sql`${transactions.amount}::numeric < 0`
+		: sql`${transactions.amount}::numeric > 0`;
+	const lowerStr = inbound ? toDateStr(subDays(txDate, FX_ANCHOR_WINDOW_DAYS)) : txDateStr;
+	const upperStr = inbound ? txDateStr : toDateStr(addDays(txDate, FX_ANCHOR_WINDOW_DAYS));
 
 	const eurCandidates = await db
 		.select({
@@ -79,12 +100,11 @@ async function resolveForeignAnchor(
 			and(
 				eq(bankAccounts.workspaceId, workspaceId),
 				eq(bankAccounts.currency, PRIMARY_CURRENCY),
-				sql`${transactions.amount}::numeric < 0`,
+				eurSignCond,
 				isNull(transactions.conversionId),
 				eq(transactions.isOpeningBalance, false),
-				// EUR outgoing must be ≤ FX settlement date, within 3 days
-				sql`${transactions.accountingDate}::date >= ${toDateStr(subDays(txDate, 3))}::date`,
-				sql`${transactions.accountingDate}::date <= ${txDateStr}::date`
+				sql`${transactions.accountingDate}::date >= ${lowerStr}::date`,
+				sql`${transactions.accountingDate}::date <= ${upperStr}::date`
 			)
 		)
 		// Prefer a flagged EUR leg (both sides typed as FX), then the closest by date.
@@ -98,10 +118,10 @@ async function resolveForeignAnchor(
 	if (eurCandidates.length === 0) return null;
 
 	const best = eurCandidates[0];
-	const fxAmount = parseFloat(fxTx.amount as unknown as string);
+	const foreignAmount = Math.abs(fxAmount);
 	const eurAmount = Math.abs(parseFloat(best.amount as unknown as string));
 	if (eurAmount === 0) return null;
-	const rate = fxAmount / eurAmount;
+	const rate = foreignAmount / eurAmount;
 	const effectiveFrom = best.accountingDate as unknown as Date;
 
 	const [conversion] = await db
@@ -111,7 +131,7 @@ async function resolveForeignAnchor(
 			fromAccountId: best.bankAccountId,
 			toAccountId: fxTx.bankAccountId,
 			fromAmount: eurAmount.toFixed(4),
-			toAmount: fxAmount.toFixed(4),
+			toAmount: foreignAmount.toFixed(4),
 			exchangeRate: rate.toFixed(6),
 			effectiveFrom,
 			confidence: 'auto',
@@ -129,7 +149,7 @@ async function resolveForeignAnchor(
 		fromTransactionId: best.id,
 		toTransactionId: fxTx.id,
 		fromAmount: eurAmount,
-		toAmount: fxAmount,
+		toAmount: foreignAmount,
 		exchangeRate: rate,
 		effectiveFrom,
 		affectedTxCount: count,
@@ -298,9 +318,11 @@ export async function detectFxPairs(workspaceId: string): Promise<CurrencyConver
  *   - **Cross-bank funding:** the EUR leg no longer has to be flagged (see
  *     `resolveForeignAnchor`), so funding from a non-Revolut EUR account links.
  *
- * The anchor must be a flagged foreign inbound (`isFxCandidate`) — the reliable signal
- * a parser emits (e.g. Revolut 'Cambio'). Only the EUR funding leg is matched loosely.
- * Foreign↔foreign conversions (no EUR leg) are intentionally out of scope.
+ * The anchor must be a flagged foreign FX leg (`isFxCandidate`) — the reliable signal
+ * a parser emits (e.g. Revolut 'Cambio') — of EITHER sign, so both "Conversión a SEK"
+ * (foreign inbound) and "Conversión a EUR" (foreign outbound) resolve. Only the EUR leg
+ * is matched loosely. Foreign↔foreign conversions (no EUR leg) are intentionally out of
+ * scope.
  */
 export async function rescanWorkspaceConversions(
 	workspaceId: string
@@ -320,7 +342,6 @@ export async function rescanWorkspaceConversions(
 			and(
 				eq(bankAccounts.workspaceId, workspaceId),
 				ne(bankAccounts.currency, PRIMARY_CURRENCY),
-				sql`${transactions.amount}::numeric > 0`,
 				eq(transactions.isFxCandidate, true),
 				isNull(transactions.conversionId),
 				eq(transactions.isOpeningBalance, false)
