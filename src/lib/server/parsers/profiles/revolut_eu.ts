@@ -26,8 +26,14 @@ export const revolut_eu: BankParserProfile = {
 	// 'Recargas' = bank top-ups (e.g. funding Revolut from a personal bank account) — also
 	// treated as transfer candidates so the counterpart in the source bank gets auto-linked.
 	transferTypes: ['Transferir', 'Recargas'],
-	// 'Cambio' marks a cross-currency exchange (e.g. EUR → SEK top-up).
-	fxCandidateTypes: ['Cambio'],
+	// 'Cambio' (ES) / 'Exchange' (EN) mark a cross-currency exchange (e.g. EUR → SEK top-up).
+	// Revolut localises the type column, so both must be recognised.
+	fxCandidateTypes: ['Cambio', 'Exchange'],
+	// Fallback when the type column is missing/localised differently: the description of an
+	// exchange leg always names the target currency ("Conversión a VND", "Exchanged to VND",
+	// "Cambio de divisas a VND"). Guards against unflagged real FX legs being ignored, which
+	// would otherwise let the anchor matcher bind to an unrelated expense.
+	fxCandidateDescriptionPattern: /conversi[oó]n a\b|exchanged to\b|cambio de divisas\b/i,
 	additionalColumns: []
 };
 

@@ -62,6 +62,7 @@ export interface BankParserProfile {
 	typeColumn: string | null; // raw transaction type (e.g. Revolut 'Tipo')
 	transferTypes: string[]; // typeColumn values that flag a row as a transfer candidate
 	fxCandidateTypes: string[]; // typeColumn values that flag a row as a currency exchange candidate
+	fxCandidateDescriptionPattern?: RegExp; // fallback: description pattern that flags an FX leg when the type column doesn't
 	additionalColumns: string[]; // extra CSV columns consumed by postNormalize hooks (e.g. 'Comisión')
 }
 
