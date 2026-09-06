@@ -176,6 +176,21 @@ try {
 		assert('exchangeRate ≈ 10.813', !!conv && approx(conv.exchangeRate, 10.813, 0.001));
 		assert('propagated amountEur on anchor ≈ 200', approx((await anchorAmountEur(sekAcct)) ?? -1, 200, 0.05));
 
+		// The symmetric self-link is set on BOTH legs, pointing at each other.
+		if (conv) {
+			const legs = await db
+				.select({ id: transactions.id, cc: transactions.conversionCounterpartId })
+				.from(transactions)
+				.where(inArray(transactions.id, [conv.fromTransactionId, conv.toTransactionId]));
+			const from = legs.find((l) => l.id === conv.fromTransactionId);
+			const to = legs.find((l) => l.id === conv.toTransactionId);
+			assert(
+				'conversionCounterpartId cross-links both legs',
+				from?.cc === conv.toTransactionId && to?.cc === conv.fromTransactionId,
+				`from.cc=${from?.cc} to.cc=${to?.cc}`
+			);
+		}
+
 		// Idempotent: a second rescan creates nothing (anchor now resolved).
 		const again = await rescanWorkspaceConversions(ws);
 		assert('second rescan is a no-op (no duplicate conversion)', again.length === 0, `got ${again.length}`);
@@ -252,6 +267,45 @@ try {
 		assert('toAmount = 112.30 SEK (abs)', !!conv && approx(conv.toAmount, 112.3));
 		assert('fromAmount = 10.39 EUR (abs)', !!conv && approx(conv.fromAmount, 10.39));
 		assert('exchangeRate ≈ 10.81', !!conv && approx(conv.exchangeRate, 10.81, 0.02));
+	}
+
+	// ── 5. One EUR funder must not back two foreign anchors (over-pairing guard) ─
+	console.log('\n5. A single EUR funder is claimed once, never reused');
+	{
+		const ws = await freshWorkspace('__fx_ws5__');
+		const eurAcct = await createAccount(ws, 'EUR', 'Revolut EUR');
+		const sekAcct = await createAccount(ws, 'SEK', 'Revolut SEK');
+
+		// A second SEK anchor on the same day as the first — both fall inside the −200 EUR
+		// funder's window, but only one may claim it.
+		const sekAnchor2: NormalizedTransaction = {
+			...sekAnchor,
+			amount: 1000,
+			amountOriginal: 1000,
+			runningBalance: null,
+			sourceIndex: 1
+		};
+
+		await insertRows(eurAcct, [eurFunder]); // single −200 EUR funder
+		await insertRows(sekAcct, [sekAnchor, sekAnchor2]); // two SEK anchors
+
+		const results = await rescanWorkspaceConversions(ws);
+		assert('exactly one conversion created (funder used once)', results.length === 1, `got ${results.length}`);
+
+		// Only ONE SEK anchor is an actual leg. (Both may carry a conversion_id — that column
+		// marks the rate source via propagation, not leg membership; leg membership is the FK
+		// in currency_conversions, which is what `isConversionLeg` checks in the UI.)
+		const sekIds = new Set(
+			(await db.select({ id: transactions.id }).from(transactions).where(eq(transactions.bankAccountId, sekAcct))).map(
+				(r) => r.id
+			)
+		);
+		const convs = await db
+			.select({ to: currencyConversions.toTransactionId })
+			.from(currencyConversions)
+			.where(eq(currencyConversions.workspaceId, ws));
+		const sekLegs = convs.filter((c) => c.to && sekIds.has(c.to)).length;
+		assert('exactly one SEK anchor is an actual conversion leg', sekLegs === 1, `legs ${sekLegs}`);
 	}
 } finally {
 	// ── Cleanup ─────────────────────────────────────────────────────────────────
