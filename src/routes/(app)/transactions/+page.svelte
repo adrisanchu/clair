@@ -651,4 +651,12 @@
 	onchange={() => invalidateAll()}
 />
 
-<TransactionDetailSheet bind:open={detailOpen} tx={detailTx} costGroups={data.costGroups} />
+<TransactionDetailSheet
+	bind:open={detailOpen}
+	tx={detailTx}
+	costGroups={data.costGroups}
+	onlink={(id) => {
+		detailOpen = false;
+		dialogTxId = id;
+	}}
+/>

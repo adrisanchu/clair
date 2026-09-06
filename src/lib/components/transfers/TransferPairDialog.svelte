@@ -200,9 +200,9 @@
 				{:else if step === 'confirm'}
 					Confirm the link
 				{:else if data?.settled}
-					Linked transfer
+					{data.settled.kind === 'conversion' ? 'Linked conversion' : 'Linked transfer'}
 				{:else}
-					Reconcile transfer
+					Reconcile transfer or conversion
 				{/if}
 			</Dialog.Title>
 			<Dialog.Description>
@@ -213,7 +213,8 @@
 				{:else if data?.settled}
 					These two transactions are linked as one movement.
 				{:else}
-					Find the matching transaction in another account to link them.
+					Find the matching transaction in another account — a same-currency transfer or a
+					cross-currency conversion — to link them.
 				{/if}
 			</Dialog.Description>
 		</Dialog.Header>
@@ -304,7 +305,8 @@
 					<div class="flex items-start gap-2 rounded-lg border border-border bg-surface-sunken p-3">
 						<Info size={15} class="mt-0.5 shrink-0 text-text-tertiary" />
 						<p class="text-sm text-text-secondary">
-							No matching transaction in your other accounts — this looks like an external transfer.
+							No automatic match in your other accounts. If you know the counterpart, use “Pair with
+							another transaction” below to link it as a transfer or conversion.
 						</p>
 					</div>
 				{:else}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { format } from 'date-fns';
+	import { Link2 } from '@lucide/svelte';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button } from '$lib/components/ui/button';
@@ -18,9 +19,11 @@
 		costGroups?: CostGroupRow[];
 		/** Called after a successful save (in addition to invalidateAll). */
 		onsaved?: () => void;
+		/** Open the reconcile dialog for this transaction (manual transfer/conversion link). */
+		onlink?: (txId: string) => void;
 	}
 
-	let { tx = null, open = $bindable(false), costGroups = [], onsaved }: Props = $props();
+	let { tx = null, open = $bindable(false), costGroups = [], onsaved, onlink }: Props = $props();
 
 	let notes = $state('');
 	let isTransfer = $state(false);
@@ -174,6 +177,31 @@
 						</span>
 					</span>
 				</label>
+
+				<!-- Manual link — the universal entry point to pair this transaction with one in
+				     another account, as either a same-currency transfer or a cross-currency
+				     conversion. Works regardless of whether the parser flagged it. -->
+				{#if onlink}
+					<div class="grid gap-1.5">
+						<Button
+							type="button"
+							variant="outline"
+							class="w-full"
+							disabled={submitting}
+							onclick={() => {
+								if (tx) onlink(tx.id);
+								open = false;
+							}}
+						>
+							<Link2 size={14} />
+							Link transfer or conversion…
+						</Button>
+						<p class="text-xs text-text-tertiary">
+							Pair this with a transaction in another account — a transfer (same currency) or a
+							currency conversion (EUR ↔ foreign).
+						</p>
+					</div>
+				{/if}
 
 				{#if fieldError}
 					<p class="text-sm text-danger-600">{fieldError}</p>
