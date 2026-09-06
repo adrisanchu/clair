@@ -166,6 +166,9 @@
 	// Per-match state: sourceId → 'linked' | 'skipped' | selectedCandidateId | null (pending)
 	let transferDecisions = $state<Record<string, string | null>>({});
 	let transferLinking = $state<Record<string, boolean>>({});
+	// Per-conversion state: conversionId → 'rejected' | null (pending); + in-flight flag.
+	let conversionDecisions = $state<Record<string, 'rejected' | null>>({});
+	let conversionRejecting = $state<Record<string, boolean>>({});
 
 	function selectAccount(id: string) {
 		currentAccountId = id;
@@ -195,6 +198,8 @@
 		categoryDecisions = {};
 		transferDecisions = {};
 		transferLinking = {};
+		conversionDecisions = {};
+		conversionRejecting = {};
 	}
 
 	async function createAccount(e: Event) {
@@ -376,6 +381,25 @@
 			err = e instanceof Error ? e.message : 'Could not link transfer';
 		} finally {
 			transferLinking[sourceId] = false;
+		}
+	}
+
+	// Reject an auto-detected conversion: break the pair AND opt its legs out of future
+	// auto-detection (server-side), so re-imports don't recreate it. The user links it
+	// manually later on the Transfers page if it really is a conversion.
+	async function rejectConversion(conversionId: string) {
+		conversionRejecting[conversionId] = true;
+		try {
+			const res = await fetch(`/api/conversions/${conversionId}`, { method: 'DELETE' });
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
+				throw new Error(data.message ?? 'Could not reject conversion');
+			}
+			conversionDecisions[conversionId] = 'rejected';
+		} catch (e) {
+			err = e instanceof Error ? e.message : 'Could not reject conversion';
+		} finally {
+			conversionRejecting[conversionId] = false;
 		}
 	}
 
@@ -852,10 +876,35 @@
 				{#if importResult.detectedConversions?.length > 0}
 					<div class="mt-2 w-full space-y-2">
 						{#each importResult.detectedConversions as conv (conv.conversionId)}
-							<div class="rounded-lg border border-primary-200 bg-primary-50 p-4 text-left">
-								<div class="mb-3 flex items-center gap-2">
-									<ArrowLeftRight size={14} class="text-primary-500" />
-									<span class="text-xs font-semibold text-primary-700">Conversion detected</span>
+							{@const isRejected = conversionDecisions[conv.conversionId] === 'rejected'}
+							{@const isRejecting = conversionRejecting[conv.conversionId] ?? false}
+							<div
+								class="rounded-lg border p-4 text-left transition-opacity"
+								class:border-primary-200={!isRejected}
+								class:bg-primary-50={!isRejected}
+								class:border-border={isRejected}
+								class:bg-surface-sunken={isRejected}
+								class:opacity-60={isRejected}
+							>
+								<div class="mb-3 flex items-center justify-between gap-2">
+									<div class="flex items-center gap-2">
+										<ArrowLeftRight size={14} class="text-primary-500" />
+										<span class="text-xs font-semibold text-primary-700">
+											{isRejected ? 'Conversion rejected' : 'Conversion detected'}
+										</span>
+									</div>
+									{#if isRejected}
+										<span class="text-[11px] text-text-tertiary">Link it manually on Transfers</span>
+									{:else}
+										<button
+											type="button"
+											class="rounded px-2 py-0.5 text-[11px] font-medium text-text-tertiary hover:bg-surface-sunken hover:text-danger-600 disabled:opacity-50"
+											disabled={isRejecting}
+											onclick={() => rejectConversion(conv.conversionId)}
+										>
+											{isRejecting ? 'Rejecting…' : "Not a conversion"}
+										</button>
+									{/if}
 								</div>
 								<!-- From row -->
 								<div class="flex items-center justify-between gap-2">
