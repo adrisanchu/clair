@@ -93,6 +93,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.returning({ id: currencyConversions.id });
 
 	await linkConversionLegs(eur.id, foreign.id);
+	// The user is explicitly linking these — clear any prior auto-detection opt-out on both legs.
+	await db
+		.update(transactions)
+		.set({ fxDetectionExcluded: false })
+		.where(inArray(transactions.id, [eur.id, foreign.id]));
 	const affectedCount = await propagateRateToAccount(foreign.bankAccountId);
 
 	return json({ ok: true, conversionId: conversion.id, exchangeRate: rate, affectedCount });

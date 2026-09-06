@@ -196,8 +196,11 @@ try {
 		assert('second rescan is a no-op (no duplicate conversion)', again.length === 0, `got ${again.length}`);
 	}
 
-	// ── 2. Cross-bank: EUR funding leg is UNFLAGGED (the #30 headline) ──────────
-	console.log('\n2. EUR funder unflagged (cross-bank funding still links)');
+	// ── 2. Cross-bank: EUR funding leg is UNFLAGGED → NOT auto-linked anymore ────
+	// Confident-match policy: the EUR leg must itself be a flagged FX row. An unflagged
+	// nearby EUR row (a wire, a purchase, an ATM withdrawal) is deliberately left for the
+	// user to link manually — this is what stops the matcher inventing nonsense pairs.
+	console.log('\n2. EUR funder unflagged → left for manual linking (no nonsense pair)');
 	{
 		const ws = await freshWorkspace('__fx_ws2__');
 		const eurAcct = await createAccount(ws, 'EUR', 'Bankinter EUR');
@@ -208,8 +211,8 @@ try {
 
 		const results = await rescanWorkspaceConversions(ws);
 		const conv = results.find((r) => r.toAccountId === sekAcct);
-		assert('conversion still detected with an unflagged EUR leg', !!conv);
-		assert('exchangeRate ≈ 10.813', !!conv && approx(conv.exchangeRate, 10.813, 0.001));
+		assert('no conversion auto-detected against an unflagged EUR leg', !conv, `got ${results.length}`);
+		assert('anchor amountEur stays null (unresolved, for manual linking)', (await anchorAmountEur(sekAcct)) === null);
 	}
 
 	// ── 3. No funder → anchor stays unresolved (no over-pairing) ───────────────
@@ -306,6 +309,47 @@ try {
 			.where(eq(currencyConversions.workspaceId, ws));
 		const sekLegs = convs.filter((c) => c.to && sekIds.has(c.to)).length;
 		assert('exactly one SEK anchor is an actual conversion leg', sekLegs === 1, `legs ${sekLegs}`);
+	}
+
+	// ── 6. Rate-plausibility guard: a flagged EUR leg at an absurd rate is rejected ──
+	// Once a baseline rate exists for the currency, a new match whose implied rate is wildly
+	// off (a flagged EUR leg of the wrong amount) is refused and the anchor left unresolved.
+	console.log('\n6. Off-rate flagged EUR leg is rejected once a baseline exists');
+	{
+		const ws = await freshWorkspace('__fx_ws6__');
+		const eurAcct = await createAccount(ws, 'EUR', 'Revolut EUR');
+		const sekAcct = await createAccount(ws, 'SEK', 'Revolut SEK');
+
+		const day2 = new Date('2026-05-01T10:00:00Z');
+		// Second anchor (+2162.60 SEK) a month later, and a FLAGGED but tiny −5 EUR leg beside
+		// it → implied rate 432.5, far outside FX_RATE_TOLERANCE of the ~10.813 baseline.
+		const sekAnchorLate: NormalizedTransaction = {
+			...sekAnchor,
+			accountingDate: day2,
+			valueDate: day2,
+			runningBalance: null,
+			sourceIndex: 2
+		};
+		const badFunder: NormalizedTransaction = {
+			...eurFunder,
+			amount: -5,
+			amountOriginal: -5,
+			accountingDate: day2,
+			valueDate: day2,
+			runningBalance: null,
+			sourceIndex: 3
+		};
+
+		await insertRows(eurAcct, [eurFunder, badFunder]); // both flagged FX
+		await insertRows(sekAcct, [sekAnchor, sekAnchorLate]);
+
+		const results = await rescanWorkspaceConversions(ws);
+		assert('only the plausible conversion is created', results.length === 1, `got ${results.length}`);
+		assert('the created conversion is the baseline (≈10.813)', !!results[0] && approx(results[0].exchangeRate, 10.813, 0.001));
+		const convCount = (
+			await db.select({ id: currencyConversions.id }).from(currencyConversions).where(eq(currencyConversions.workspaceId, ws))
+		).length;
+		assert('off-rate leg left unlinked (1 conversion row total)', convCount === 1, `rows ${convCount}`);
 	}
 } finally {
 	// ── Cleanup ─────────────────────────────────────────────────────────────────
