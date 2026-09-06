@@ -80,6 +80,8 @@ const eurRows = parseCSV(
 
 const sekAnchor = sekRows.find((r) => r.description === 'Conversión a SEK' && r.amount > 0);
 const eurFunder = eurRows.find((r) => r.description === 'Conversión a SEK' && r.amount < 0);
+// Foreign→EUR direction: a SEK outbound leg ("Conversión a EUR", −112.30 SEK).
+const sekOutbound = sekRows.find((r) => r.description === 'Conversión a EUR' && r.amount < 0);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const createdWorkspaces: string[] = [];
@@ -205,6 +207,51 @@ try {
 		const results = await rescanWorkspaceConversions(ws);
 		assert('no conversion created', results.length === 0, `got ${results.length}`);
 		assert('anchor amountEur stays null (unresolved)', (await anchorAmountEur(sekAcct)) === null);
+	}
+
+	// ── 4. Foreign→EUR: outbound foreign anchor links to a EUR inbound leg ──────
+	console.log('\n4. Foreign outbound ("Conversión a EUR") links to its EUR receiver');
+	{
+		if (!sekOutbound) throw new Error('fixture missing the −SEK "Conversión a EUR" leg');
+		const ws = await freshWorkspace('__fx_ws4__');
+		const eurAcct = await createAccount(ws, 'EUR', 'Revolut EUR');
+		const sekAcct = await createAccount(ws, 'SEK', 'Revolut SEK');
+
+		// Synthetic EUR inbound receiver (+10.39 EUR) on the same day as the SEK outbound —
+		// the leg the reverse conversion pays out to. Off exact timestamp, so only the
+		// (now sign-aware) rescan can link it.
+		const eurReceiver: NormalizedTransaction = {
+			accountingDate: sekOutbound.accountingDate,
+			valueDate: sekOutbound.valueDate,
+			amount: 10.39,
+			fee: 0,
+			currency: 'EUR',
+			amountOriginal: 10.39,
+			currencyOriginal: 'EUR',
+			description: 'Conversión a EUR',
+			runningBalance: null,
+			status: 'posted',
+			rawType: 'Cambio',
+			isTransferCandidate: false,
+			isFxCandidate: true,
+			category: null,
+			costGroup: null,
+			city: null,
+			notes: null,
+			internalId: null,
+			sourceIndex: 0
+		};
+
+		await insertRows(sekAcct, [sekOutbound]);
+		await insertRows(eurAcct, [eurReceiver]);
+
+		const results = await rescanWorkspaceConversions(ws);
+		const conv = results.find((r) => r.toAccountId === sekAcct);
+		assert('conversion detected for the outbound SEK anchor', !!conv);
+		assert('EUR is the normalised from-account', conv?.fromAccountId === eurAcct);
+		assert('toAmount = 112.30 SEK (abs)', !!conv && approx(conv.toAmount, 112.3));
+		assert('fromAmount = 10.39 EUR (abs)', !!conv && approx(conv.fromAmount, 10.39));
+		assert('exchangeRate ≈ 10.81', !!conv && approx(conv.exchangeRate, 10.81, 0.02));
 	}
 } finally {
 	// ── Cleanup ─────────────────────────────────────────────────────────────────
