@@ -10,6 +10,7 @@
 		Waypoints,
 		Upload,
 		Download,
+		ChartPie,
 		Settings,
 		LogOut
 	} from '@lucide/svelte';
@@ -28,6 +29,7 @@
 
 	const navLinks = [
 		{ href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+		{ href: '/insights', label: 'Insights', Icon: ChartPie },
 		{ href: '/accounts', label: 'Accounts', Icon: Landmark },
 		{ href: '/transactions', label: 'Transactions', Icon: ArrowLeftRight },
 		{ href: '/transfers', label: 'Transfers', Icon: Waypoints },

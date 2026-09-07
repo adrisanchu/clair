@@ -1,4 +1,18 @@
-import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gte,
+	ilike,
+	inArray,
+	isNotNull,
+	isNull,
+	lte,
+	ne,
+	or,
+	sql
+} from 'drizzle-orm';
 import { addDays, subDays } from 'date-fns';
 import { db } from './index.js';
 import { transactions, bankAccounts, currencyConversions, csvUploads } from './schema.js';
@@ -89,6 +103,103 @@ export async function queryRollingBalance(
 	});
 
 	return { points, windowStart: windowStart.toISOString(), windowEnd };
+}
+
+// ---------------------------------------------------------------------------
+// Insights: category / cost-group breakdown aggregations (gh #60)
+// ---------------------------------------------------------------------------
+
+/** Effective category label: COALESCE(override, raw bank value, AI guess). */
+const effectiveCategorySql = sql<
+	string | null
+>`COALESCE(${transactions.categoryOverride}, ${transactions.category}, ${transactions.categoryAI})`;
+
+/** EUR-normalised signed sum: use `amount` when already EUR, else the converted `amountEur`. */
+const eurSumSql = sql<string>`SUM(CASE WHEN ${transactions.currency} = ${PRIMARY_CURRENCY} THEN ${transactions.amount}::numeric ELSE ${transactions.amountEur}::numeric END)`;
+
+export interface InsightsWindow {
+	start?: Date;
+	end?: Date;
+}
+
+/**
+ * Standard reporting predicate shared by every insights aggregation: only posted,
+ * non-transfer, non-opening-balance rows on accessible accounts, within the window.
+ */
+function insightsFilters(accessibleIds: string[], window: InsightsWindow = {}) {
+	const clauses = [
+		inArray(transactions.bankAccountId, accessibleIds),
+		eq(transactions.isTransfer, false),
+		eq(transactions.isOpeningBalance, false),
+		eq(transactions.status, 'posted')
+	];
+	if (window.start) clauses.push(gte(transactions.accountingDate, window.start));
+	if (window.end) clauses.push(lte(transactions.accountingDate, window.end));
+	return and(...clauses);
+}
+
+/** One effective-category (or cost-group) bucket with its net EUR sum (signed). */
+export interface BreakdownSum {
+	label: string | null;
+	net: number; // negative = net spend, positive = net inflow
+}
+
+/** One time-bucketed sum per label, for the multi-series timeline. */
+export interface BreakdownTimeSum {
+	bucket: string; // ISO date — start of the period bucket
+	label: string | null;
+	net: number;
+}
+
+/**
+ * Net EUR per effective category over a window, optionally restricted to one cost group.
+ * Raw sums only — parent rollup, income exclusion and sign flip happen in `$lib/insights.ts`
+ * so the same rows feed both the donut and the cost-group detail list.
+ */
+export async function queryCategoryBreakdown(
+	accessibleIds: string[],
+	opts: InsightsWindow & { costGroup?: string } = {}
+): Promise<BreakdownSum[]> {
+	if (accessibleIds.length === 0) return [];
+	const where = opts.costGroup
+		? and(insightsFilters(accessibleIds, opts), eq(transactions.costGroup, opts.costGroup))
+		: insightsFilters(accessibleIds, opts);
+
+	const rows = await db
+		.select({ label: effectiveCategorySql, net: eurSumSql })
+		.from(transactions)
+		.where(where)
+		.groupBy(effectiveCategorySql);
+
+	return rows.map((r) => ({ label: r.label, net: parseFloat(r.net ?? '0') }));
+}
+
+/**
+ * Net EUR per (period bucket, label) for the timeline chart. `dimension` selects the
+ * grouping key: effective category or cost group. JS pivots these into per-series
+ * point arrays and rolls categories up to their top-level parent.
+ */
+export async function queryBreakdownTimeSeries(
+	accessibleIds: string[],
+	dimension: 'category' | 'costGroup',
+	granularity: Granularity = 'month',
+	window: InsightsWindow = {}
+): Promise<BreakdownTimeSum[]> {
+	if (accessibleIds.length === 0) return [];
+
+	// safe — granularity is a validated union type, never user-controlled input
+	const unit = sql.raw(`'${granularity}'`);
+	const bucketExpr = sql<string>`DATE_TRUNC(${unit}, ${transactions.accountingDate}::timestamp)::date::text`;
+	const labelExpr = dimension === 'costGroup' ? transactions.costGroup : effectiveCategorySql;
+
+	const rows = await db
+		.select({ bucket: bucketExpr, label: labelExpr, net: eurSumSql })
+		.from(transactions)
+		.where(insightsFilters(accessibleIds, window))
+		.groupBy(bucketExpr, labelExpr)
+		.orderBy(bucketExpr);
+
+	return rows.map((r) => ({ bucket: r.bucket, label: r.label, net: parseFloat(r.net ?? '0') }));
 }
 
 export type TxFilter = 'all' | 'expenses' | 'transfers' | 'review';
@@ -494,7 +605,10 @@ async function fetchAccessibleLegs(accessibleIds: string[]): Promise<RawLeg[]> {
 		.from(transactions)
 		.innerJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
 		.where(
-			and(inArray(transactions.bankAccountId, accessibleIds), eq(transactions.isOpeningBalance, false))
+			and(
+				inArray(transactions.bankAccountId, accessibleIds),
+				eq(transactions.isOpeningBalance, false)
+			)
 		) as unknown as Promise<RawLeg[]>;
 }
 

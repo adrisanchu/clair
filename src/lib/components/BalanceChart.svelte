@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { format, getQuarter, getYear } from 'date-fns';
 	import { AreaChart, Area, LinearGradient } from 'layerchart';
 	import { scaleUtc } from 'd3-scale';
 	import { curveNatural } from 'd3-shape';
@@ -9,7 +8,12 @@
 	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 	import { cn } from '$lib/utils.js';
 	import type { BalancePoint, Granularity } from '$lib/server/db/queries.js';
-	import type { ProjectedPoint } from '$lib/chart-utils.js';
+	import {
+		formatBucketTick,
+		formatBucketLabel,
+		formatCompactEur,
+		type ProjectedPoint
+	} from '$lib/chart-utils.js';
 
 	interface Props {
 		points: BalancePoint[];
@@ -46,30 +50,6 @@
 	const chartConfig = {
 		default: { label: 'Balance', color: 'var(--color-primary-500)' }
 	} satisfies Chart.ChartConfig;
-
-	function formatTick(date: Date): string {
-		if (granularity === 'week') return format(date, 'MMM d');
-		// Shorten quarter label so 4 labels always fit: "Q1 '26"
-		if (granularity === 'quarter') return `Q${getQuarter(date)} '${String(getYear(date)).slice(2)}`;
-		return format(date, 'MMM yy');
-	}
-
-	function formatTooltipLabel(date: Date): string {
-		if (granularity === 'week') return format(date, 'd MMM yyyy');
-		if (granularity === 'quarter') return `Q${getQuarter(date)} ${getYear(date)}`;
-		return format(date, 'MMMM yyyy');
-	}
-
-	// Y axis: avoid the Spanish compact "mil €" ambiguity — use K suffix instead
-	function formatYAxis(v: number): string {
-		const abs = Math.abs(v);
-		const sign = v < 0 ? '-' : '';
-		if (abs >= 1000) {
-			const k = abs / 1000;
-			return `${sign}${k.toLocaleString('es-ES', { maximumFractionDigits: 1 })}K €`;
-		}
-		return `${sign}${abs.toLocaleString('es-ES', { maximumFractionDigits: 0 })} €`;
-	}
 
 	function formatBalance(v: number): string {
 		return new Intl.NumberFormat('es-ES', {
@@ -112,11 +92,11 @@
 			yPadding={[0, 20]}
 			props={{
 				xAxis: {
-					format: (v: Date) => formatTick(v),
+					format: (v: Date) => formatBucketTick(v, granularity),
 					ticks: xTicks,
 					tickSpacing: xTickSpacing
 				},
-				yAxis: { format: (v: number) => formatYAxis(v) }
+				yAxis: { format: (v: number) => formatCompactEur(v) }
 			}}
 		>
 			{#snippet marks()}
@@ -153,7 +133,7 @@
 
 			{#snippet tooltip()}
 				<Chart.Tooltip
-					labelFormatter={(v: Date) => formatTooltipLabel(v)}
+					labelFormatter={(v: Date) => formatBucketLabel(v, granularity)}
 					formatter={balanceFormatter}
 				/>
 			{/snippet}
