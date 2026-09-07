@@ -2,7 +2,9 @@
 	import { browser } from '$app/environment';
 	import { LineChart } from 'layerchart';
 	import { scaleUtc } from 'd3-scale';
-	import { curveNatural } from 'd3-shape';
+	// Monotone (not natural/cardinal) — smooth but never overshoots between points, so a
+	// line can't dip below a value it never reached (avoids implying costs went negative).
+	import { curveMonotoneX } from 'd3-shape';
 	import * as Chart from '$lib/components/ui/chart/index.js';
 	import { formatBucketTick, formatBucketLabel, formatCompactEur } from '$lib/chart-utils.js';
 	import { cn } from '$lib/utils.js';
@@ -58,7 +60,7 @@
 					tickSpacing: xTickSpacing
 				},
 				yAxis: { format: (v: number) => formatCompactEur(v) },
-				spline: { curve: curveNatural, class: 'stroke-2' }
+				spline: { curve: curveMonotoneX, class: 'stroke-2' }
 			}}
 		>
 			{#snippet tooltip()}
