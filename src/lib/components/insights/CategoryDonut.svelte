@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { browser } from '$app/environment';
 	import { PieChart } from 'layerchart';
 	import Amount from '$lib/components/Amount.svelte';
 	import * as Chart from '$lib/components/ui/chart/index.js';
@@ -12,6 +11,15 @@
 	}
 
 	let { breakdown, class: cls = '' }: Props = $props();
+
+	// Render the chart only after mount. Gating on `browser` instead would make the first
+	// client render (browser === true) diverge from the SSR placeholder, a hydration
+	// mismatch that intermittently breaks the layerchart mount. An effect runs *after*
+	// hydration, so the first client render still matches the server placeholder.
+	let mounted = $state(false);
+	$effect(() => {
+		mounted = true;
+	});
 
 	const entries = $derived(breakdown.entries);
 	const colors = $derived(entries.map((e) => e.color));
@@ -31,7 +39,7 @@
 	<!-- Donut -->
 	<div class="relative shrink-0">
 		<Chart.Container config={chartConfig} class="aspect-square h-52 w-52">
-			{#if browser && entries.length > 0}
+			{#if mounted && entries.length > 0}
 				<PieChart
 					data={entries}
 					key={(d: (typeof entries)[number]) => d.name}

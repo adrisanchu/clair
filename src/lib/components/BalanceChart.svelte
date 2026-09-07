@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { browser } from '$app/environment';
 	import { AreaChart, Area, LinearGradient } from 'layerchart';
 	import { scaleUtc } from 'd3-scale';
 	import { curveNatural } from 'd3-shape';
@@ -23,6 +22,14 @@
 	}
 
 	let { points, projectedPoints, granularity, class: cls = '' }: Props = $props();
+
+	// Render the chart only after mount so the first client render matches the SSR
+	// placeholder. Gating on `browser` (true on the client's first render) would diverge
+	// from the server placeholder and cause an intermittent hydration mismatch.
+	let mounted = $state(false);
+	$effect(() => {
+		mounted = true;
+	});
 
 	// Add Date objects for the x-axis (scaleUtc needs real Dates, not strings)
 	const actualData = $derived(points.map((p) => ({ ...p, date: new Date(p.bucket) })));
@@ -83,7 +90,7 @@
 {/snippet}
 
 <Chart.Container config={chartConfig} class={cn('aspect-auto h-56 md:h-64', cls)}>
-	{#if browser}
+	{#if mounted}
 		<AreaChart
 			data={allData}
 			x="date"

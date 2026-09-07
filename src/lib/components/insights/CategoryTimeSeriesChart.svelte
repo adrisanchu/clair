@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { browser } from '$app/environment';
 	import { LineChart } from 'layerchart';
 	import { scaleUtc } from 'd3-scale';
 	// Monotone (not natural/cardinal) — smooth but never overshoots between points, so a
@@ -19,6 +18,14 @@
 	}
 
 	let { buckets, series, granularity, class: cls = '' }: Props = $props();
+
+	// Render the chart only after mount, so the first client render matches the SSR
+	// placeholder — gating on `browser` would diverge and cause a hydration mismatch
+	// that intermittently breaks the layerchart mount.
+	let mounted = $state(false);
+	$effect(() => {
+		mounted = true;
+	});
 
 	// Wide-format rows: one row per bucket with a column per series, plus a real Date for the x-axis.
 	const data = $derived(
@@ -46,7 +53,7 @@
 </script>
 
 <Chart.Container config={chartConfig} class={cn('aspect-auto h-56 md:h-64', cls)}>
-	{#if browser && series.length > 0 && buckets.length > 0}
+	{#if mounted && series.length > 0 && buckets.length > 0}
 		<LineChart
 			{data}
 			x="date"
