@@ -32,7 +32,9 @@
 			if (v === null) url.searchParams.delete(k);
 			else url.searchParams.set(k, v);
 		}
-		goto(url.toString(), { keepFocus: true, replaceState: true });
+		// noScroll keeps the viewport where it is — filters live mid-page, so the default
+		// scroll-to-top on navigation would yank the user away from what they were viewing.
+		goto(url.toString(), { keepFocus: true, replaceState: true, noScroll: true });
 	}
 
 	const setRange = (r: RangeKey) => navigate({ range: r });

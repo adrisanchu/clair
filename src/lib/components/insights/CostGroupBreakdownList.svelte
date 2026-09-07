@@ -117,6 +117,15 @@
 										style="background-color: {child.color}"
 									></span>
 									<span class="min-w-0 flex-1 truncate text-text-secondary">{child.name}</span>
+									<!-- pct bar — same as the parent but dimmed to read as a subcategory -->
+									<div
+										class="hidden h-1.5 w-24 overflow-hidden rounded-full bg-surface-sunken opacity-60 sm:block"
+									>
+										<div
+											class="h-full rounded-full"
+											style="width: {Math.min(child.pct, 100)}%; background-color: {child.color}"
+										></div>
+									</div>
 									<span class="w-12 text-right text-xs text-text-tertiary tabular-nums">
 										{formatPct(child.pct)}
 									</span>
