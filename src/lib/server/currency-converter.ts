@@ -1,9 +1,25 @@
-import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { addDays, subDays } from 'date-fns';
 import { db } from './db/index.js';
 import { bankAccounts, currencyConversions, transactions } from './db/schema.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
-import { FX_ANCHOR_WINDOW_DAYS, FX_RATE_TOLERANCE } from '$lib/constants/transfers.js';
+import {
+	FX_ANCHOR_WINDOW_DAYS,
+	FX_DESCRIPTION_SQL_PATTERN,
+	FX_RATE_TOLERANCE
+} from '$lib/constants/transfers.js';
+
+/**
+ * A row is an FX leg for detection purposes when it was flagged at parse time
+ * (`isFxCandidate`) OR its description names a currency exchange ("Conversión a X",
+ * "Exchanged to X", "Cambio de divisa(s) a X"). The description fallback re-enables
+ * detection for rows imported before the flag existed, without weakening the
+ * downstream rate/exclusion guards.
+ */
+const fxLegSignal: SQL = or(
+	eq(transactions.isFxCandidate, true),
+	sql`${transactions.description} ~* ${FX_DESCRIPTION_SQL_PATTERN}`
+)!;
 
 /**
  * Converts a Date (or Drizzle date result) to a plain `YYYY-MM-DD` string.
@@ -22,8 +38,19 @@ function toDateStr(d: unknown): string {
  * the reliable, join-free signal, unlike the overloaded `conversionId` rate tag.
  */
 export async function linkConversionLegs(aId: string, bId: string): Promise<void> {
-	await db.update(transactions).set({ conversionCounterpartId: bId }).where(eq(transactions.id, aId));
-	await db.update(transactions).set({ conversionCounterpartId: aId }).where(eq(transactions.id, bId));
+	// A conversion and a same-currency transfer are mutually exclusive facets of a row.
+	// Setting the conversion link clears any transfer flag/link on both legs so a leg can
+	// never carry both (which mislabels the row's icon and, worse, leaves reporting relying
+	// on the overloaded `isTransfer` flag to exclude it). Reporting now excludes conversion
+	// legs via `conversionCounterpartId`, so this keeps the two systems from colliding.
+	await db
+		.update(transactions)
+		.set({ conversionCounterpartId: bId, isTransfer: false, transferCounterpartId: null })
+		.where(eq(transactions.id, aId));
+	await db
+		.update(transactions)
+		.set({ conversionCounterpartId: aId, isTransfer: false, transferCounterpartId: null })
+		.where(eq(transactions.id, bId));
 }
 
 /** Clear the `conversionCounterpartId` link on the given legs (on unlink). */
@@ -152,9 +179,10 @@ async function resolveForeignAnchor(
 				eq(bankAccounts.workspaceId, workspaceId),
 				eq(bankAccounts.currency, PRIMARY_CURRENCY),
 				eurSignCond,
-				// The EUR leg must itself be a flagged FX row — the guard against binding an
+				// The EUR leg must itself look like an FX row — the guard against binding an
 				// anchor to an unrelated EUR purchase/withdrawal (which yields a garbage rate).
-				eq(transactions.isFxCandidate, true),
+				// Flagged at parse time, or recognisable from its description (see `fxLegSignal`).
+				fxLegSignal,
 				// A user-excluded EUR leg is off-limits to auto-detection.
 				eq(transactions.fxDetectionExcluded, false),
 				// An EUR leg already used in a conversion must not fund another. Its own
@@ -287,7 +315,7 @@ export async function detectFxPairs(workspaceId: string): Promise<CurrencyConver
 		.where(
 			and(
 				eq(bankAccounts.workspaceId, workspaceId),
-				eq(transactions.isFxCandidate, true),
+				fxLegSignal,
 				// Rows the user opted out of auto-detection never take part in exact pairing.
 				eq(transactions.fxDetectionExcluded, false),
 				eq(transactions.isOpeningBalance, false)
@@ -418,7 +446,7 @@ export async function rescanWorkspaceConversions(
 			and(
 				eq(bankAccounts.workspaceId, workspaceId),
 				ne(bankAccounts.currency, PRIMARY_CURRENCY),
-				eq(transactions.isFxCandidate, true),
+				fxLegSignal,
 				isNull(transactions.conversionId),
 				// Anchors the user opted out of auto-detection are skipped (they link manually).
 				eq(transactions.fxDetectionExcluded, false),
