@@ -41,6 +41,7 @@ import postgres from 'postgres';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getProfile, parseCSV } from '../../src/lib/server/parsers/index.js';
 import { rescanWorkspaceConversions } from '../../src/lib/server/currency-converter.js';
+import { queryCategoryBreakdown } from '../../src/lib/server/db/queries.js';
 import type { NormalizedTransaction } from '../../src/lib/server/parsers/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -196,22 +197,30 @@ try {
 		assert('second rescan is a no-op (no duplicate conversion)', again.length === 0, `got ${again.length}`);
 	}
 
-	// ── 2. Cross-bank: EUR funding leg is UNFLAGGED → NOT auto-linked anymore ────
-	// Confident-match policy: the EUR leg must itself be a flagged FX row. An unflagged
-	// nearby EUR row (a wire, a purchase, an ATM withdrawal) is deliberately left for the
-	// user to link manually — this is what stops the matcher inventing nonsense pairs.
-	console.log('\n2. EUR funder unflagged → left for manual linking (no nonsense pair)');
+	// ── 2. Cross-bank: EUR leg is unflagged AND non-descriptive → NOT auto-linked ──
+	// Confident-match policy: the EUR leg must LOOK like an FX row — flagged at parse time
+	// or recognisable from its description. An unflagged EUR row whose description is an
+	// ordinary purchase/withdrawal (not a conversion) is deliberately left for the user to
+	// link manually — this is what stops the matcher inventing nonsense pairs.
+	console.log('\n2. EUR leg unflagged + non-descriptive → left for manual linking (no nonsense pair)');
 	{
 		const ws = await freshWorkspace('__fx_ws2__');
 		const eurAcct = await createAccount(ws, 'EUR', 'Bankinter EUR');
 		const sekAcct = await createAccount(ws, 'SEK', 'Revolut SEK');
-		// Same −200 EUR funder, but forced unflagged (as a non-Revolut bank would import it).
-		await insertRows(eurAcct, [eurFunder], false);
+		// A −200 EUR row on the same day, but an ordinary card purchase: unflagged AND its
+		// description names no conversion, so neither FX signal (flag nor description) fires.
+		const eurPurchase: NormalizedTransaction = {
+			...eurFunder,
+			description: 'Hkd Cua Hang Benmart',
+			runningBalance: null,
+			sourceIndex: 0
+		};
+		await insertRows(eurAcct, [eurPurchase], false);
 		await insertRows(sekAcct, [sekAnchor]);
 
 		const results = await rescanWorkspaceConversions(ws);
 		const conv = results.find((r) => r.toAccountId === sekAcct);
-		assert('no conversion auto-detected against an unflagged EUR leg', !conv, `got ${results.length}`);
+		assert('no conversion auto-detected against an unflagged, non-FX EUR leg', !conv, `got ${results.length}`);
 		assert('anchor amountEur stays null (unresolved, for manual linking)', (await anchorAmountEur(sekAcct)) === null);
 	}
 
@@ -350,6 +359,71 @@ try {
 			await db.select({ id: currencyConversions.id }).from(currencyConversions).where(eq(currencyConversions.workspaceId, ws))
 		).length;
 		assert('off-rate leg left unlinked (1 conversion row total)', convCount === 1, `rows ${convCount}`);
+	}
+
+	// ── 7. Description-only signal: unflagged legs that NAME a conversion still pair ──
+	// Rows imported before the isFxCandidate flag existed (or from a bank without a type
+	// column) carry the flag as false, but their description reads "Conversión a SEK".
+	// Live description matching in the detectors re-enables their pairing.
+	console.log('\n7. Unflagged but descriptive legs auto-pair via the description signal');
+	{
+		const ws = await freshWorkspace('__fx_ws7__');
+		const eurAcct = await createAccount(ws, 'EUR', 'Revolut EUR');
+		const sekAcct = await createAccount(ws, 'SEK', 'Revolut SEK');
+		// BOTH legs forced unflagged; only their "Conversión a SEK" descriptions identify them.
+		await insertRows(eurAcct, [eurFunder], false);
+		await insertRows(sekAcct, [sekAnchor], false);
+
+		const results = await rescanWorkspaceConversions(ws);
+		const conv = results.find((r) => r.toAccountId === sekAcct);
+		assert('conversion detected from description alone (both legs unflagged)', !!conv, `got ${results.length}`);
+		assert('funds from the EUR account', conv?.fromAccountId === eurAcct);
+		assert('exchangeRate ≈ 10.813', !!conv && approx(conv.exchangeRate, 10.813, 0.001));
+	}
+
+	// ── 8. Linking a conversion clears any stale transfer flag on both legs (A2) ──
+	console.log('\n8. Conversion & transfer are mutually exclusive (link clears is_transfer)');
+	{
+		const ws = await freshWorkspace('__fx_ws8__');
+		const eurAcct = await createAccount(ws, 'EUR', 'Revolut EUR');
+		const sekAcct = await createAccount(ws, 'SEK', 'Revolut SEK');
+		// Insert both flagged FX legs but ALSO pre-marked as transfers (the overloaded state
+		// this fix cleans up). isTransferCandidate → insertRows writes isTransfer = true.
+		await insertRows(eurAcct, [{ ...eurFunder, isTransferCandidate: true, runningBalance: null }]);
+		await insertRows(sekAcct, [{ ...sekAnchor, isTransferCandidate: true, runningBalance: null }]);
+
+		const results = await rescanWorkspaceConversions(ws);
+		assert('conversion detected for the pre-flagged-as-transfer legs', results.length === 1, `got ${results.length}`);
+
+		const legs = await db
+			.select({ isTransfer: transactions.isTransfer, tc: transactions.transferCounterpartId })
+			.from(transactions)
+			.where(inArray(transactions.bankAccountId, [eurAcct, sekAcct]));
+		assert(
+			'is_transfer cleared on both legs after linking',
+			legs.length === 2 && legs.every((l) => l.isTransfer === false && l.tc === null),
+			legs.map((l) => `${l.isTransfer}`).join(',')
+		);
+	}
+
+	// ── 9. Reporting excludes conversion legs (A1) — even with is_transfer = false ──
+	// A settled conversion leg is a movement, not income/spend. queryCategoryBreakdown must
+	// drop it via conversionCounterpartId, independent of the transfer flag.
+	console.log('\n9. Conversion legs are excluded from insights aggregation');
+	{
+		const ws = await freshWorkspace('__fx_ws9__');
+		const eurAcct = await createAccount(ws, 'EUR', 'Revolut EUR');
+		const sekAcct = await createAccount(ws, 'SEK', 'Revolut SEK');
+		await insertRows(eurAcct, [eurFunder]); // flagged; will link (is_transfer = false)
+		await insertRows(sekAcct, [sekAnchor]);
+
+		await rescanWorkspaceConversions(ws);
+		const breakdown = await queryCategoryBreakdown([eurAcct, sekAcct]);
+		assert(
+			'both conversion legs excluded from the category breakdown',
+			breakdown.length === 0,
+			`buckets: ${JSON.stringify(breakdown)}`
+		);
 	}
 } finally {
 	// ── Cleanup ─────────────────────────────────────────────────────────────────
