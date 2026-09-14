@@ -33,7 +33,7 @@ export const revolut_eu: BankParserProfile = {
 	// exchange leg always names the target currency ("Conversión a VND", "Exchanged to VND",
 	// "Cambio de divisas a VND"). Guards against unflagged real FX legs being ignored, which
 	// would otherwise let the anchor matcher bind to an unrelated expense.
-	fxCandidateDescriptionPattern: /conversi[oó]n a\b|exchanged to\b|cambio de divisas\b/i,
+	fxCandidateDescriptionPattern: /conversi[oó]n a\b|exchanged to\b|cambio de divisas?\b/i,
 	additionalColumns: []
 };
 

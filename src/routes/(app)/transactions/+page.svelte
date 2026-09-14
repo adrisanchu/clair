@@ -488,10 +488,10 @@
 									<td class="px-2 py-2 text-text-primary md:px-4 md:py-3">
 										<div class="flex items-center justify-between gap-2">
 											<div class="flex min-w-0 flex-1 items-center gap-2">
-												{#if isTransfer}
-													<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
-												{:else if isConversionLeg}
+												{#if isConversionLeg}
 													<Repeat size={13} class="shrink-0 text-primary-500" />
+												{:else if isTransfer}
+													<ArrowLeftRight size={13} class="shrink-0 text-text-tertiary" />
 												{:else if isReview}
 													<AlertTriangle size={13} class="shrink-0 text-amber-500" />
 												{/if}

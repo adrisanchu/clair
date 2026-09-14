@@ -22,3 +22,14 @@ export const FX_ANCHOR_WINDOW_DAYS = 3;
  * is accepted on the strength of the flagged-EUR-leg requirement alone.
  */
 export const FX_RATE_TOLERANCE = 0.25;
+
+/**
+ * Description wording that identifies a currency-exchange leg, as a Postgres POSIX
+ * regex (used with `~*` in the conversion detectors). This is the query-time twin of
+ * each parser's `fxCandidateDescriptionPattern` — it lets detection recognise a
+ * conversion from its description even when `isFxCandidate` was never set at parse
+ * time (rows imported before the flag existed, or from a profile without a type
+ * column). Keep in sync with the profile regexes (which additionally use JS `\b`
+ * boundaries that POSIX `~*` does not need here).
+ */
+export const FX_DESCRIPTION_SQL_PATTERN = 'conversi[oó]n a|exchanged to|cambio de divisas?';

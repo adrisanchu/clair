@@ -21,6 +21,19 @@ import { TRANSFER_MATCH_WINDOW_DAYS } from '$lib/constants/transfers.js';
 
 export const TX_PAGE_SIZE = 25;
 
+/**
+ * Reporting predicate that drops "movements between your own accounts" — both
+ * same-currency transfers (`isTransfer`) and cross-currency conversion legs
+ * (`conversionCounterpartId`). Neither is real income or spend. Excluding
+ * conversions on their own (rather than relying on the overloaded `isTransfer`
+ * flag) is what keeps a conversion leg out of the totals even when it carries no
+ * transfer flag. Spread into an `and(...)` alongside the query's other clauses.
+ */
+const excludeMovements = [
+	eq(transactions.isTransfer, false),
+	isNull(transactions.conversionCounterpartId)
+];
+
 // ---------------------------------------------------------------------------
 // Rolling balance query
 // ---------------------------------------------------------------------------
@@ -49,14 +62,14 @@ export async function queryRollingBalance(
 	const threeMonthsAgo = new Date(now);
 	threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-	// Find the earliest posted non-transfer non-opening-balance transaction
+	// Find the earliest posted non-movement (non-transfer, non-conversion) non-opening-balance tx
 	const [earliest] = await db
 		.select({ minDate: sql<string>`MIN(${transactions.accountingDate})::text` })
 		.from(transactions)
 		.where(
 			and(
 				inArray(transactions.bankAccountId, accessibleIds),
-				eq(transactions.isTransfer, false),
+				...excludeMovements,
 				eq(transactions.isOpeningBalance, false),
 				eq(transactions.status, 'posted')
 			)
@@ -82,7 +95,7 @@ export async function queryRollingBalance(
 		.where(
 			and(
 				inArray(transactions.bankAccountId, accessibleIds),
-				eq(transactions.isTransfer, false),
+				...excludeMovements,
 				eq(transactions.isOpeningBalance, false),
 				eq(transactions.status, 'posted'),
 				gte(transactions.accountingDate, windowStart)
@@ -129,7 +142,7 @@ export interface InsightsWindow {
 function insightsFilters(accessibleIds: string[], window: InsightsWindow = {}) {
 	const clauses = [
 		inArray(transactions.bankAccountId, accessibleIds),
-		eq(transactions.isTransfer, false),
+		...excludeMovements,
 		eq(transactions.isOpeningBalance, false),
 		eq(transactions.status, 'posted')
 	];
@@ -370,7 +383,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 		filter === 'expenses'
 			? and(
 					sql`${transactions.amount}::numeric < 0`,
-					eq(transactions.isTransfer, false),
+					...excludeMovements,
 					eq(transactions.isOpeningBalance, false),
 					eq(transactions.status, 'posted')
 				)
@@ -426,7 +439,7 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				// Tab badge counts never include the opening balance row
 				all: sql<number>`COUNT(*) FILTER (WHERE NOT ${transactions.isOpeningBalance})::int`,
 				allWithOpening: sql<number>`COUNT(*)::int`,
-				expenses: sql<number>`COUNT(*) FILTER (WHERE ${transactions.amount}::numeric < 0 AND NOT ${transactions.isTransfer} AND NOT ${transactions.isOpeningBalance} AND ${transactions.status} = 'posted')::int`,
+				expenses: sql<number>`COUNT(*) FILTER (WHERE ${transactions.amount}::numeric < 0 AND NOT ${transactions.isTransfer} AND ${transactions.conversionCounterpartId} IS NULL AND NOT ${transactions.isOpeningBalance} AND ${transactions.status} = 'posted')::int`,
 				transfers: sql<number>`COUNT(*) FILTER (WHERE ${transactions.isTransfer})::int`,
 				review: sql<number>`COUNT(*) FILTER (WHERE ${transactions.status} = 'review')::int`
 			})
