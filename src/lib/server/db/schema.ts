@@ -22,6 +22,10 @@ const coreSchema = pgSchema('core');
 
 export const accountStatusEnum = pgEnum('account_status', ['no_data', 'active']);
 
+// 'bank' = CSV-backed account (immutable rows, dedup anchored on description).
+// 'cash' = manual account (add/edit/delete rows freely — see issue #68).
+export const accountTypeEnum = pgEnum('account_type', ['bank', 'cash']);
+
 export const accountVisibilityEnum = pgEnum('account_visibility', [
 	'private',
 	'stats_only',
@@ -86,8 +90,11 @@ export const bankAccounts = coreSchema.table('bank_accounts', {
 		.references(() => workspaces.id),
 	displayName: text('display_name').notNull(),
 	institutionName: text('institution_name').notNull(),
-	bankProfileId: text('bank_profile_id').notNull(),
-	ibanLast4: text('iban_last4').notNull(),
+	// 'bank' accounts carry a CSV parser profile; 'cash' accounts have neither
+	// a profile nor an IBAN (both nullable). See accountType.
+	accountType: accountTypeEnum('account_type').default('bank').notNull(),
+	bankProfileId: text('bank_profile_id'),
+	ibanLast4: text('iban_last4'),
 	currency: text('currency').default('EUR').notNull(),
 	currentBalance: numeric('current_balance', { precision: 15, scale: 4 }).default('0').notNull(),
 	status: accountStatusEnum('status').default('no_data').notNull(),
