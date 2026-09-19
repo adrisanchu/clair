@@ -25,6 +25,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 						id: bankAccounts.id,
 						displayName: bankAccounts.displayName,
 						institutionName: bankAccounts.institutionName,
+						accountType: bankAccounts.accountType,
 						bankProfileId: bankAccounts.bankProfileId,
 						ibanLast4: bankAccounts.ibanLast4,
 						currency: bankAccounts.currency,

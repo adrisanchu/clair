@@ -1,8 +1,8 @@
 import { error } from '@sveltejs/kit';
-import { and, desc, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
-import { authUser, bankAccounts, csvUploads } from '$lib/server/db/schema.js';
+import { authUser, bankAccounts, categories, costGroups, csvUploads } from '$lib/server/db/schema.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -18,7 +18,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	const isOwner = account.ownerUserId === locals.user.id;
 
-	const [uploads, partner] = await Promise.all([
+	const [uploads, partner, cats, groups] = await Promise.all([
 		db
 			.select()
 			.from(csvUploads)
@@ -34,13 +34,35 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 					),
 					columns: { id: true, name: true }
 				})
-			: Promise.resolve(null)
+			: Promise.resolve(null),
+
+		// Categories + cost groups power the manual "Add transaction" sheet (cash accounts).
+		locals.user.workspaceId
+			? db
+					.select()
+					.from(categories)
+					.where(eq(categories.workspaceId, locals.user.workspaceId))
+					.orderBy(
+						sql`COALESCE(${categories.parentId}, ${categories.id})`,
+						asc(categories.sortOrder),
+						asc(categories.name)
+					)
+			: Promise.resolve([]),
+		locals.user.workspaceId
+			? db
+					.select()
+					.from(costGroups)
+					.where(eq(costGroups.workspaceId, locals.user.workspaceId))
+					.orderBy(asc(costGroups.sortOrder), asc(costGroups.name))
+			: Promise.resolve([])
 	]);
 
 	return {
 		account: { ...account, currentBalance: parseFloat(account.currentBalance) },
 		uploads,
 		isOwner,
-		partner: partner ?? null
+		partner: partner ?? null,
+		categories: cats,
+		costGroups: groups
 	};
 };
