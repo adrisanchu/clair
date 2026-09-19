@@ -6,6 +6,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import CostGroupSelector from '$lib/components/CostGroupSelector.svelte';
+	import CategoryPicker from '$lib/components/CategoryPicker.svelte';
 	import type { CategoryRow, CostGroupRow } from '$lib/types';
 
 	interface Props {
@@ -31,23 +32,11 @@
 	let description = $state('');
 	let amountInput = $state('');
 	let dateInput = $state(format(new Date(), 'yyyy-MM-dd'));
-	let categoryOverride = $state<string>('');
+	let categoryOverride = $state<string | null>(null);
 	let notes = $state('');
 	let costGroup = $state<string | null>(null);
 	let submitting = $state(false);
 	let fieldError = $state<string | null>(null);
-
-	// Parent categories first, each followed by its children (indented in the label).
-	const categoryOptions = $derived(
-		categories
-			.filter((c) => c.parentId === null)
-			.flatMap((parent) => [
-				{ name: parent.name, label: parent.name },
-				...categories
-					.filter((c) => c.parentId === parent.id)
-					.map((child) => ({ name: child.name, label: `  ${child.name}` }))
-			])
-	);
 
 	const parsedAmount = $derived(Number(amountInput.replace(',', '.')));
 	const valid = $derived(
@@ -58,7 +47,7 @@
 		description = '';
 		amountInput = '';
 		dateInput = format(new Date(), 'yyyy-MM-dd');
-		categoryOverride = '';
+		categoryOverride = null;
 		notes = '';
 		costGroup = null;
 		fieldError = null;
@@ -125,7 +114,7 @@
 			</div>
 
 			<!-- Amount + Date -->
-			<div class="grid grid-cols-2 gap-4">
+			<div class="grid grid-cols-2 items-start gap-4">
 				<div class="grid gap-1.5">
 					<Label for="add-amount">Amount ({currency})</Label>
 					<Input
@@ -147,26 +136,16 @@
 						bind:value={dateInput}
 						required
 						disabled={submitting}
-						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+						class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
 					/>
 				</div>
 			</div>
 
 			<!-- Category -->
-			{#if categoryOptions.length > 0}
+			{#if categories.length > 0}
 				<div class="grid gap-1.5">
-					<Label for="add-category">Category</Label>
-					<select
-						id="add-category"
-						bind:value={categoryOverride}
-						disabled={submitting}
-						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-					>
-						<option value="">No category</option>
-						{#each categoryOptions as opt (opt.name)}
-							<option value={opt.name}>{opt.label}</option>
-						{/each}
-					</select>
+					<Label>Category</Label>
+					<CategoryPicker bind:value={categoryOverride} {categories} disabled={submitting} />
 				</div>
 			{/if}
 
