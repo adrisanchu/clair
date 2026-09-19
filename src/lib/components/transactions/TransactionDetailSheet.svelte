@@ -175,7 +175,7 @@
 							class="w-full min-w-0 resize-y rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
 						></textarea>
 					</div>
-					<div class="grid grid-cols-2 gap-4">
+					<div class="grid grid-cols-2 items-start gap-4">
 						<div class="grid gap-1.5">
 							<Label for="tx-amount">Amount ({tx.currency})</Label>
 							<input
@@ -341,11 +341,12 @@
 				{/if}
 			</form>
 
-			<Sheet.Footer class="px-6 pt-2 pb-6 sm:justify-between">
+			<Sheet.Footer class="flex-row items-center gap-2 px-6 pt-2 pb-6">
 				{#if isCash}
 					<Button
 						type="button"
 						variant="ghost"
+						size="sm"
 						class="text-danger-600 hover:bg-danger-50 hover:text-danger-700"
 						disabled={submitting || deleting}
 						onclick={() => (confirmDeleteOpen = true)}
@@ -354,13 +355,14 @@
 						Delete
 					</Button>
 				{/if}
-				<div class="flex gap-2">
+				<div class="ml-auto flex gap-2">
 					<Sheet.Close>
 						{#snippet child({ props })}
-							<Button variant="outline" {...props} disabled={submitting}>Cancel</Button>
+							<Button variant="outline" size="sm" {...props} disabled={submitting}>Cancel</Button>
 						{/snippet}
 					</Sheet.Close>
 					<Button
+						size="sm"
 						onclick={(e: MouseEvent) => {
 							const form = (e.currentTarget as HTMLElement)
 								.closest('[data-slot="sheet-content"]')
@@ -369,7 +371,7 @@
 						}}
 						disabled={submitting || !dirty || !cashFieldsValid}
 					>
-						{submitting ? 'Saving…' : 'Save changes'}
+						{submitting ? 'Saving…' : 'Save'}
 					</Button>
 				</div>
 			</Sheet.Footer>
