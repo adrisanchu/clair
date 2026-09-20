@@ -17,12 +17,14 @@ import { preCategorize } from './pre-categorize.js';
 import { detectAdaptiveProfile, detectEncoding } from './detector.js';
 import { revolut_eu, REVOLUT_EU_HEADER_FINGERPRINT } from './profiles/revolut_eu.js';
 import { bankinter_es, BANKINTER_ES_HEADER_FINGERPRINT } from './profiles/bankinter_es.js';
+import { caixabank_es, CAIXABANK_ES_HEADER_FINGERPRINT } from './profiles/caixabank_es.js';
 
 // ─── Profile registry ──────────────────────────────────────────────────────
 
 const PROFILES: Record<string, BankParserProfile> = {
 	revolut_eu,
-	bankinter_es
+	bankinter_es,
+	caixabank_es
 };
 
 export function getProfile(bankProfileId: string): BankParserProfile | null {
@@ -74,6 +76,15 @@ export function detectXLSXProfile(buffer: Buffer): string | null {
 		) {
 			return 'bankinter_es';
 		}
+
+		// CaixaBank: header at row index 2 (Excel row 3)
+		const caixabankHeader = rows[2];
+		if (
+			caixabankHeader &&
+			CAIXABANK_ES_HEADER_FINGERPRINT.every((col, i) => caixabankHeader[i]?.trim() === col)
+		) {
+			return 'caixabank_es';
+		}
 	} catch {
 		// not a valid XLSX file
 	}
@@ -101,10 +112,18 @@ export function detectFileDirection(
 // ─── Per-profile post-normalise hooks ─────────────────────────────────────
 
 // Per-profile escape hatch for adjustments the generic normalizer can't express.
-// Fees are now handled generically via `profile.feeColumn`, so there are no entries today.
 const POST_NORMALIZE: Partial<
 	Record<string, (row: NormalizedTransaction, raw: Record<string, string>) => NormalizedTransaction>
-> = {};
+> = {
+	// CaixaBank: `Movimiento` is a ~17-char truncated label; the richer context lives in
+	// `Más datos`. Fold the meaningful part into `notes`, dropping the "Fecha de operación:
+	// DD-MM-YYYY" noise (~70% of rows) — that operation date has no slot in our model.
+	caixabank_es: (row, raw) => {
+		const masDatos = raw['Más datos']?.trim() ?? '';
+		const isNoise = /^fecha de operaci(?:o|ó)n/i.test(masDatos);
+		return { ...row, notes: isNoise || !masDatos ? row.notes : masDatos };
+	}
+};
 
 // ─── Parse ────────────────────────────────────────────────────────────────
 
@@ -136,8 +155,7 @@ function buildOptionalColumns(headers: string[], overrides: ColumnOverrides): Op
 	// always auto-detected from the headers even when explicit overrides are supplied.
 	const idColumn = detectOptionalColumn(headers, ID_SYNONYMS);
 	const costGroupColumn = detectOptionalColumn(headers, COST_GROUP_SYNONYMS);
-	if (overrides)
-		return { ...overrides, idColumn: overrides.idColumn ?? idColumn, costGroupColumn };
+	if (overrides) return { ...overrides, idColumn: overrides.idColumn ?? idColumn, costGroupColumn };
 	return {
 		categoryColumn: detectOptionalColumn(headers, CATEGORY_SYNONYMS),
 		costGroupColumn,
@@ -397,7 +415,9 @@ export async function uploadAndParse(
 ): Promise<{ profileId: string; result: ParseResult }> {
 	const isXlsx =
 		file.name.endsWith('.xlsx') ||
-		file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+		file.name.endsWith('.xls') || // legacy binary Excel (OLE2/BIFF) — e.g. CaixaBank exports
+		file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+		file.type === 'application/vnd.ms-excel';
 
 	const buffer = await fileToBuffer(file);
 
