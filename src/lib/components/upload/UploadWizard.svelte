@@ -328,10 +328,12 @@
 		}
 		// Send confirmed category mappings if any decisions were made
 		if (Object.keys(categoryDecisions).length > 0) {
-			const confirmedMappings = Object.entries(categoryDecisions).map(([csvCategory, mappedTo]) => ({
-				csvCategory,
-				mappedTo
-			}));
+			const confirmedMappings = Object.entries(categoryDecisions).map(
+				([csvCategory, mappedTo]) => ({
+					csvCategory,
+					mappedTo
+				})
+			);
 			formData.append('categoryMappings', JSON.stringify(confirmedMappings));
 		}
 		// Send user-confirmed column overrides if there were any detected mappings
@@ -465,7 +467,9 @@
 		if (preview.updateCount > 0) parts.push(`${preview.updateCount} updated`);
 		if (preview.reviewCount > 0) parts.push(`${preview.reviewCount} need review`);
 		if (preview.skippedCount > 0)
-			parts.push(`${preview.skippedCount} unreadable ${preview.skippedCount === 1 ? 'row' : 'rows'}`);
+			parts.push(
+				`${preview.skippedCount} unreadable ${preview.skippedCount === 1 ? 'row' : 'rows'}`
+			);
 		return parts.join(' · ');
 	});
 </script>
@@ -504,14 +508,18 @@
 						</div>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-sm font-medium text-text-primary">{acc.displayName}</p>
-							<p class="text-xs text-text-secondary">{acc.bankProfileId ?? 'Cash'} · {acc.currency}</p>
+							<p class="text-xs text-text-secondary">
+								{acc.bankProfileId ?? 'Cash'} · {acc.currency}
+							</p>
 						</div>
 						<ArrowRight size={14} class="shrink-0 text-text-tertiary" />
 					</button>
 				{/each}
 
 				{#if accounts.length === 0}
-					<p class="rounded-lg border border-dashed border-border p-4 text-center text-xs text-text-tertiary">
+					<p
+						class="rounded-lg border border-dashed border-border p-4 text-center text-xs text-text-tertiary"
+					>
 						No accounts yet — create one to start uploading.
 					</p>
 				{/if}
@@ -603,7 +611,12 @@
 				<p class="mt-0.5 text-xs text-text-secondary">Supported format: {bankProfileId}</p>
 			</div>
 			<label class="cursor-pointer">
-				<input type="file" accept=".csv,text/csv" class="sr-only" onchange={handleFileInput} />
+				<input
+					type="file"
+					accept=".csv,text/csv,.xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+					class="sr-only"
+					onchange={handleFileInput}
+				/>
 				<span
 					class="text-xs font-medium text-primary-500 underline underline-offset-2 hover:text-primary-600"
 				>
@@ -895,7 +908,8 @@
 										</span>
 									</div>
 									{#if isRejected}
-										<span class="text-[11px] text-text-tertiary">Link it manually on Transfers</span>
+										<span class="text-[11px] text-text-tertiary">Link it manually on Transfers</span
+										>
 									{:else}
 										<button
 											type="button"
@@ -903,14 +917,16 @@
 											disabled={isRejecting}
 											onclick={() => rejectConversion(conv.conversionId)}
 										>
-											{isRejecting ? 'Rejecting…' : "Not a conversion"}
+											{isRejecting ? 'Rejecting…' : 'Not a conversion'}
 										</button>
 									{/if}
 								</div>
 								<!-- From row -->
 								<div class="flex items-center justify-between gap-2">
 									<div class="min-w-0">
-										<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">
+										<p
+											class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+										>
 											{conv.fromAccountName}
 										</p>
 										<p class="truncate text-xs text-text-secondary">
@@ -928,7 +944,9 @@
 								<!-- To row -->
 								<div class="flex items-center justify-between gap-2">
 									<div class="min-w-0">
-										<p class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">
+										<p
+											class="text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+										>
 											{conv.toAccountName}
 										</p>
 										<p class="truncate text-xs text-text-secondary">
@@ -947,7 +965,9 @@
 											{currency} / EUR
 										</span>
 									</span>
-									<span class="text-text-tertiary">Applies to {conv.affectedTxCount} transactions</span>
+									<span class="text-text-tertiary"
+										>Applies to {conv.affectedTxCount} transactions</span
+									>
 								</div>
 							</div>
 						{/each}
@@ -968,7 +988,9 @@
 								>
 									<Link size={13} class="shrink-0 text-success-600" />
 									<div class="min-w-0 flex-1">
-										<p class="text-xs font-medium text-text-primary">Transfer linked automatically</p>
+										<p class="text-xs font-medium text-text-primary">
+											Transfer linked automatically
+										</p>
 										<p class="truncate text-[11px] text-text-secondary">
 											{match.sourceAccountName} · {match.sourceDescription}
 											<span class="text-text-tertiary">→</span>
@@ -1025,7 +1047,9 @@
 										</div>
 										<Amount value={match.sourceAmount} currency={PRIMARY_CURRENCY} size="sm" />
 									</div>
-									<p class="mb-1.5 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase">
+									<p
+										class="mb-1.5 text-[10px] font-semibold tracking-wider text-text-tertiary uppercase"
+									>
 										Match with
 									</p>
 									<div class="space-y-1">
@@ -1084,10 +1108,17 @@
 <div class="mt-4 flex shrink-0 items-center justify-between gap-2 pt-2">
 	{#if step === 'account'}
 		{#if showNewAccountForm}
-			<Button variant="outline" onclick={() => (showNewAccountForm = false)} disabled={creatingAccount}>
+			<Button
+				variant="outline"
+				onclick={() => (showNewAccountForm = false)}
+				disabled={creatingAccount}
+			>
 				Back
 			</Button>
-			<Button onclick={createAccount} disabled={creatingAccount || !newName.trim() || !newIbanLast4.trim()}>
+			<Button
+				onclick={createAccount}
+				disabled={creatingAccount || !newName.trim() || !newIbanLast4.trim()}
+			>
 				{creatingAccount ? 'Creating…' : 'Create & continue'}
 				<ArrowRight size={14} />
 			</Button>
