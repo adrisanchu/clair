@@ -202,19 +202,40 @@ export interface ClassificationSummary {
 	reviewCount: number;
 }
 
-export async function summarizeClassification(
+export interface UploadClassification {
+	summary: ClassificationSummary;
+	/**
+	 * Ids of existing transactions the file matched — every `skip`/`update_*` row (i.e. rows
+	 * the file still contains). Powers deleted-record detection (see reconcile.ts): any
+	 * in-window existing row NOT in this set is absent from the uploaded file.
+	 *
+	 * Note: an ambiguous same-amount/same-day multi-match yields a `review` action with no
+	 * `existingId`, so those existing rows are not added here — they may surface as deletion
+	 * candidates. That's a benign false-positive (the reconcile UI defaults every row to keep).
+	 */
+	matchedExistingIds: Set<string>;
+}
+
+/**
+ * Classify every row of an upload once, returning both the New/Duplicate/Update/Review
+ * summary and the set of matched existing-transaction ids. Used by the preview endpoint so
+ * it can show the dedup breakdown and detect deleted records from a single classification pass.
+ */
+export async function classifyUpload(
 	rows: NormalizedTransaction[],
 	bankAccountId: string
-): Promise<ClassificationSummary> {
+): Promise<UploadClassification> {
 	const summary: ClassificationSummary = {
 		newCount: 0,
 		duplicateCount: 0,
 		updateCount: 0,
 		reviewCount: 0
 	};
+	const matchedExistingIds = new Set<string>();
 
 	for (const row of rows) {
-		const { action } = await classifyRow(row, bankAccountId);
+		const { action, existingId } = await classifyRow(row, bankAccountId);
+		if (existingId) matchedExistingIds.add(existingId);
 		if (action === 'insert') summary.newCount++;
 		else if (action === 'review') summary.reviewCount++;
 		else if (
@@ -226,7 +247,14 @@ export async function summarizeClassification(
 		else summary.duplicateCount++; // 'skip'
 	}
 
-	return summary;
+	return { summary, matchedExistingIds };
+}
+
+export async function summarizeClassification(
+	rows: NormalizedTransaction[],
+	bankAccountId: string
+): Promise<ClassificationSummary> {
+	return (await classifyUpload(rows, bankAccountId)).summary;
 }
 
 /**
