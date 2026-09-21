@@ -29,6 +29,7 @@ export interface CostGroupRow {
 export interface Account {
 	id: string;
 	displayName: string;
+	accountType: 'bank' | 'cash';
 	bankProfileId: string | null;
 	ibanLast4: string | null;
 	currency: string;

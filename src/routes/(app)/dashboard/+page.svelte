@@ -166,7 +166,7 @@
 							<!-- Card header: logo + name + status -->
 							<div class="mb-4 flex items-start justify-between">
 								<div class="flex items-center gap-2.5">
-									<BankLogo name={account.displayName} bankProfileId={account.bankProfileId} />
+									<BankLogo name={account.displayName} bankProfileId={account.bankProfileId ?? undefined} />
 									<div>
 										<div class="flex flex-wrap items-center gap-1.5">
 											<p class="text-sm leading-tight font-medium text-text-primary">

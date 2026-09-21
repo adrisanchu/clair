@@ -22,7 +22,8 @@
 	export type AccountOption = {
 		id: string;
 		displayName: string;
-		bankProfileId: string;
+		// null for manual cash accounts — the importer auto-detects an adaptive profile.
+		bankProfileId: string | null;
 		currency: string;
 		txCount: number;
 	};
@@ -503,7 +504,7 @@
 						</div>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-sm font-medium text-text-primary">{acc.displayName}</p>
-							<p class="text-xs text-text-secondary">{acc.bankProfileId} · {acc.currency}</p>
+							<p class="text-xs text-text-secondary">{acc.bankProfileId ?? 'Cash'} · {acc.currency}</p>
 						</div>
 						<ArrowRight size={14} class="shrink-0 text-text-tertiary" />
 					</button>

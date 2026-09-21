@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { formatRelativeTime } from '$lib/datetime';
 	import { DropdownMenu } from 'bits-ui';
-	import { Upload, EllipsisVertical, Pencil, Trash2 } from '@lucide/svelte';
+	import { Upload, EllipsisVertical, Pencil, Trash2, Wallet } from '@lucide/svelte';
 	import Amount from '$lib/components/Amount.svelte';
 	import BankLogo from '$lib/components/BankLogo.svelte';
 	import * as Card from '$lib/components/ui/card';
@@ -19,6 +19,8 @@
 	}
 
 	let { account, isDeleting = false, onnavigate, onupload, onrename, ondelete }: Props = $props();
+
+	const isCash = $derived(account.accountType === 'cash');
 
 	let isRenaming = $state(false);
 	let renameValue = $state('');
@@ -68,7 +70,15 @@
 			<!-- Header row -->
 			<div class="mb-4 flex items-start justify-between">
 				<div class="flex items-center gap-2.5">
-					<BankLogo name={account.displayName} bankProfileId={account.bankProfileId ?? undefined} />
+					{#if isCash}
+						<div
+							class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-secondary"
+						>
+							<Wallet size={18} />
+						</div>
+					{:else}
+						<BankLogo name={account.displayName} bankProfileId={account.bankProfileId ?? undefined} />
+					{/if}
 					<div class="min-w-0">
 						{#if isRenaming}
 							<!-- svelte-ignore a11y_autofocus -->
@@ -98,7 +108,7 @@
 							</div>
 						{/if}
 						<p class="mt-0.5 text-xs text-text-tertiary">
-							···{account.ibanLast4} · {account.currency}
+							{#if isCash}Cash · {account.currency}{:else}···{account.ibanLast4} · {account.currency}{/if}
 						</p>
 					</div>
 				</div>
@@ -169,12 +179,17 @@
 			</Button>
 		</div>
 
-		<!-- Coming soon strip -->
+		<!-- Info strip -->
 		<div
 			class="flex items-center gap-1.5 rounded-b-xl border-t border-border bg-surface-sunken px-4 py-2 text-xs text-text-tertiary"
 		>
-			<span>🔒</span>
-			<span>Automatic sync — Coming soon</span>
+			{#if isCash}
+				<span>✎</span>
+				<span>Manual account — add & edit transactions by hand</span>
+			{:else}
+				<span>🔒</span>
+				<span>Automatic sync — Coming soon</span>
+			{/if}
 		</div>
 	</Card.Root>
 </div>

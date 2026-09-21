@@ -2,9 +2,11 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { format } from 'date-fns';
 	import { formatRelativeTime } from '$lib/datetime';
-	import { ArrowLeft, Upload, Trash2, Check, X, Lock, BarChart2, Eye } from '@lucide/svelte';
+	import { ArrowLeft, Upload, Plus, Trash2, Check, X, Lock, BarChart2, Eye, Wallet } from '@lucide/svelte';
 	import Amount from '$lib/components/Amount.svelte';
 	import BankLogo from '$lib/components/BankLogo.svelte';
+	import AddTransactionSheet from '$lib/components/transactions/AddTransactionSheet.svelte';
+	import UploadCsvDialog from '$lib/components/accounts/UploadCsvDialog.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -13,11 +15,15 @@
 
 	let { data }: { data: PageData } = $props();
 
+	const isCash = $derived(data.account.accountType === 'cash');
+
 	let renaming = $state(false);
 	let renameValue = $state(data.account.displayName);
 	let renameSubmitting = $state(false);
 	let deleteConfirm = $state(false);
 	let visibilityUpdating = $state(false);
+	let addTxOpen = $state(false);
+	let uploadOpen = $state(false);
 
 	async function submitRename() {
 		if (!renameValue.trim() || renameValue === data.account.displayName) {
@@ -102,11 +108,19 @@
 
 	<!-- Account header -->
 	<div class="mb-8 flex items-center gap-3">
-		<BankLogo
-			name={data.account.displayName}
-			bankProfileId={data.account.bankProfileId}
-			size="lg"
-		/>
+		{#if isCash}
+			<div
+				class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-text-secondary"
+			>
+				<Wallet size={24} />
+			</div>
+		{:else}
+			<BankLogo
+				name={data.account.displayName}
+				bankProfileId={data.account.bankProfileId ?? undefined}
+				size="lg"
+			/>
+		{/if}
 		<div class="min-w-0 flex-1">
 			{#if renaming}
 				<div class="flex items-center gap-2">
@@ -160,8 +174,12 @@
 				</div>
 			{/if}
 			<p class="mt-0.5 text-sm text-text-tertiary">
-				···{data.account.ibanLast4} · {data.account.currency} ·
-				{data.account.institutionName}
+				{#if isCash}
+					Cash · {data.account.currency}
+				{:else}
+					···{data.account.ibanLast4} · {data.account.currency} ·
+					{data.account.institutionName}
+				{/if}
 			</p>
 		</div>
 	</div>
@@ -187,6 +205,26 @@
 		</span>
 	</div>
 
+	<!-- Manual actions (cash accounts) -->
+	{#if isCash && (data.isOwner || data.account.visibility === 'full')}
+		<div class="mb-8 flex flex-wrap items-center gap-2">
+			<Button size="sm" class="gap-1.5" onclick={() => (addTxOpen = true)}>
+				<Plus size={14} />
+				Add transaction
+			</Button>
+			<Button size="sm" variant="outline" class="gap-1.5" onclick={() => (uploadOpen = true)}>
+				<Upload size={14} />
+				Upload CSV
+			</Button>
+			<a
+				href="/transactions?accountId={data.account.id}"
+				class="ml-auto text-sm text-primary-600 hover:underline"
+			>
+				View transactions →
+			</a>
+		</div>
+	{/if}
+
 	<!-- Upload history (owner, or full-access partner) -->
 	{#if data.isOwner || data.account.visibility === 'full'}
 		<Card.Root class="mb-6 border-border bg-surface">
@@ -199,8 +237,9 @@
 						size="sm"
 						variant="outline"
 						class="gap-1.5 text-xs"
-						disabled
-						title="Coming in Phase 3d"
+						disabled={!isCash}
+						title={isCash ? 'Import transactions from a CSV' : 'Coming in Phase 3d'}
+						onclick={isCash ? () => (uploadOpen = true) : undefined}
 					>
 						<Upload size={13} />
 						Upload CSV
@@ -343,3 +382,21 @@
 		</Card.Root>
 	{/if}
 </div>
+
+{#if isCash}
+	<AddTransactionSheet
+		bind:open={addTxOpen}
+		accountId={data.account.id}
+		currency={data.account.currency}
+		categories={data.categories}
+		costGroups={data.costGroups}
+	/>
+	<UploadCsvDialog
+		bind:open={uploadOpen}
+		accountId={data.account.id}
+		accountName={data.account.displayName}
+		bankProfileId={data.account.bankProfileId ?? 'default'}
+		currency={data.account.currency}
+		isFirstUpload={data.uploads.length === 0}
+	/>
+{/if}

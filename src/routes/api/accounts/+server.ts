@@ -26,6 +26,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			id: bankAccounts.id,
 			displayName: bankAccounts.displayName,
 			institutionName: bankAccounts.institutionName,
+			accountType: bankAccounts.accountType,
 			bankProfileId: bankAccounts.bankProfileId,
 			ibanLast4: bankAccounts.ibanLast4,
 			currency: bankAccounts.currency,
@@ -63,15 +64,38 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user.workspaceId) throw error(403, 'No workspace — run the seed script first');
 
 	const body = await request.json();
-	const { displayName, bankProfileId, ibanLast4, currency = PRIMARY_CURRENCY } = body;
+	const { displayName, accountType = 'bank', bankProfileId, ibanLast4, currency = PRIMARY_CURRENCY } = body;
 
 	if (!displayName?.trim()) throw error(400, 'displayName is required');
+	if (accountType !== 'bank' && accountType !== 'cash')
+		throw error(400, `Unknown accountType: ${accountType}`);
+	if (!VALID_CURRENCIES.has(currency)) throw error(400, `Unsupported currency: ${currency}`);
+
+	// Cash accounts are manual — no parser profile and no IBAN (issue #68).
+	if (accountType === 'cash') {
+		const [account] = await db
+			.insert(bankAccounts)
+			.values({
+				ownerUserId: locals.user.id,
+				workspaceId: locals.user.workspaceId,
+				displayName: displayName.trim(),
+				institutionName: 'Cash',
+				accountType: 'cash',
+				bankProfileId: null,
+				ibanLast4: null,
+				currency,
+				status: 'no_data'
+			})
+			.returning();
+
+		return json(account, { status: 201 });
+	}
+
 	if (!bankProfileId) throw error(400, 'bankProfileId is required');
 	if (!VALID_PROFILE_IDS.has(bankProfileId))
 		throw error(400, `Unknown bankProfileId: ${bankProfileId}`);
 	if (!ibanLast4?.trim()) throw error(400, 'ibanLast4 is required');
 	if (!/^\d{4}$/.test(ibanLast4.trim())) throw error(400, 'ibanLast4 must be exactly 4 digits');
-	if (!VALID_CURRENCIES.has(currency)) throw error(400, `Unsupported currency: ${currency}`);
 
 	const profile = getAllProfiles().find((p) => p.bankProfileId === bankProfileId)!;
 
@@ -82,6 +106,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			workspaceId: locals.user.workspaceId,
 			displayName: displayName.trim(),
 			institutionName: profile.displayName,
+			accountType: 'bank',
 			bankProfileId,
 			ibanLast4: ibanLast4.trim(),
 			currency,

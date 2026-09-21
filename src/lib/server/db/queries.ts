@@ -256,6 +256,8 @@ export interface TxRow {
 	bankAccountId: string;
 	accountName: string | null;
 	bankProfileId: string | null;
+	/** 'cash' accounts allow editing description/amount/date + delete (issue #68). */
+	accountType: 'bank' | 'cash';
 }
 
 export interface TxQueryResult {
@@ -425,7 +427,8 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 				costGroup: transactions.costGroup,
 				bankAccountId: transactions.bankAccountId,
 				accountName: bankAccounts.displayName,
-				bankProfileId: bankAccounts.bankProfileId
+				bankProfileId: bankAccounts.bankProfileId,
+				accountType: bankAccounts.accountType
 			})
 			.from(transactions)
 			.leftJoin(bankAccounts, eq(transactions.bankAccountId, bankAccounts.id))
@@ -478,7 +481,8 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 						: null,
 			exchangeRate: r.exchangeRate != null ? parseFloat(r.exchangeRate as string) : null,
 			status: r.status as 'pending' | 'posted' | 'review' | 'reverted',
-			isOpeningBalance: r.isOpeningBalance ?? false
+			isOpeningBalance: r.isOpeningBalance ?? false,
+			accountType: r.accountType ?? 'bank'
 		})),
 		total,
 		counts,

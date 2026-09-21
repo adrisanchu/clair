@@ -2,6 +2,7 @@ import { parse as parseDate, isValid } from 'date-fns';
 import type { BankParserProfile, NormalizedTransaction } from './types.js';
 import { SEMANTIC_SYNONYMS, ID_SYNONYMS, detectDateFormat } from './detector.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
+import { ATM_WITHDRAWAL_PATTERN } from '$lib/constants/transfers.js';
 
 // ─── Optional column synonym lists (re-exported from detector for backward compat) ──
 
@@ -117,7 +118,11 @@ export function normalizeRow(
 		runningBalance,
 		status,
 		rawType,
-		isTransferCandidate: rawType !== null && profile.transferTypes.includes(rawType),
+		// A row is a transfer candidate when the bank's type column says so, or when the
+		// description reads like a cash withdrawal (so it can pair with a cash-account deposit).
+		isTransferCandidate:
+			(rawType !== null && profile.transferTypes.includes(rawType)) ||
+			ATM_WITHDRAWAL_PATTERN.test(raw[profile.descriptionColumn]?.trim() ?? ''),
 		isFxCandidate:
 			(rawType !== null && profile.fxCandidateTypes.includes(rawType)) ||
 			(profile.fxCandidateDescriptionPattern?.test(

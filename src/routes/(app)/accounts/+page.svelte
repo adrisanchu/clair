@@ -129,7 +129,7 @@
 		bind:open={uploadOpen}
 		accountId={uploadAccount.id}
 		accountName={uploadAccount.displayName}
-		bankProfileId={uploadAccount.bankProfileId}
+		bankProfileId={uploadAccount.bankProfileId ?? 'default'}
 		currency={uploadAccount.currency}
 		isFirstUpload={uploadAccount.txCount === 0}
 	/>

@@ -59,9 +59,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	let rows: Awaited<ReturnType<typeof uploadAndParse>>['result']['rows'];
 	let skippedCount: number;
+	// Cash accounts have no stored profile → uploadAndParse auto-detects (adaptive). Capture
+	// the resolved profileId so the (NOT NULL) csvUploads.bankProfileId is always populated.
+	let resolvedProfileId: string;
 
 	try {
 		({
+			profileId: resolvedProfileId,
 			result: { rows, skippedCount }
 		} = await uploadAndParse(file, account.bankProfileId, columnOverrides));
 	} catch (e) {
@@ -89,7 +93,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			bankAccountId: account.id,
 			userId: locals.user.id,
 			filename: file.name,
-			bankProfileId: account.bankProfileId,
+			bankProfileId: account.bankProfileId ?? resolvedProfileId,
 			rowCount: rows.length + skippedCount,
 			importedCount: 0,
 			duplicateCount: 0,

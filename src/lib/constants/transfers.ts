@@ -33,3 +33,13 @@ export const FX_RATE_TOLERANCE = 0.25;
  * boundaries that POSIX `~*` does not need here).
  */
 export const FX_DESCRIPTION_SQL_PATTERN = 'conversi[oó]n a|exchanged to|cambio de divisas?';
+
+/**
+ * Description wording that identifies a cash withdrawal from a bank account (ATM /
+ * over-the-counter). These rows are flagged as transfer candidates at import time so
+ * they surface for pairing with a matching deposit in a manual cash account (issue #68).
+ * Applied on top of each profile's `transferTypes`, so it works even for banks that
+ * export no type column (e.g. Bankinter). Case- and accent-insensitive at the call site.
+ */
+export const ATM_WITHDRAWAL_PATTERN =
+	/extracto en cajero|retirada de efectivo|disposici[oó]n de efectivo|reintegro cajero|cash withdrawal|atm withdrawal/i;
