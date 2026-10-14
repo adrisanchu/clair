@@ -4,7 +4,8 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, categories, csvColumnMappings } from '$lib/server/db/schema.js';
 import { uploadAndParse, detectFileDirection } from '$lib/server/parsers/index.js';
-import { summarizeClassification } from '$lib/server/dedup.js';
+import { classifyUpload } from '$lib/server/dedup.js';
+import { detectPotentialDeletions } from '$lib/server/reconcile.js';
 import { matchCategories } from '$lib/server/ai/tagger.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 
@@ -38,7 +39,12 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	// Dry-run dedup so the preview shows the same New / Duplicates / Updates / Review
 	// breakdown the import will produce (dedup keys on date+amount+description, which
 	// are unaffected by category/city/notes column overrides — so this matches import).
-	const classification = await summarizeClassification(rows, account.id);
+	// The matched-id set from the same pass drives deleted-record detection below.
+	const { summary: classification, matchedExistingIds } = await classifyUpload(rows, account.id);
+
+	// Records inside the file's date window that the file no longer contains — surfaced so
+	// the user can confirm removal before committing. UI-only until confirmed.
+	const deletionScan = await detectPotentialDeletions(rows, account.id, matchedExistingIds);
 
 	const preview = rows.slice(0, 5).map((r) => ({
 		date: r.accountingDate.toISOString().split('T')[0],
@@ -110,6 +116,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		updateCount: classification.updateCount,
 		reviewCount: classification.reviewCount,
 		preview,
+		potentialDeletions: deletionScan.items,
+		deletionWindow: { from: deletionScan.from, to: deletionScan.to },
 		openingBalance,
 		closingBalance,
 		columnMappings: result.columnMappings,

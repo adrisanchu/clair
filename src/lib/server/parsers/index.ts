@@ -14,7 +14,7 @@ import {
 	type OptionalColumns
 } from './normalizer.js';
 import { preCategorize } from './pre-categorize.js';
-import { detectAdaptiveProfile, detectEncoding } from './detector.js';
+import { detectAdaptiveProfile, detectEncoding, repairMojibake } from './detector.js';
 import { revolut_eu, REVOLUT_EU_HEADER_FINGERPRINT } from './profiles/revolut_eu.js';
 import { bankinter_es, BANKINTER_ES_HEADER_FINGERPRINT } from './profiles/bankinter_es.js';
 import { caixabank_es, CAIXABANK_ES_HEADER_FINGERPRINT } from './profiles/caixabank_es.js';
@@ -436,17 +436,24 @@ export async function uploadAndParse(
 
 	// CSV path: detect charset from raw buffer before decoding
 	const { value: encoding } = detectEncoding(buffer);
-	const csvText = buffer.toString(encoding === 'iso-8859-1' ? 'latin1' : 'utf8');
+	const decoded = buffer.toString(encoding === 'iso-8859-1' ? 'latin1' : 'utf8');
+	// Repair double-encoded UTF-8 (e.g. Revolut's mobile export, where `ó` arrives as
+	// `Ã³`) before profile detection and column mapping — otherwise the garbled headers
+	// never match the profile's column names and description/fee/value-date are lost.
+	const csvText = repairMojibake(decoded);
+	// Re-derive the buffer from the repaired text so the adaptive fallback (which
+	// re-decodes the buffer) sees the corrected content, not the original mojibake bytes.
+	const csvBuffer = csvText === decoded ? buffer : Buffer.from(csvText, 'utf8');
 	const profileId = profileIdHint || detectProfile(csvText);
 
 	if (!profileId) {
 		// No known profile — run adaptive detection directly
-		const { profile: adaptive, meta, csvText: reEncoded } = detectAdaptiveProfile(buffer, 'csv');
+		const { profile: adaptive, meta, csvText: reEncoded } = detectAdaptiveProfile(csvBuffer, 'csv');
 		const result = parseCSVStrict(reEncoded, adaptive, columnOverrides ?? null);
 		return { profileId: 'adaptive', result: { ...result, detectionMeta: meta } };
 	}
 
 	const profile = getProfile(profileId);
 	if (!profile) throw new Error(`Unknown bank profile: ${profileId}`);
-	return { profileId, result: parseCSV(csvText, profile, columnOverrides ?? null, buffer) };
+	return { profileId, result: parseCSV(csvText, profile, columnOverrides ?? null, csvBuffer) };
 }

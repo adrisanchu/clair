@@ -1,7 +1,6 @@
 import { parse as dateFnsParse, isValid, getYear } from 'date-fns';
 import * as XLSX from 'xlsx';
 import type {
-	BankParserProfile,
 	DetectionMeta,
 	FieldDetection,
 	ResolvedProfile,
@@ -149,14 +148,7 @@ export const SEMANTIC_SYNONYMS: Record<SemanticField, string[]> = {
 		'clasificación',
 		'clasificacion'
 	],
-	costGroup: [
-		'cost group',
-		'cost_group',
-		'costgroup',
-		'grupo de coste',
-		'grupo de gasto',
-		'grupo'
-	],
+	costGroup: ['cost group', 'cost_group', 'costgroup', 'grupo de coste', 'grupo de gasto', 'grupo'],
 	city: [
 		'city',
 		'ciudad',
@@ -272,6 +264,38 @@ export function detectEncoding(buffer: Buffer): FieldDetection {
 		return { value: 'utf-8', confidence: 1.0 };
 	}
 	return { value: 'iso-8859-1', confidence: 0.75 };
+}
+
+// \u2500\u2500\u2500 repairMojibake \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+// Tell-tale sequences of double-encoded UTF-8: a lead byte (\u00C3/\u00C2) followed by a
+// UTF-8 continuation byte, or the `\u00E2\u20AC` cluster from smart-quote mojibake.
+const MOJIBAKE_SIGNATURE = /[\u00C3\u00C2][\u0080-\u00BF]|\u00E2\u0080/;
+
+/**
+ * Repair double-encoded UTF-8 ("mojibake"): text that was already UTF-8 but got
+ * re-encoded as if it were Latin-1, so `\u00F3` (bytes C3 B3) becomes `\u00C3\u00B3` (C3 83 C2 B3).
+ * Revolut's mobile export does exactly this. Because the result is still *valid*
+ * UTF-8 (no U+FFFD), detectEncoding can't catch it \u2014 so we look for the signature
+ * sequences and reverse the extra encoding layer (latin1 \u2192 utf8).
+ *
+ * Conservative: only acts when the signature is present, the whole string fits in
+ * the 0-255 range (a precondition for a cleanly double-encoded string), the reverse
+ * introduces no U+FFFD, and it actually reduces the mojibake markers \u2014 so a
+ * genuinely correct file is never corrupted.
+ */
+export function repairMojibake(text: string): string {
+	if (!MOJIBAKE_SIGNATURE.test(text)) return text;
+	// The naive latin1 reverse is only safe when every char is already in the
+	// 0-255 range (true for a fully double-encoded string). Bail otherwise.
+	if (/[\u0100-\uffff]/.test(text)) return text;
+
+	const repaired = Buffer.from(text, 'latin1').toString('utf8');
+	if (repaired.includes('\uFFFD')) return text;
+
+	const before = (text.match(/[\u00C3\u00C2]/g) ?? []).length;
+	const after = (repaired.match(/[\u00C3\u00C2]/g) ?? []).length;
+	return after < before ? repaired : text;
 }
 
 // ─── detectDelimiter ───────────────────────────────────────────────────────

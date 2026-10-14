@@ -8,13 +8,17 @@
 		Link,
 		Columns3,
 		Landmark,
-		Plus
+		Plus,
+		Trash2,
+		TriangleAlert
 	} from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import Amount from '$lib/components/Amount.svelte';
+	import NoteHint from '$lib/components/NoteHint.svelte';
+	import { Layers } from '@lucide/svelte';
 	import CategoryMappingSheet from '$lib/components/upload/CategoryMappingSheet.svelte';
 	import { PRIMARY_CURRENCY, CURRENCIES } from '$lib/currencies.js';
 	import type { CategoryRow } from '$lib/types';
@@ -59,7 +63,15 @@
 	// Picker mode = no account was preselected → user must pick/create one first.
 	const pickerMode = !accountId;
 
-	type Step = 'account' | 'upload' | 'preview' | 'columns' | 'categories' | 'importing' | 'done';
+	type Step =
+		| 'account'
+		| 'upload'
+		| 'preview'
+		| 'reconcile'
+		| 'columns'
+		| 'categories'
+		| 'importing'
+		| 'done';
 	let step = $state<Step>(pickerMode ? 'account' : 'upload');
 	let loading = $state(false);
 	let err = $state<string | null>(null);
@@ -91,6 +103,20 @@
 		confidence: number;
 	};
 
+	type PotentialDeletion = {
+		id: string;
+		date: string;
+		description: string;
+		amount: number;
+		currency: string;
+		status: 'pending' | 'posted' | 'review' | 'reverted';
+		notes: string | null;
+		category: string | null;
+		costGroup: string | null;
+		linkedElsewhere: boolean;
+		linkType: 'transfer' | 'conversion' | null;
+	};
+
 	type PreviewData = {
 		filename: string;
 		totalParsed: number;
@@ -100,6 +126,8 @@
 		updateCount: number;
 		reviewCount: number;
 		preview: Array<{ date: string; description: string; amount: number; currency: string }>;
+		potentialDeletions: PotentialDeletion[];
+		deletionWindow: { from: string | null; to: string | null };
 		openingBalance: number | null;
 		closingBalance: number | null;
 		columnMappings: ColumnMapping[];
@@ -170,6 +198,10 @@
 	// Per-conversion state: conversionId → 'rejected' | null (pending); + in-flight flag.
 	let conversionDecisions = $state<Record<string, 'rejected' | null>>({});
 	let conversionRejecting = $state<Record<string, boolean>>({});
+	// Deleted-record reconciliation: txId → 'keep' | 'remove' (defaults to 'keep' — the user
+	// opts into removal). Applied after the import via the reconcile-deletions endpoint.
+	let deleteDecisions = $state<Record<string, 'keep' | 'remove'>>({});
+	let removedCount = $state(0);
 
 	function selectAccount(id: string) {
 		currentAccountId = id;
@@ -201,6 +233,8 @@
 		transferLinking = {};
 		conversionDecisions = {};
 		conversionRejecting = {};
+		deleteDecisions = {};
+		removedCount = 0;
 	}
 
 	async function createAccount(e: Event) {
@@ -309,6 +343,10 @@
 				const field = saved.field as 'category' | 'city' | 'notes';
 				if (field in columnConfirm) columnConfirm[field] = saved.enabled;
 			}
+			// Default every potential deletion to 'keep' — removal is an explicit opt-in.
+			deleteDecisions = Object.fromEntries(
+				(data.potentialDeletions ?? []).map((d: PotentialDeletion) => [d.id, 'keep'])
+			);
 			step = 'preview';
 		} catch (e) {
 			err = e instanceof Error ? e.message : 'Could not parse the file';
@@ -359,6 +397,28 @@
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.message ?? 'Import failed');
 			importResult = data;
+
+			// Apply confirmed deletions (records missing from the file the user chose to remove).
+			// Runs after the import so the two operations stay independent; a failure here doesn't
+			// undo the import — we just surface it.
+			const removeIds = Object.entries(deleteDecisions)
+				.filter(([, decision]) => decision === 'remove')
+				.map(([id]) => id);
+			if (removeIds.length > 0) {
+				try {
+					const delRes = await fetch(`/api/accounts/${currentAccountId}/reconcile-deletions`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ deleteIds: removeIds })
+					});
+					const delData = await delRes.json().catch(() => ({}));
+					if (!delRes.ok) throw new Error(delData.message ?? 'Could not remove transactions');
+					removedCount = delData.deleted ?? 0;
+				} catch (e) {
+					err = e instanceof Error ? e.message : 'Some transactions could not be removed';
+				}
+			}
+
 			step = 'done';
 			onImported?.();
 		} catch (e) {
@@ -406,6 +466,14 @@
 		}
 	}
 
+	// Show the reconcile step when the file is missing records that exist in the app.
+	const hasReconcileStep = $derived(!!preview && preview.potentialDeletions.length > 0);
+	const removeIds = $derived(
+		Object.entries(deleteDecisions)
+			.filter(([, decision]) => decision === 'remove')
+			.map(([id]) => id)
+	);
+
 	const hasColumnsStep = $derived(
 		!!preview && (preview.columnMappings.length > 0 || preview.unusedColumns.length > 0)
 	);
@@ -422,6 +490,7 @@
 		const keys: Exclude<Step, 'importing'>[] = [];
 		if (pickerMode) keys.push('account');
 		keys.push('upload', 'preview');
+		if (hasReconcileStep) keys.push('reconcile');
 		if (hasColumnsStep) keys.push('columns');
 		if (hasCategoriesStep) keys.push('categories');
 		keys.push('done');
@@ -431,6 +500,7 @@
 		account: 'Account',
 		upload: 'Upload',
 		preview: 'Preview',
+		reconcile: 'Deletions',
 		columns: 'Columns',
 		categories: 'Categories',
 		done: 'Done'
@@ -742,6 +812,118 @@
 			</div>
 		{/if}
 
+		<!-- ── Step: Reconcile deletions ── -->
+	{:else if step === 'reconcile' && preview}
+		<!-- Warning banner -->
+		<div class="mb-5 flex items-center gap-3">
+			<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-100">
+				<TriangleAlert size={18} class="text-warning-600" />
+			</div>
+			<div class="min-w-0">
+				<p class="text-sm font-semibold text-text-primary">Records missing from this file</p>
+				<p class="text-xs text-text-secondary">
+					{#if preview.deletionWindow.from && preview.deletionWindow.to}
+						This file spans {preview.deletionWindow.from} → {preview.deletionWindow.to} but no longer
+						includes {preview.potentialDeletions.length}
+						{preview.potentialDeletions.length === 1 ? 'transaction' : 'transactions'}.
+					{:else}
+						The file no longer includes some transactions already in this account.
+					{/if}
+				</p>
+			</div>
+		</div>
+
+		<p class="mb-3 text-xs text-text-tertiary">
+			Keep them, or remove the ones the bank has deleted. Everything defaults to <span
+				class="font-medium text-text-secondary">Keep</span
+			>.
+		</p>
+
+		<div class="space-y-2">
+			{#each preview.potentialDeletions as del (del.id)}
+				{@const marked = deleteDecisions[del.id] === 'remove'}
+				<div
+					class="rounded-lg border p-3 transition-colors {marked
+						? 'border-danger-200 bg-danger-50'
+						: 'border-border bg-surface'}"
+				>
+					<div class="flex items-start justify-between gap-3">
+						<div class="min-w-0">
+							<p class="text-[11px] whitespace-nowrap text-text-tertiary tabular-nums">
+								{del.date}
+							</p>
+							<div class="flex items-center gap-1.5">
+								<p
+									class="truncate text-sm text-text-primary {marked
+										? 'line-through opacity-60'
+										: ''}"
+								>
+									{del.description}
+								</p>
+								{#if del.notes}
+									<NoteHint note={del.notes} />
+								{/if}
+							</div>
+							{#if del.linkedElsewhere}
+								<span
+									class="mt-1 inline-flex items-center gap-1 rounded-md bg-warning-100 px-1.5 py-0.5 text-[10px] font-medium text-warning-700"
+								>
+									<Link size={10} />
+									Linked {del.linkType} — removing will unlink its counterpart
+								</span>
+							{/if}
+						</div>
+						<Amount value={del.amount} currency={del.currency} size="sm" />
+					</div>
+
+					{#if del.category || del.costGroup}
+						<dl
+							class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[11px] {marked
+								? 'opacity-60'
+								: ''}"
+						>
+							{#if del.category}
+								<dt class="text-text-tertiary">Category</dt>
+								<dd class="truncate text-right text-text-secondary">{del.category}</dd>
+							{/if}
+							{#if del.costGroup}
+								<dt class="text-text-tertiary">Cost group</dt>
+								<dd
+									class="flex items-center justify-end gap-1 truncate text-right text-text-secondary"
+								>
+									<Layers size={11} class="shrink-0 text-text-tertiary" />
+									{del.costGroup}
+								</dd>
+							{/if}
+						</dl>
+					{/if}
+
+					<!-- Keep / Remove toggle -->
+					<div class="mt-2.5 grid grid-cols-2 gap-1 rounded-md bg-surface-sunken p-0.5">
+						<button
+							type="button"
+							class="rounded px-2 py-1 text-xs font-medium transition-colors {!marked
+								? 'bg-surface text-text-primary shadow-xs'
+								: 'text-text-tertiary hover:text-text-secondary'}"
+							onclick={() => (deleteDecisions[del.id] = 'keep')}
+						>
+							Keep
+						</button>
+						<button
+							type="button"
+							class="flex items-center justify-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors {marked
+								? 'bg-danger-600 text-white shadow-xs'
+								: 'text-text-tertiary hover:text-danger-600'}"
+							onclick={() => (deleteDecisions[del.id] = 'remove')}
+						>
+							<Trash2 size={12} />
+							Remove
+						</button>
+					</div>
+				</div>
+			{/each}
+		</div>
+
 		<!-- ── Step: Columns ── -->
 	{:else if step === 'columns' && preview}
 		{#if preview.columnMappings.length > 0}
@@ -815,7 +997,7 @@
 		<!-- ── Step: Done ── -->
 	{:else if step === 'done' && importResult}
 		<div class="flex flex-col items-center gap-2 text-center">
-			<div class="bg-success-100 flex h-10 w-10 items-center justify-center rounded-full">
+			<div class="flex h-10 w-10 items-center justify-center rounded-full bg-success-100">
 				<CheckCircle2 size={24} class="text-success-600" />
 			</div>
 			<div>
@@ -848,12 +1030,22 @@
 					{@render tile(importResult.statusUpdates, 'Updated', 'updated')}
 				{/if}
 				{#if importResult.flagged > 0}
-					<div class="border-warning-200 bg-warning-50 rounded-lg border px-3 py-2 text-center">
-						<p class="text-warning-700 font-mono text-xl font-bold">{importResult.flagged}</p>
-						<p class="text-warning-600 text-xs">Need review</p>
+					<div class="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-center">
+						<p class="font-mono text-xl font-bold text-warning-700">{importResult.flagged}</p>
+						<p class="text-xs text-warning-600">Need review</p>
 					</div>
 				{/if}
 			</div>
+
+			{#if removedCount > 0}
+				<div
+					class="flex w-full max-w-xs items-center justify-center gap-1.5 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-xs font-medium text-danger-700"
+				>
+					<Trash2 size={12} />
+					{removedCount}
+					{removedCount === 1 ? 'record' : 'records'} removed
+				</div>
+			{/if}
 
 			<div class="max-h-[45vh] w-full overflow-y-auto">
 				<!-- New categories detected -->
@@ -1096,7 +1288,7 @@
 	<!-- Error banner -->
 	{#if err}
 		<div
-			class="border-danger-200 mt-3 flex items-center gap-2 rounded-lg border bg-danger-50 px-3 py-2.5 text-sm text-danger-600"
+			class="mt-3 flex items-center gap-2 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2.5 text-sm text-danger-600"
 		>
 			<AlertCircle size={14} class="shrink-0" />
 			{err}
@@ -1151,7 +1343,12 @@
 		>
 			Back
 		</Button>
-		{#if hasColumnsStep}
+		{#if hasReconcileStep}
+			<Button onclick={() => (step = 'reconcile')} disabled={loading}>
+				Review deletions
+				<ArrowRight size={14} />
+			</Button>
+		{:else if hasColumnsStep}
 			<Button onclick={() => (step = 'columns')} disabled={loading}>
 				Review columns
 				<ArrowRight size={14} />
@@ -1167,8 +1364,28 @@
 				<ArrowRight size={14} />
 			</Button>
 		{/if}
-	{:else if step === 'columns'}
+	{:else if step === 'reconcile'}
 		<Button variant="outline" onclick={() => (step = 'preview')}>Back</Button>
+		{#if hasColumnsStep}
+			<Button onclick={() => (step = 'columns')}>
+				Review columns
+				<ArrowRight size={14} />
+			</Button>
+		{:else if hasCategoriesStep}
+			<Button onclick={() => (step = 'categories')}>
+				Review categories
+				<ArrowRight size={14} />
+			</Button>
+		{:else}
+			<Button onclick={submitImport}>
+				{removeIds.length > 0 ? `Import & remove ${removeIds.length}` : importActionLabel}
+				<ArrowRight size={14} />
+			</Button>
+		{/if}
+	{:else if step === 'columns'}
+		<Button variant="outline" onclick={() => (step = hasReconcileStep ? 'reconcile' : 'preview')}>
+			Back
+		</Button>
 		{#if hasCategoriesStep}
 			<Button onclick={() => (step = 'categories')}>
 				Review categories
@@ -1181,7 +1398,11 @@
 			</Button>
 		{/if}
 	{:else if step === 'categories'}
-		<Button variant="outline" onclick={() => (step = hasColumnsStep ? 'columns' : 'preview')}>
+		<Button
+			variant="outline"
+			onclick={() =>
+				(step = hasColumnsStep ? 'columns' : hasReconcileStep ? 'reconcile' : 'preview')}
+		>
 			Back
 		</Button>
 		<Button onclick={submitImport}>
