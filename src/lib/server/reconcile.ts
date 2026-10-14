@@ -16,6 +16,12 @@ export interface PotentialDeletion {
 	amount: number;
 	currency: string;
 	status: 'pending' | 'posted' | 'review' | 'reverted';
+	/** User note, if any — shown as a hover hint (read-only). */
+	notes: string | null;
+	/** Effective category (override ?? raw ?? AI), read-only. */
+	category: string | null;
+	/** Cost-group label, if assigned (read-only). */
+	costGroup: string | null;
 	/** True when this row is linked as a transfer or conversion leg — removing it unlinks its counterpart. */
 	linkedElsewhere: boolean;
 	linkType: 'transfer' | 'conversion' | null;
@@ -66,6 +72,11 @@ export async function detectPotentialDeletions(
 			amount: transactions.amount,
 			currency: transactions.currency,
 			status: transactions.status,
+			notes: transactions.notes,
+			categoryOverride: transactions.categoryOverride,
+			category: transactions.category,
+			categoryAI: transactions.categoryAI,
+			costGroup: transactions.costGroup,
 			transferCounterpartId: transactions.transferCounterpartId,
 			conversionCounterpartId: transactions.conversionCounterpartId
 		})
@@ -94,6 +105,9 @@ export async function detectPotentialDeletions(
 				amount: Number(t.amount),
 				currency: t.currency,
 				status: t.status,
+				notes: t.notes,
+				category: t.categoryOverride ?? t.category ?? t.categoryAI ?? null,
+				costGroup: t.costGroup,
 				linkedElsewhere: linkType !== null,
 				linkType
 			};

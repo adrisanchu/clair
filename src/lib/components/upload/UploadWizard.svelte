@@ -17,6 +17,8 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import Amount from '$lib/components/Amount.svelte';
+	import NoteHint from '$lib/components/NoteHint.svelte';
+	import { Layers } from '@lucide/svelte';
 	import CategoryMappingSheet from '$lib/components/upload/CategoryMappingSheet.svelte';
 	import { PRIMARY_CURRENCY, CURRENCIES } from '$lib/currencies.js';
 	import type { CategoryRow } from '$lib/types';
@@ -108,6 +110,9 @@
 		amount: number;
 		currency: string;
 		status: 'pending' | 'posted' | 'review' | 'reverted';
+		notes: string | null;
+		category: string | null;
+		costGroup: string | null;
 		linkedElsewhere: boolean;
 		linkType: 'transfer' | 'conversion' | null;
 	};
@@ -847,11 +852,18 @@
 							<p class="text-[11px] whitespace-nowrap text-text-tertiary tabular-nums">
 								{del.date}
 							</p>
-							<p
-								class="truncate text-sm text-text-primary {marked ? 'line-through opacity-60' : ''}"
-							>
-								{del.description}
-							</p>
+							<div class="flex items-center gap-1.5">
+								<p
+									class="truncate text-sm text-text-primary {marked
+										? 'line-through opacity-60'
+										: ''}"
+								>
+									{del.description}
+								</p>
+								{#if del.notes}
+									<NoteHint note={del.notes} />
+								{/if}
+							</div>
 							{#if del.linkedElsewhere}
 								<span
 									class="mt-1 inline-flex items-center gap-1 rounded-md bg-warning-100 px-1.5 py-0.5 text-[10px] font-medium text-warning-700"
@@ -863,6 +875,28 @@
 						</div>
 						<Amount value={del.amount} currency={del.currency} size="sm" />
 					</div>
+
+					{#if del.category || del.costGroup}
+						<dl
+							class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[11px] {marked
+								? 'opacity-60'
+								: ''}"
+						>
+							{#if del.category}
+								<dt class="text-text-tertiary">Category</dt>
+								<dd class="truncate text-right text-text-secondary">{del.category}</dd>
+							{/if}
+							{#if del.costGroup}
+								<dt class="text-text-tertiary">Cost group</dt>
+								<dd
+									class="flex items-center justify-end gap-1 truncate text-right text-text-secondary"
+								>
+									<Layers size={11} class="shrink-0 text-text-tertiary" />
+									{del.costGroup}
+								</dd>
+							{/if}
+						</dl>
+					{/if}
 
 					<!-- Keep / Remove toggle -->
 					<div class="mt-2.5 grid grid-cols-2 gap-1 rounded-md bg-surface-sunken p-0.5">
