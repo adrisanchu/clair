@@ -528,7 +528,7 @@ export async function propagateRateToAccount(accountId: string): Promise<number>
 
 /**
  * Returns the count of transactions on non-EUR accounts in the workspace
- * that have no conversion assigned (conversionId IS NULL).
+ * that have no EUR value yet (amountEur IS NULL).
  * Used to surface the unresolved FX banner on the accounts page.
  */
 export async function countUnresolvedFxTransactions(workspaceId: string): Promise<number> {
@@ -540,7 +540,7 @@ export async function countUnresolvedFxTransactions(workspaceId: string): Promis
 			and(
 				eq(bankAccounts.workspaceId, workspaceId),
 				ne(bankAccounts.currency, PRIMARY_CURRENCY),
-				isNull(transactions.conversionId),
+				isNull(transactions.amountEur),
 				eq(transactions.isOpeningBalance, false)
 			)
 		);
@@ -577,7 +577,7 @@ export async function getUnresolvedFxAccounts(workspaceId: string): Promise<Unre
 			and(
 				eq(bankAccounts.workspaceId, workspaceId),
 				ne(bankAccounts.currency, PRIMARY_CURRENCY),
-				isNull(transactions.conversionId),
+				isNull(transactions.amountEur),
 				eq(transactions.isOpeningBalance, false)
 			)
 		)

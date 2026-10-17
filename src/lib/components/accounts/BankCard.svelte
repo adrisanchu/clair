@@ -2,7 +2,7 @@
 	import { formatRelativeTime } from '$lib/datetime';
 	import { DropdownMenu } from 'bits-ui';
 	import { Upload, EllipsisVertical, Pencil, Trash2, Wallet } from '@lucide/svelte';
-	import Amount from '$lib/components/Amount.svelte';
+	import AccountBalance from '$lib/components/accounts/AccountBalance.svelte';
 	import BankLogo from '$lib/components/BankLogo.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
@@ -159,7 +159,12 @@
 			</div>
 
 			<!-- Balance -->
-			<Amount value={account.currentBalance} size="lg" showSign={false} />
+			<AccountBalance
+				value={account.currentBalance}
+				currency={account.currency}
+				balanceEur={account.balanceEur}
+				eurPartial={account.eurPartial}
+			/>
 
 			<!-- Stats row -->
 			<div class="mt-3 flex items-center gap-3 text-xs text-text-tertiary">

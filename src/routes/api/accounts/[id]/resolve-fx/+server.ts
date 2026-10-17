@@ -34,7 +34,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		const earliest = await db.query.transactions.findFirst({
 			where: and(
 				eq(transactions.bankAccountId, params.id),
-				isNull(transactions.conversionId),
+				isNull(transactions.amountEur),
 				eq(transactions.isOpeningBalance, false)
 			),
 			columns: { accountingDate: true },

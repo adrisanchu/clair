@@ -3,7 +3,7 @@
 	import { format } from 'date-fns';
 	import { formatRelativeTime } from '$lib/datetime';
 	import { ArrowLeft, Upload, Plus, Trash2, Check, X, Lock, BarChart2, Eye, Wallet } from '@lucide/svelte';
-	import Amount from '$lib/components/Amount.svelte';
+	import AccountBalance from '$lib/components/accounts/AccountBalance.svelte';
 	import BankLogo from '$lib/components/BankLogo.svelte';
 	import AddTransactionSheet from '$lib/components/transactions/AddTransactionSheet.svelte';
 	import UploadCsvDialog from '$lib/components/accounts/UploadCsvDialog.svelte';
@@ -188,7 +188,14 @@
 	<div class="mb-8 flex items-end justify-between">
 		<div>
 			<p class="mb-1 text-xs font-semibold tracking-widest text-text-tertiary uppercase">Balance</p>
-			<Amount value={data.account.currentBalance} size="2xl" showSign={false} colorize={false} />
+			<AccountBalance
+				value={data.account.currentBalance}
+				currency={data.account.currency}
+				balanceEur={data.account.balanceEur}
+				eurPartial={data.account.eurPartial}
+				size="2xl"
+				colorize={false}
+			/>
 		</div>
 		<span
 			class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium

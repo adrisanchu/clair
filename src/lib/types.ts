@@ -36,7 +36,12 @@ export interface Account {
 	status: string | null;
 	visibility: AccountVisibility;
 	isOwner: boolean;
+	/** Native-currency balance (in `currency`). */
 	currentBalance: number;
+	/** EUR value of the balance (cost basis on foreign accounts). */
+	balanceEur: number;
+	/** Some foreign rows have no EUR value yet, so `balanceEur` is incomplete. */
+	eurPartial: boolean;
 	txCount: number;
 	lastUploadedAt: Date | string | null;
 }

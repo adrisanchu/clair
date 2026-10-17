@@ -89,7 +89,7 @@ export async function queryRollingBalance(
 	const buckets = await db
 		.select({
 			bucket: bucketExpr,
-			netChange: sql<string>`SUM(CASE WHEN ${transactions.currency} = ${PRIMARY_CURRENCY} THEN ${transactions.amount}::numeric ELSE ${transactions.amountEur}::numeric END)`
+			netChange: eurSumSql
 		})
 		.from(transactions)
 		.where(
@@ -128,7 +128,7 @@ const effectiveCategorySql = sql<
 >`COALESCE(${transactions.categoryOverride}, ${transactions.category}, ${transactions.categoryAI})`;
 
 /** EUR-normalised signed sum: use `amount` when already EUR, else the converted `amountEur`. */
-const eurSumSql = sql<string>`SUM(CASE WHEN ${transactions.currency} = ${PRIMARY_CURRENCY} THEN ${transactions.amount}::numeric ELSE ${transactions.amountEur}::numeric END)`;
+export const eurSumSql = sql<string>`SUM(CASE WHEN ${transactions.currency} = ${PRIMARY_CURRENCY} THEN ${transactions.amount}::numeric ELSE ${transactions.amountEur}::numeric END)`;
 
 export interface InsightsWindow {
 	start?: Date;

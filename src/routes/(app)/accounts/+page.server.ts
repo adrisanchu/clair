@@ -6,6 +6,7 @@ import { authUser, bankAccounts, csvUploads, transactions } from '$lib/server/db
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
 import { getAllProfiles } from '$lib/server/parsers/index.js';
 import { getUnresolvedFxAccounts } from '$lib/server/currency-converter.js';
+import { getEurBalances } from '$lib/server/balance.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) error(401);
@@ -49,12 +50,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 					.groupBy(bankAccounts.id)
 					.orderBy(bankAccounts.createdAt);
 
-	const unresolvedFx = user?.workspaceId ? await getUnresolvedFxAccounts(user.workspaceId) : [];
+	const [unresolvedFx, eurBalances] = await Promise.all([
+		user?.workspaceId ? getUnresolvedFxAccounts(user.workspaceId) : Promise.resolve([]),
+		getEurBalances(accounts.map((a) => a.id))
+	]);
 
 	return {
 		accounts: accounts.map((a) => ({
 			...a,
 			currentBalance: parseFloat(a.currentBalance),
+			balanceEur: eurBalances.get(a.id)?.balanceEur ?? 0,
+			eurPartial: eurBalances.get(a.id)?.eurPartial ?? false,
 			isOwner: a.ownerUserId === locals.user!.id
 		})),
 		profiles: getAllProfiles().map((p) => ({

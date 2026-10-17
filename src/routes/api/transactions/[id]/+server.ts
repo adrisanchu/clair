@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { transactions } from '$lib/server/db/schema.js';
 import { getFullAccessAccountIds } from '$lib/server/db/access.js';
-import { refreshCurrentBalance } from '$lib/server/balance.js';
+import { refreshAccountDerived } from '$lib/server/balance.js';
 import { unlinkPair } from '$lib/server/transfer-detector.js';
 
 // ─── PATCH /api/transactions/[id] ────────────────────────────────────────────
@@ -116,8 +116,9 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 	await db.update(transactions).set(set).where(eq(transactions.id, params.id));
 	if (unlinking) await unlinkPair(params.id);
-	// Amount changes on a cash row move the derived balance.
-	if (hasAmount) await refreshCurrentBalance(tx.bankAccountId);
+	// Amount or date changes on a cash row move the derived balance and, on a foreign
+	// account, the order-dependent EUR valuation of this and later rows.
+	if (hasAmount || hasAccountingDate) await refreshAccountDerived(tx.bankAccountId);
 
 	return json({ ok: true });
 };
@@ -149,7 +150,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 	if (tx.transferCounterpartId) await unlinkPair(params.id);
 
 	await db.delete(transactions).where(eq(transactions.id, params.id));
-	await refreshCurrentBalance(tx.bankAccountId);
+	await refreshAccountDerived(tx.bankAccountId);
 
 	return json({ ok: true });
 };
