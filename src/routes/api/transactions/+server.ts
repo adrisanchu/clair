@@ -7,6 +7,7 @@ import { getFullAccessAccountIds } from '$lib/server/db/access.js';
 import { queryTransactions, type TxFilter } from '$lib/server/db/queries.js';
 import { refreshAccountDerived } from '$lib/server/balance.js';
 import { detectAndLinkTransfers } from '$lib/server/transfer-detector.js';
+import { toUtcDate } from '$lib/datetime.js';
 
 // ─── GET /api/transactions ────────────────────────────────────────────────────
 // Returns paginated transactions for the authenticated user.
@@ -35,7 +36,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 // ─── POST /api/transactions ────────────────────────────────────────────────────
 // Creates a single manual transaction. Only allowed on 'cash' accounts (issue #68):
 // bank accounts are CSV-authored and immutable. Body:
-//   { bankAccountId, accountingDate, amount, description,
+//   { bankAccountId, accountingDate ('yyyy-MM-dd' or 'yyyy-MM-ddTHH:mm'), amount, description,
 //     currency?, categoryOverride?, notes?, costGroup? }
 // Inserted as syncSource='manual', status='posted'; then the balance (and, on a foreign
 // account, the EUR valuation) is refreshed and transfer auto-linking runs (a cash deposit can pair with an ATM withdrawal).
@@ -53,7 +54,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (typeof amount !== 'number' || !Number.isFinite(amount))
 		throw error(400, 'amount must be a finite number');
 
-	const date = new Date(accountingDate);
+	// `yyyy-MM-dd` or `yyyy-MM-ddTHH:mm`, stored as a UTC wall-clock like CSV timestamps.
+	if (typeof accountingDate !== 'string') throw error(400, 'accountingDate is invalid');
+	const date = toUtcDate(accountingDate);
 	if (Number.isNaN(date.getTime())) throw error(400, 'accountingDate is invalid');
 
 	const accessibleIds = await getFullAccessAccountIds(locals.user.id);

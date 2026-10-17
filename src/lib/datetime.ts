@@ -24,6 +24,22 @@ export function toUtcDate(value: Date | string): Date {
 }
 
 /**
+ * Split a stored timestamp into its UTC wall-clock date (`yyyy-MM-dd`) and time (`HH:mm`),
+ * the inverse of how manual entries are saved (see `manualAccountingDate`). The time is
+ * empty when it is midnight, i.e. no time was given.
+ */
+export function wallClockParts(value: Date | string): { date: string; time: string } {
+	const iso = toUtcDate(value).toISOString();
+	const time = iso.slice(11, 16);
+	return { date: iso.slice(0, 10), time: time === '00:00' ? '' : time };
+}
+
+/** Build the `accountingDate` a manual entry sends: `yyyy-MM-dd`, or `yyyy-MM-ddTHH:mm`. */
+export function manualAccountingDate(date: string, time: string): string {
+	return time ? `${date}T${time}` : date;
+}
+
+/**
  * Format a timestamp as a relative string ("less than a minute ago"), robust to
  * both mapped `Date` values and naive UTC strings from raw SQL. Shared so the
  * accounts list, dashboard, and account-detail page cannot silently diverge.

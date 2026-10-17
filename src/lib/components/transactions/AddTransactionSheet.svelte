@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { format } from 'date-fns';
+	import { manualAccountingDate } from '$lib/datetime';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -32,6 +33,8 @@
 	let description = $state('');
 	let amountInput = $state('');
 	let dateInput = $state(format(new Date(), 'yyyy-MM-dd'));
+	// Optional time of day — orders same-day rows (FX valuation is order-dependent).
+	let timeInput = $state('');
 	let categoryOverride = $state<string | null>(null);
 	let notes = $state('');
 	let costGroup = $state<string | null>(null);
@@ -47,6 +50,7 @@
 		description = '';
 		amountInput = '';
 		dateInput = format(new Date(), 'yyyy-MM-dd');
+		timeInput = '';
 		categoryOverride = null;
 		notes = '';
 		costGroup = null;
@@ -64,7 +68,7 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					bankAccountId: accountId,
-					accountingDate: dateInput,
+					accountingDate: manualAccountingDate(dateInput, timeInput),
 					amount: parsedAmount,
 					description: description.trim(),
 					categoryOverride: categoryOverride || null,
@@ -130,14 +134,25 @@
 				</div>
 				<div class="grid gap-1.5">
 					<Label for="add-date">Date</Label>
-					<input
-						id="add-date"
-						type="date"
-						bind:value={dateInput}
-						required
-						disabled={submitting}
-						class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
-					/>
+					<div class="flex gap-1.5">
+						<input
+							id="add-date"
+							type="date"
+							bind:value={dateInput}
+							required
+							disabled={submitting}
+							class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+						/>
+						<input
+							id="add-time"
+							type="time"
+							aria-label="Time (optional)"
+							bind:value={timeInput}
+							disabled={submitting}
+							class="w-24 shrink-0 min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+						/>
+					</div>
+					<p class="text-[10px] text-text-tertiary">Time is optional.</p>
 				</div>
 			</div>
 
