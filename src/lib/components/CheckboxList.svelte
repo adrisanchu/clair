@@ -22,12 +22,33 @@
 		selected: SvelteSet<string>;
 		/** Compact rows for use inside popovers. */
 		size?: 'default' | 'sm';
-		/** Extra classes for the scrollable list (e.g. a max height). */
+		/** Show only the first N items behind a "Show all" toggle. Unset = show everything. */
+		limit?: number;
+		/** Extra classes for the list element. */
 		listClass?: string;
 		class?: string;
 	}
 
-	let { title, items, selected, size = 'default', listClass, class: className }: Props = $props();
+	let {
+		title,
+		items,
+		selected,
+		size = 'default',
+		limit,
+		listClass,
+		class: className
+	}: Props = $props();
+
+	let expanded = $state(false);
+
+	const collapsible = $derived(limit != null && items.length > limit);
+	const visibleItems = $derived(collapsible && !expanded ? items.slice(0, limit) : items);
+	// Ticked items hidden by the collapse — surfaced on the toggle so no filter is out of sight.
+	const hiddenSelected = $derived(
+		collapsible && !expanded
+			? items.slice(limit).filter((i) => !i.implied && selected.has(i.id)).length
+			: 0
+	);
 
 	const allSelected = $derived(
 		items.length > 0 && items.every((i) => i.implied || selected.has(i.id))
@@ -76,7 +97,7 @@
 		</p>
 	{:else}
 		<ul class={listClass}>
-			{#each items as item (item.id)}
+			{#each visibleItems as item (item.id)}
 				<li class={cn(size === 'default' && 'border-b border-border last:border-b-0')}>
 					<label
 						class={cn(
@@ -109,5 +130,23 @@
 				</li>
 			{/each}
 		</ul>
+		{#if collapsible}
+			<button
+				type="button"
+				onclick={() => (expanded = !expanded)}
+				class={cn(
+					'w-full text-left text-xs font-medium text-primary-600 hover:bg-surface-sunken hover:text-primary-700',
+					size === 'sm' ? 'px-3 py-1.5' : 'px-4 py-3'
+				)}
+			>
+				{#if expanded}
+					Show less
+				{:else}
+					Show all ({items.length}){#if hiddenSelected > 0}<span class="text-text-tertiary">
+							· {hiddenSelected} selected</span
+						>{/if}
+				{/if}
+			</button>
+		{/if}
 	{/if}
 </div>

@@ -27,6 +27,9 @@
 
 	let { accounts, categories, costGroups, selected, onapply }: Props = $props();
 
+	/** Rows shown per list before "Show all". */
+	const LIST_LIMIT = 5;
+
 	let open = $state(false);
 
 	// Drafts — reset from the URL-backed selection on every open, so closing without
@@ -123,32 +126,46 @@
 		{/if}
 	</Popover.Trigger>
 
-	<Popover.Content align="end" class="w-80 gap-0 overflow-hidden p-0">
-		<div class="max-h-[min(32rem,70dvh)] divide-y divide-border overflow-y-auto">
+	<!-- Capped to the room left below the trigger, so the footer (Apply) is always on screen;
+	     only the body scrolls. Two columns from sm: short lists left, categories right. -->
+	<Popover.Content
+		align="end"
+		collisionPadding={16}
+		class="max-h-[min(36rem,var(--bits-popover-content-available-height))] w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 sm:w-xl"
+	>
+		<div
+			class="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto sm:grid-cols-2 sm:grid-rows-[auto_1fr]"
+		>
 			<CheckboxList
 				title="Accounts"
 				items={accountItems}
 				selected={draftAccounts}
 				size="sm"
-				listClass="max-h-48 overflow-y-auto py-1"
+				limit={LIST_LIMIT}
+				listClass="py-1"
+				class="overflow-y-auto border-b border-border sm:col-start-1 sm:row-start-1"
 			/>
 			<CheckboxList
 				title="Categories"
 				items={categoryItems}
 				selected={draftCategories}
 				size="sm"
-				listClass="max-h-48 overflow-y-auto py-1"
+				limit={LIST_LIMIT}
+				listClass="py-1"
+				class="overflow-y-auto border-b border-border sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:border-b-0 sm:border-l"
 			/>
 			<CheckboxList
 				title="Cost groups"
 				items={costGroupItems}
 				selected={draftCostGroups}
 				size="sm"
-				listClass="max-h-48 overflow-y-auto py-1"
+				limit={LIST_LIMIT}
+				listClass="py-1"
+				class="overflow-y-auto sm:col-start-1 sm:row-start-2"
 			/>
 		</div>
 
-		<div class="flex items-center justify-between gap-2 border-t border-border px-3 py-2.5">
+		<div class="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-2">
 			<Button
 				variant="ghost"
 				size="sm"
