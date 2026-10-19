@@ -12,13 +12,28 @@ import {
 
 const UPLOAD_OUTCOMES: UploadOutcomeFilter[] = ['inserted', 'updated', 'duplicate'];
 
+/** Selecting a parent category also matches its subcategories. */
+function expandCategories(
+	selected: string[],
+	cats: { id: string; parentId: string | null; name: string }[]
+): string[] {
+	const names = new Set(selected);
+	for (const parent of cats) {
+		if (parent.parentId || !names.has(parent.name)) continue;
+		for (const child of cats) if (child.parentId === parent.id) names.add(child.name);
+	}
+	return [...names];
+}
+
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) error(401);
 
 	const accessibleIds = await getFullAccessAccountIds(locals.user.id);
 
 	const q = url.searchParams.get('q') ?? '';
-	const accountId = url.searchParams.get('accountId') ?? '';
+	const accountIds = url.searchParams.getAll('accountId').filter(Boolean);
+	const selectedCategories = url.searchParams.getAll('category').filter(Boolean);
+	const selectedCostGroups = url.searchParams.getAll('costGroup').filter(Boolean);
 	const filter = (url.searchParams.get('filter') ?? 'all') as TxFilter;
 	const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'));
 
@@ -29,8 +44,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			? (outcomeParam as UploadOutcomeFilter)
 			: undefined;
 
-	const [result, accounts, cats, groups] = await Promise.all([
-		queryTransactions({ accessibleIds, q, accountId, filter, page, uploadId, uploadOutcome }),
+	const [accounts, cats, groups] = await Promise.all([
 		accessibleIds.length > 0
 			? db
 					.select({ id: bankAccounts.id, displayName: bankAccounts.displayName })
@@ -58,11 +72,31 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			: Promise.resolve([])
 	]);
 
+	const result = await queryTransactions({
+		accessibleIds,
+		q,
+		accountIds,
+		categories: expandCategories(selectedCategories, cats),
+		costGroups: selectedCostGroups,
+		filter,
+		page,
+		uploadId,
+		uploadOutcome
+	});
+
 	return {
 		...result,
 		accounts,
 		categories: cats,
 		costGroups: groups,
-		filters: { q, accountId, filter, uploadId: uploadId ?? null, uploadOutcome: uploadOutcome ?? null }
+		filters: {
+			q,
+			accountIds,
+			categories: selectedCategories,
+			costGroups: selectedCostGroups,
+			filter,
+			uploadId: uploadId ?? null,
+			uploadOutcome: uploadOutcome ?? null
+		}
 	};
 };

@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { Download, Landmark } from '@lucide/svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import CheckboxList from '$lib/components/CheckboxList.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
 	import {
@@ -27,16 +28,7 @@
 
 	const allSelected = $derived(data.accounts.length > 0 && selected.size === data.accounts.length);
 	const noneSelected = $derived(selected.size === 0);
-
-	function toggle(id: string) {
-		if (selected.has(id)) selected.delete(id);
-		else selected.add(id);
-	}
-
-	function toggleAll() {
-		if (allSelected) selected.clear();
-		else for (const a of data.accounts) selected.add(a.id);
-	}
+	const accountItems = $derived(data.accounts.map((a) => ({ id: a.id, label: a.displayName })));
 
 	// Build the download URL. When every account is selected we omit the params
 	// entirely so the endpoint exports all accessible accounts with a clean URL.
@@ -67,36 +59,12 @@
 		/>
 	{:else}
 		<div class="mx-auto max-w-xl">
-			<div class="overflow-hidden rounded-lg border border-border bg-surface">
-				<div class="flex items-center justify-between border-b border-border px-4 py-3">
-					<span class="text-sm font-medium text-text-primary">Accounts</span>
-					<button
-						type="button"
-						onclick={toggleAll}
-						class="text-xs font-medium text-primary-600 hover:text-primary-700"
-					>
-						{allSelected ? 'Clear all' : 'Select all'}
-					</button>
-				</div>
-
-				<ul>
-					{#each data.accounts as account (account.id)}
-						<li class="border-b border-border last:border-b-0">
-							<label
-								class="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-surface-sunken"
-							>
-								<input
-									type="checkbox"
-									checked={selected.has(account.id)}
-									onchange={() => toggle(account.id)}
-									class="h-4 w-4 shrink-0 accent-primary-500"
-								/>
-								<span class="text-sm text-text-primary">{account.displayName}</span>
-							</label>
-						</li>
-					{/each}
-				</ul>
-			</div>
+			<CheckboxList
+				title="Accounts"
+				items={accountItems}
+				{selected}
+				class="rounded-lg border border-border bg-surface"
+			/>
 
 			<div class="mt-4 overflow-hidden rounded-lg border border-border bg-surface">
 				<label for="date-format" class="flex items-center justify-between gap-4 px-4 py-3">

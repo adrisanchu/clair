@@ -223,7 +223,12 @@ export type UploadOutcomeFilter = 'inserted' | 'updated' | 'duplicate';
 export interface TxQueryParams {
 	accessibleIds: string[];
 	q?: string;
-	accountId?: string;
+	/** Restrict to these bank accounts (still intersected with accessibleIds). Empty = all. */
+	accountIds?: string[];
+	/** Effective-category labels to match. Callers expand parents to their children. Empty = all. */
+	categories?: string[];
+	/** Cost-group labels to match. Empty = all. */
+	costGroups?: string[];
 	filter?: TxFilter;
 	page?: number;
 	uploadId?: string;
@@ -340,7 +345,8 @@ export async function queryTransactionsForExport(
 }
 
 export async function queryTransactions(params: TxQueryParams): Promise<TxQueryResult> {
-	const { accessibleIds, q = '', accountId = '', filter = 'all', page = 1 } = params;
+	const { accessibleIds, q = '', filter = 'all', page = 1 } = params;
+	const { accountIds = [], categories = [], costGroups = [] } = params;
 	const { uploadId, uploadOutcome } = params;
 	const limit = TX_PAGE_SIZE;
 	const offset = (page - 1) * limit;
@@ -395,11 +401,25 @@ export async function queryTransactions(params: TxQueryParams): Promise<TxQueryR
 					? eq(transactions.status, 'review')
 					: undefined;
 
-	const searchCondition = q.trim() ? ilike(transactions.description, `%${q.trim()}%`) : undefined;
-	const accountCondition = accountId ? eq(transactions.bankAccountId, accountId) : undefined;
+	const pattern = `%${q.trim()}%`;
+	const searchCondition = q.trim()
+		? or(ilike(transactions.description, pattern), ilike(transactions.notes, pattern))
+		: undefined;
+	const accountCondition =
+		accountIds.length > 0 ? inArray(transactions.bankAccountId, accountIds) : undefined;
+	const categoryCondition =
+		categories.length > 0 ? inArray(effectiveCategorySql, categories) : undefined;
+	const costGroupCondition =
+		costGroups.length > 0 ? inArray(transactions.costGroup, costGroups) : undefined;
+	const facetConditions = and(
+		searchCondition,
+		accountCondition,
+		categoryCondition,
+		costGroupCondition
+	);
 
-	const fullWhere = and(baseWhere, filterCondition, searchCondition, accountCondition);
-	const countWhere = and(baseWhere, searchCondition, accountCondition);
+	const fullWhere = and(baseWhere, filterCondition, facetConditions);
+	const countWhere = and(baseWhere, facetConditions);
 
 	const [rows, countsResult] = await Promise.all([
 		db
