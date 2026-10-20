@@ -182,38 +182,42 @@
 							class="w-full min-w-0 resize-y rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
 						></textarea>
 					</div>
-					<div class="grid grid-cols-2 items-start gap-4">
-						<div class="grid gap-1.5">
-							<Label for="tx-amount">Amount ({tx.currency})</Label>
-							<input
-								id="tx-amount"
-								bind:value={amountInput}
-								inputmode="decimal"
-								placeholder="-12.50"
-								disabled={submitting}
-								class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 font-mono text-sm shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
-							/>
-							<p class="text-[10px] text-text-tertiary">Negative for spending, positive for income.</p>
-						</div>
-						<div class="grid gap-1.5">
+					<!-- One column: amount gets the full width; date + time share the next row so the
+					     native pickers never squeeze each other (they overflowed a half-width column). -->
+					<div class="grid gap-1.5">
+						<Label for="tx-amount">Amount ({tx.currency})</Label>
+						<input
+							id="tx-amount"
+							bind:value={amountInput}
+							inputmode="decimal"
+							placeholder="-12.50"
+							disabled={submitting}
+							class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 font-mono text-sm shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+						/>
+						<p class="text-[10px] text-text-tertiary">Negative for spending, positive for income.</p>
+					</div>
+					<div class="grid grid-cols-[minmax(0,1fr)_8rem] items-start gap-3">
+						<div class="grid min-w-0 gap-1.5">
 							<Label for="tx-date">Date</Label>
-							<div class="flex gap-1.5">
-								<input
-									id="tx-date"
-									type="date"
-									bind:value={dateInput}
-									disabled={submitting}
-									class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
-								/>
-								<input
-									id="tx-time"
-									type="time"
-									aria-label="Time (optional)"
-									bind:value={timeInput}
-									disabled={submitting}
-									class="w-24 shrink-0 min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
-								/>
-							</div>
+							<input
+								id="tx-date"
+								type="date"
+								bind:value={dateInput}
+								disabled={submitting}
+								class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+							/>
+						</div>
+						<div class="grid min-w-0 gap-1.5">
+							<Label for="tx-time"
+								>Time <span class="font-normal text-text-tertiary">(optional)</span></Label
+							>
+							<input
+								id="tx-time"
+								type="time"
+								bind:value={timeInput}
+								disabled={submitting}
+								class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+							/>
 						</div>
 					</div>
 				{:else}
