@@ -103,7 +103,7 @@
 						class={cn(
 							'flex items-center hover:bg-surface-sunken',
 							item.implied ? 'cursor-default' : 'cursor-pointer',
-							size === 'sm' ? 'gap-2.5 px-3 py-1.5' : 'gap-3 px-4 py-3',
+							size === 'sm' ? 'gap-2 px-3 py-1.5' : 'gap-3 px-4 py-3',
 							item.indent && (size === 'sm' ? 'pl-8' : 'pl-10')
 						)}
 					>
@@ -112,15 +112,21 @@
 							checked={item.implied || selected.has(item.id)}
 							disabled={item.implied}
 							onchange={() => toggle(item.id)}
-							class="h-4 w-4 shrink-0 accent-primary-500 disabled:opacity-60"
+							class={cn(
+								'shrink-0 accent-primary-500 disabled:opacity-60',
+								size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'
+							)}
 						/>
 						{#if item.color}
-							<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background-color: {item.color}"
+							<span
+								class={cn('shrink-0 rounded-full', size === 'sm' ? 'h-1.5 w-1.5' : 'h-2.5 w-2.5')}
+								style="background-color: {item.color}"
 							></span>
 						{/if}
 						<span
 							class={cn(
-								'truncate text-sm text-text-primary',
+								'truncate text-text-primary',
+								size === 'sm' ? 'text-xs' : 'text-sm',
 								item.implied && 'text-text-secondary'
 							)}
 						>
@@ -135,8 +141,8 @@
 				type="button"
 				onclick={() => (expanded = !expanded)}
 				class={cn(
-					'w-full text-left text-xs font-medium text-primary-600 hover:bg-surface-sunken hover:text-primary-700',
-					size === 'sm' ? 'px-3 py-1.5' : 'px-4 py-3'
+					'w-full text-left font-medium text-primary-600 hover:bg-surface-sunken hover:text-primary-700',
+					size === 'sm' ? 'px-3 py-1.5 text-[11px]' : 'px-4 py-3 text-xs'
 				)}
 			>
 				{#if expanded}
