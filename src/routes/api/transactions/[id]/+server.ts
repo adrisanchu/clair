@@ -4,8 +4,9 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { transactions } from '$lib/server/db/schema.js';
 import { getFullAccessAccountIds } from '$lib/server/db/access.js';
-import { refreshCurrentBalance } from '$lib/server/balance.js';
+import { refreshAccountDerived } from '$lib/server/balance.js';
 import { unlinkPair } from '$lib/server/transfer-detector.js';
+import { toUtcDate } from '$lib/datetime.js';
 
 // ─── PATCH /api/transactions/[id] ────────────────────────────────────────────
 // Updates user-editable fields on a transaction. Partial: only the fields present
@@ -18,7 +19,7 @@ import { unlinkPair } from '$lib/server/transfer-detector.js';
 // For 'cash' accounts only (issue #68), these bank-authored fields also become editable:
 //   - description      (string)
 //   - amount           (number)
-//   - accountingDate   (ISO date string)
+//   - accountingDate   ('yyyy-MM-dd' or 'yyyy-MM-ddTHH:mm', UTC wall-clock)
 //
 // On 'bank' accounts the raw `description`/`amount`/`accountingDate` are immutable:
 // `description` is the dedup anchor for CSV re-imports (see #42). Users annotate via `notes`.
@@ -66,7 +67,8 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	}
 	let parsedDate: Date | null = null;
 	if (hasAccountingDate) {
-		parsedDate = new Date(body.accountingDate);
+		if (typeof body.accountingDate !== 'string') throw error(400, 'accountingDate is invalid');
+		parsedDate = toUtcDate(body.accountingDate);
 		if (Number.isNaN(parsedDate.getTime())) throw error(400, 'accountingDate is invalid');
 	}
 
@@ -116,8 +118,9 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 	await db.update(transactions).set(set).where(eq(transactions.id, params.id));
 	if (unlinking) await unlinkPair(params.id);
-	// Amount changes on a cash row move the derived balance.
-	if (hasAmount) await refreshCurrentBalance(tx.bankAccountId);
+	// Amount or date changes on a cash row move the derived balance and, on a foreign
+	// account, the order-dependent EUR valuation of this and later rows.
+	if (hasAmount || hasAccountingDate) await refreshAccountDerived(tx.bankAccountId);
 
 	return json({ ok: true });
 };
@@ -149,7 +152,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 	if (tx.transferCounterpartId) await unlinkPair(params.id);
 
 	await db.delete(transactions).where(eq(transactions.id, params.id));
-	await refreshCurrentBalance(tx.bankAccountId);
+	await refreshAccountDerived(tx.bankAccountId);
 
 	return json({ ok: true });
 };

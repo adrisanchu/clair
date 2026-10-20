@@ -1,6 +1,8 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from './db/index.js';
 import { transactions, bankAccounts } from './db/schema.js';
+import { eurSumSql } from './db/queries.js';
+import { propagateRateToAccount } from './currency-converter.js';
 import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 
 /**
@@ -38,6 +40,14 @@ export async function upsertOpeningBalance(
 	const openingDate = new Date(earliestDate);
 	openingDate.setDate(openingDate.getDate() - 1);
 
+	// The opening row is denominated in the account's own currency (a SEK account's opening
+	// balance is SEK), so EUR-normalised sums never read foreign units as EUR.
+	const account = await db.query.bankAccounts.findFirst({
+		where: eq(bankAccounts.id, bankAccountId),
+		columns: { currency: true }
+	});
+	const currency = account?.currency ?? PRIMARY_CURRENCY;
+
 	// Check for an existing opening balance row
 	const existing = await db.query.transactions.findFirst({
 		where: (t, { and, eq }) =>
@@ -48,14 +58,14 @@ export async function upsertOpeningBalance(
 	if (existing) {
 		await db
 			.update(transactions)
-			.set({ amount: openingAmount.toFixed(4), updatedAt: new Date() })
+			.set({ amount: openingAmount.toFixed(4), currency, updatedAt: new Date() })
 			.where(eq(transactions.id, existing.id));
 	} else {
 		await db.insert(transactions).values({
 			bankAccountId,
 			accountingDate: openingDate,
 			amount: openingAmount.toFixed(4),
-			currency: PRIMARY_CURRENCY,
+			currency,
 			description: 'Opening balance',
 			notes:
 				'This represents the opening status of the bank account in order to reconcile the balance with the ledger.',
@@ -83,4 +93,56 @@ export async function refreshCurrentBalance(bankAccountId: string): Promise<void
 		.update(bankAccounts)
 		.set({ currentBalance: sum })
 		.where(eq(bankAccounts.id, bankAccountId));
+}
+
+/**
+ * Recompute everything derived from an account's rows: the stored current balance and,
+ * on a foreign-currency account, the EUR valuation of every row. Call after any change
+ * that adds, removes, or moves a row's amount/date (manual cash edits, deletions) — the
+ * FX valuation is order-dependent, so a single changed row can re-value later ones.
+ */
+export async function refreshAccountDerived(bankAccountId: string): Promise<void> {
+	await refreshCurrentBalance(bankAccountId);
+	const account = await db.query.bankAccounts.findFirst({
+		where: eq(bankAccounts.id, bankAccountId),
+		columns: { currency: true }
+	});
+	if (account && account.currency !== PRIMARY_CURRENCY) {
+		await propagateRateToAccount(bankAccountId);
+	}
+}
+
+export interface EurBalance {
+	/** EUR value of the account's posted rows (cost basis on foreign accounts). */
+	balanceEur: number;
+	/** True when some posted foreign row has no EUR value yet, so `balanceEur` is incomplete. */
+	eurPartial: boolean;
+}
+
+/**
+ * EUR-normalised balance per account: EUR rows count at face value, foreign rows at their
+ * stored `amountEur`. Same posted-only rule as `refreshCurrentBalance`, so for EUR accounts
+ * it equals `currentBalance`.
+ */
+export async function getEurBalances(accountIds: string[]): Promise<Map<string, EurBalance>> {
+	const result = new Map<string, EurBalance>();
+	if (accountIds.length === 0) return result;
+
+	const rows = await db
+		.select({
+			bankAccountId: transactions.bankAccountId,
+			balanceEur: eurSumSql,
+			unresolved: sql<number>`COUNT(*) FILTER (WHERE ${transactions.currency} <> ${PRIMARY_CURRENCY} AND ${transactions.amountEur} IS NULL AND ${transactions.amount}::numeric <> 0)::int`
+		})
+		.from(transactions)
+		.where(and(inArray(transactions.bankAccountId, accountIds), eq(transactions.status, 'posted')))
+		.groupBy(transactions.bankAccountId);
+
+	for (const r of rows) {
+		result.set(r.bankAccountId, {
+			balanceEur: parseFloat(r.balanceEur ?? '0') || 0,
+			eurPartial: r.unresolved > 0
+		});
+	}
+	return result;
 }

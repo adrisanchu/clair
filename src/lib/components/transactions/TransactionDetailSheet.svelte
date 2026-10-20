@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { format } from 'date-fns';
+	import { manualAccountingDate, wallClockParts } from '$lib/datetime';
 	import { Link2, Repeat, Trash2 } from '@lucide/svelte';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
@@ -41,6 +42,9 @@
 	let description = $state('');
 	let amountInput = $state('');
 	let dateInput = $state('');
+	let timeInput = $state('');
+	// The stored wall-clock date/time of the open row (what the inputs are seeded from).
+	const stored = $derived(tx ? wallClockParts(tx.accountingDate) : { date: '', time: '' });
 
 	// Seed the editable fields whenever a transaction is opened.
 	$effect(() => {
@@ -50,7 +54,9 @@
 			costGroup = tx.costGroup ?? null;
 			description = tx.description;
 			amountInput = String(tx.amount);
-			dateInput = format(tx.accountingDate, 'yyyy-MM-dd');
+			const parts = wallClockParts(tx.accountingDate);
+			dateInput = parts.date;
+			timeInput = parts.time;
 			fieldError = null;
 		}
 	});
@@ -69,7 +75,8 @@
 			isCash &&
 			(description.trim() !== tx.description ||
 				(Number.isFinite(parsedAmount) && parsedAmount !== tx.amount) ||
-				dateInput !== format(tx.accountingDate, 'yyyy-MM-dd'))
+				dateInput !== stored.date ||
+				timeInput !== stored.time)
 	);
 
 	// A transfer that is flagged but has no counterpart — un-checking is the fix.
@@ -110,7 +117,7 @@
 			if (isCash) {
 				payload.description = description.trim();
 				payload.amount = parsedAmount;
-				payload.accountingDate = dateInput;
+				payload.accountingDate = manualAccountingDate(dateInput, timeInput);
 			}
 			const res = await fetch(`/api/transactions/${tx.id}`, {
 				method: 'PATCH',
@@ -190,13 +197,23 @@
 						</div>
 						<div class="grid gap-1.5">
 							<Label for="tx-date">Date</Label>
-							<input
-								id="tx-date"
-								type="date"
-								bind:value={dateInput}
-								disabled={submitting}
-								class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
-							/>
+							<div class="flex gap-1.5">
+								<input
+									id="tx-date"
+									type="date"
+									bind:value={dateInput}
+									disabled={submitting}
+									class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+								/>
+								<input
+									id="tx-time"
+									type="time"
+									aria-label="Time (optional)"
+									bind:value={timeInput}
+									disabled={submitting}
+									class="w-24 shrink-0 min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+								/>
+							</div>
 						</div>
 					</div>
 				{:else}
@@ -205,7 +222,7 @@
 						<div class="min-w-0">
 							<p class="truncate text-sm font-medium text-text-primary">{tx.description}</p>
 							<p class="mt-0.5 text-xs text-text-tertiary">
-								{format(tx.accountingDate, 'd MMM yyyy')}
+								{format(tx.accountingDate, 'd MMM yyyy')}{#if stored.time}, {stored.time}{/if}
 								{#if tx.accountName}· {tx.accountName}{/if}
 							</p>
 						</div>

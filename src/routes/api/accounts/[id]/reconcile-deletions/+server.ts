@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { transactions } from '$lib/server/db/schema.js';
 import { getFullAccessAccountIds } from '$lib/server/db/access.js';
-import { refreshCurrentBalance } from '$lib/server/balance.js';
+import { refreshAccountDerived } from '$lib/server/balance.js';
 import { unlinkPair } from '$lib/server/transfer-detector.js';
 import { unlinkConversionLegs } from '$lib/server/currency-converter.js';
 
@@ -55,7 +55,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		)
 	);
 
-	await refreshCurrentBalance(params.id);
+	await refreshAccountDerived(params.id);
 
 	return json({ ok: true, deleted: rows.length });
 };

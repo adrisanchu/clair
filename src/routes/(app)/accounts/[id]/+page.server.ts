@@ -4,6 +4,7 @@ import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { authUser, bankAccounts, categories, costGroups, csvUploads } from '$lib/server/db/schema.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
+import { getEurBalances } from '$lib/server/balance.js';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!locals.user) error(401);
@@ -18,7 +19,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	const isOwner = account.ownerUserId === locals.user.id;
 
-	const [uploads, partner, cats, groups] = await Promise.all([
+	const [uploads, partner, cats, groups, eurBalances] = await Promise.all([
 		db
 			.select()
 			.from(csvUploads)
@@ -54,11 +55,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 					.from(costGroups)
 					.where(eq(costGroups.workspaceId, locals.user.workspaceId))
 					.orderBy(asc(costGroups.sortOrder), asc(costGroups.name))
-			: Promise.resolve([])
+			: Promise.resolve([]),
+		getEurBalances([params.id])
 	]);
 
 	return {
-		account: { ...account, currentBalance: parseFloat(account.currentBalance) },
+		account: {
+			...account,
+			currentBalance: parseFloat(account.currentBalance),
+			balanceEur: eurBalances.get(params.id)?.balanceEur ?? 0,
+			eurPartial: eurBalances.get(params.id)?.eurPartial ?? false
+		},
 		uploads,
 		isOwner,
 		partner: partner ?? null,

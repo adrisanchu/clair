@@ -4,8 +4,8 @@
 	import { page } from '$app/state';
 	import { PRIMARY_CURRENCY } from '$lib/currencies.js';
 	import { buildProjection } from '$lib/chart-utils.js';
-	import Amount from '$lib/components/Amount.svelte';
 	import BankLogo from '$lib/components/BankLogo.svelte';
+	import AccountBalance from '$lib/components/accounts/AccountBalance.svelte';
 	import BalanceChart from '$lib/components/BalanceChart.svelte';
 	import GranularitySelector from '$lib/components/GranularitySelector.svelte';
 	import { Badge } from '$lib/components/ui/badge';
@@ -20,7 +20,8 @@
 
 	let { data }: { data: PageData } = $props();
 
-	const totalBalance = $derived(data.accounts.reduce((sum, a) => sum + a.currentBalance, 0));
+	// Sum EUR values, never native units — a PEN/SEK balance is not EUR.
+	const totalBalance = $derived(data.accounts.reduce((sum, a) => sum + a.balanceEur, 0));
 	const totalTxCount = $derived(data.accounts.reduce((sum, a) => sum + a.txCount, 0));
 
 	const formattedTotal = $derived(
@@ -199,7 +200,12 @@
 							</div>
 
 							<!-- Balance -->
-							<Amount value={account.currentBalance} size="lg" showSign={false} />
+							<AccountBalance
+								value={account.currentBalance}
+								currency={account.currency}
+								balanceEur={account.balanceEur}
+								eurPartial={account.eurPartial}
+							/>
 
 							<!-- Last updated -->
 							<div class="mt-3 flex items-center gap-1 text-xs text-text-tertiary">

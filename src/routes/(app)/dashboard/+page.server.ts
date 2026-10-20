@@ -1,10 +1,12 @@
 import { error } from '@sveltejs/kit';
-import { and, count, eq, gte, inArray, isNull, sql, sum } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db/index.js';
 import { bankAccounts, csvUploads, transactions } from '$lib/server/db/schema.js';
 import { getAccessibleAccountIds } from '$lib/server/db/access.js';
+import { getEurBalances } from '$lib/server/balance.js';
 import {
+	eurSumSql,
 	queryRollingBalance,
 	findActionableOrphans,
 	type Granularity,
@@ -35,6 +37,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				ibanLast4: string;
 				currency: string;
 				currentBalance: number;
+				balanceEur: number;
+				eurPartial: boolean;
 				status: 'no_data' | 'active';
 				isOwner: boolean;
 				txCount: number;
@@ -50,7 +54,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const thirtyDaysAgo = new Date();
 	thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-	const [rows, recentSums, balanceData, orphans] = await Promise.all([
+	const [rows, recentSums, balanceData, orphans, eurBalances] = await Promise.all([
 		db
 			.select({
 				id: bankAccounts.id,
@@ -79,7 +83,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		db
 			.select({
 				bankAccountId: transactions.bankAccountId,
-				netChange: sum(transactions.amount)
+				// EUR-normalised so foreign-account movements don't add raw PEN/SEK units.
+				netChange: eurSumSql
 			})
 			.from(transactions)
 			.where(
@@ -94,7 +99,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.groupBy(transactions.bankAccountId),
 
 		queryRollingBalance(accessibleIds, granularity),
-		findActionableOrphans(accessibleIds)
+		findActionableOrphans(accessibleIds),
+		getEurBalances(accessibleIds)
 	]);
 
 	const netChangeMap = new Map(
@@ -108,13 +114,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		ibanLast4: r.ibanLast4,
 		currency: r.currency,
 		currentBalance: parseFloat(r.currentBalance),
+		balanceEur: eurBalances.get(r.id)?.balanceEur ?? 0,
+		eurPartial: eurBalances.get(r.id)?.eurPartial ?? false,
 		status: r.status,
 		isOwner: r.ownerUserId === locals.user!.id,
 		txCount: r.txCount,
 		lastUploadedAt: r.lastUploadedAt
 	}));
 
-	const totalBalance = accounts.reduce((s, a) => s + a.currentBalance, 0);
+	// Totals are in the primary currency: sum each account's EUR value, never native units.
+	const totalBalance = accounts.reduce((s, a) => s + a.balanceEur, 0);
 	const totalNetChange = accounts.reduce((s, a) => s + (netChangeMap.get(a.id) ?? 0), 0);
 	const balanceBefore = totalBalance - totalNetChange;
 	const trendPercent =
