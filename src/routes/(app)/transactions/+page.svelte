@@ -2,10 +2,8 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { format } from 'date-fns';
-	import { DropdownMenu } from 'bits-ui';
 	import {
 		Search,
-		ChevronDown,
 		X,
 		ArrowLeftRight,
 		Repeat,
@@ -28,6 +26,9 @@
 	import TransactionDetailSheet from '$lib/components/transactions/TransactionDetailSheet.svelte';
 	import CategorySelector from '$lib/components/CategorySelector.svelte';
 	import CostGroupTag from '$lib/components/CostGroupTag.svelte';
+	import TransactionFilters, {
+		type TxFacetSelection
+	} from '$lib/components/transactions/TransactionFilters.svelte';
 	import { cn } from '$lib/utils';
 	import type { PageData } from './$types';
 
@@ -65,11 +66,13 @@
 
 	// ── Navigation helpers ─────────────────────────────────────────────────────
 
-	function navigate(params: Record<string, string | null>) {
+	/** Arrays become repeated params (`?category=A&category=B`); empty / null removes the key. */
+	function navigate(params: Record<string, string | string[] | null>) {
 		const url = new URL(page.url);
 		for (const [k, v] of Object.entries(params)) {
-			if (!v) url.searchParams.delete(k);
-			else url.searchParams.set(k, v);
+			url.searchParams.delete(k);
+			if (Array.isArray(v)) for (const item of v) url.searchParams.append(k, item);
+			else if (v) url.searchParams.set(k, v);
 		}
 		goto(url.toString(), { keepFocus: true });
 	}
@@ -78,8 +81,13 @@
 		navigate({ filter: filter === 'all' ? null : filter, page: null });
 	}
 
-	function setAccount(accountId: string) {
-		navigate({ accountId: accountId || null, page: null });
+	function applyFacets(next: TxFacetSelection) {
+		navigate({
+			accountId: next.accountIds,
+			category: next.categories,
+			costGroup: next.costGroups,
+			page: null
+		});
 	}
 
 	function setPage(p: number) {
@@ -100,10 +108,11 @@
 	// ── Derived state ──────────────────────────────────────────────────────────
 
 	const activeFilter = $derived(data.filters.filter);
-	const activeAccountId = $derived(data.filters.accountId);
-	const activeAccountName = $derived(
-		data.accounts.find((a) => a.id === activeAccountId)?.displayName ?? null
-	);
+	const facetSelection = $derived<TxFacetSelection>({
+		accountIds: data.filters.accountIds,
+		categories: data.filters.categories,
+		costGroups: data.filters.costGroups
+	});
 	const uploadOutcomeLabel: Record<string, string> = {
 		inserted: 'imported by this upload',
 		updated: 'updated by this upload',
@@ -117,7 +126,9 @@
 	const hasFilters = $derived(
 		!!(
 			data.filters.q ||
-			data.filters.accountId ||
+			data.filters.accountIds.length ||
+			data.filters.categories.length ||
+			data.filters.costGroups.length ||
 			data.filters.filter !== 'all' ||
 			data.filters.uploadId
 		)
@@ -220,59 +231,21 @@
 			/>
 			<Input
 				type="search"
-				placeholder="Search transactions…"
+				placeholder="Search description or notes…"
 				value={searchInput}
 				oninput={handleSearch}
 				class="h-8 pl-8 text-sm"
 			/>
 		</div>
 
-		<!-- Account filter — bits-ui DropdownMenu with shadcn Button trigger -->
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger>
-				{#snippet child({ props })}
-					<Button
-						variant="outline"
-						size="sm"
-						{...props}
-						class={cn(
-							'gap-1.5',
-							activeAccountId
-								? 'border-primary-300 bg-primary-50 text-primary-600 hover:bg-primary-100'
-								: ''
-						)}
-					>
-						{activeAccountName ?? 'Account'}
-						<ChevronDown size={13} class="text-muted-foreground" />
-					</Button>
-				{/snippet}
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Content
-				class="z-50 min-w-44 rounded-lg border border-border bg-surface p-1 text-sm shadow-md"
-				sideOffset={4}
-			>
-				<DropdownMenu.Item
-					class="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-text-primary outline-none hover:bg-surface-sunken {!activeAccountId
-						? 'font-medium'
-						: ''}"
-					onclick={() => setAccount('')}
-				>
-					All accounts
-				</DropdownMenu.Item>
-				<DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
-				{#each data.accounts as account}
-					<DropdownMenu.Item
-						class="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-text-primary outline-none hover:bg-surface-sunken {activeAccountId ===
-						account.id
-							? 'font-medium text-primary-600'
-							: ''}"
-						onclick={() => setAccount(account.id)}
-					>
-						{account.displayName}
-					</DropdownMenu.Item>
-				{/each}
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
+		<!-- Accounts / categories / cost groups — popover with multi-select lists -->
+		<TransactionFilters
+			accounts={data.accounts}
+			categories={data.categories}
+			costGroups={data.costGroups}
+			selected={facetSelection}
+			onapply={applyFacets}
+		/>
 
 		<!-- Clear filters — shadcn Button -->
 		{#if hasFilters}
@@ -369,7 +342,10 @@
 							{@const isConversionLeg = tx.isConversionLeg}
 							{@const isConversion = isConversionLeg || tx.isFxCandidate}
 							{@const showTransferBadge =
-								tx.isTransfer || tx.isFxCandidate || isConversionLeg || tx.transferCounterpartId != null}
+								tx.isTransfer ||
+								tx.isFxCandidate ||
+								isConversionLeg ||
+								tx.transferCounterpartId != null}
 							{@const transferSettled = tx.transferCounterpartId != null || isConversionLeg}
 							{@const isOpening = tx.isOpeningBalance}
 

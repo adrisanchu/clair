@@ -117,42 +117,44 @@
 				/>
 			</div>
 
-			<!-- Amount + Date -->
-			<div class="grid grid-cols-2 items-start gap-4">
-				<div class="grid gap-1.5">
-					<Label for="add-amount">Amount ({currency})</Label>
-					<Input
-						id="add-amount"
-						bind:value={amountInput}
-						inputmode="decimal"
-						placeholder="-12.50"
+			<!-- One column: amount gets the full width; date + time share the next row so the
+			     native pickers never squeeze each other (they overflowed a half-width column). -->
+			<div class="grid gap-1.5">
+				<Label for="add-amount">Amount ({currency})</Label>
+				<Input
+					id="add-amount"
+					bind:value={amountInput}
+					inputmode="decimal"
+					placeholder="-12.50"
+					required
+					disabled={submitting}
+					class="font-mono"
+				/>
+				<p class="text-[10px] text-text-tertiary">Negative for spending, positive for income.</p>
+			</div>
+			<div class="grid grid-cols-[minmax(0,1fr)_8rem] items-start gap-3">
+				<div class="grid min-w-0 gap-1.5">
+					<Label for="add-date">Date</Label>
+					<input
+						id="add-date"
+						type="date"
+						bind:value={dateInput}
 						required
 						disabled={submitting}
-						class="font-mono"
+						class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
 					/>
-					<p class="text-[10px] text-text-tertiary">Negative for spending, positive for income.</p>
 				</div>
-				<div class="grid gap-1.5">
-					<Label for="add-date">Date</Label>
-					<div class="flex gap-1.5">
-						<input
-							id="add-date"
-							type="date"
-							bind:value={dateInput}
-							required
-							disabled={submitting}
-							class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
-						/>
-						<input
-							id="add-time"
-							type="time"
-							aria-label="Time (optional)"
-							bind:value={timeInput}
-							disabled={submitting}
-							class="w-24 shrink-0 min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
-						/>
-					</div>
-					<p class="text-[10px] text-text-tertiary">Time is optional.</p>
+				<div class="grid min-w-0 gap-1.5">
+					<Label for="add-time"
+						>Time <span class="font-normal text-text-tertiary">(optional)</span></Label
+					>
+					<input
+						id="add-time"
+						type="time"
+						bind:value={timeInput}
+						disabled={submitting}
+						class="w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+					/>
 				</div>
 			</div>
 

@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { DropdownMenu } from 'bits-ui';
-	import { EllipsisVertical, Pencil, Trash2 } from '@lucide/svelte';
+	import { EllipsisVertical, Pencil, ReceiptText, Trash2 } from '@lucide/svelte';
 	import CostGroupFormSheet from './CostGroupFormSheet.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import type { CostGroupRow } from '$lib/types';
@@ -18,6 +19,14 @@
 	let editOpen = $state(false);
 	let deleteOpen = $state(false);
 	let isDeleting = $state(false);
+
+	/** Open the ledger filtered to this cost group. */
+	function seeTransactions() {
+		const params = new URLSearchParams({ costGroup: costGroup.name });
+		// Path is built via resolve(); the rule can't verify the appended query string statically
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		goto(`${resolve('/transactions')}?${params}`);
+	}
 
 	function startRename() {
 		isRenaming = true;
@@ -76,25 +85,33 @@
 		{/if}
 	</div>
 
-	<!-- Owner actions -->
-	{#if isOwner}
-		<div class="flex shrink-0 items-center gap-0.5">
-			<DropdownMenu.Root>
-				<DropdownMenu.Trigger>
-					{#snippet child({ props })}
-						<button
-							{...props}
-							type="button"
-							class="rounded p-1 text-text-tertiary transition-colors hover:text-text-secondary"
-						>
-							<EllipsisVertical size={14} />
-						</button>
-					{/snippet}
-				</DropdownMenu.Trigger>
-				<DropdownMenu.Content
-					class="z-50 min-w-36 rounded-lg border border-border bg-surface p-1 text-sm shadow-md"
-					sideOffset={4}
+	<!-- Row actions — "See transactions" for everyone; edits are owner-only -->
+	<div class="flex shrink-0 items-center gap-0.5">
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger>
+				{#snippet child({ props })}
+					<button
+						{...props}
+						type="button"
+						class="rounded p-1 text-text-tertiary transition-colors hover:text-text-secondary"
+					>
+						<EllipsisVertical size={14} />
+					</button>
+				{/snippet}
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content
+				class="z-50 min-w-36 rounded-lg border border-border bg-surface p-1 text-sm shadow-md"
+				sideOffset={4}
+			>
+				<DropdownMenu.Item
+					class="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-text-primary outline-none hover:bg-surface-sunken"
+					onclick={seeTransactions}
 				>
+					<ReceiptText size={13} class="text-text-tertiary" />
+					See transactions
+				</DropdownMenu.Item>
+				{#if isOwner}
+					<DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
 					<DropdownMenu.Item
 						class="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-text-primary outline-none hover:bg-surface-sunken"
 						onclick={startRename}
@@ -117,10 +134,10 @@
 						<Trash2 size={13} />
 						Delete
 					</DropdownMenu.Item>
-				</DropdownMenu.Content>
-			</DropdownMenu.Root>
-		</div>
-	{/if}
+				{/if}
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
+	</div>
 </div>
 
 <!-- Edit sheet (color only — name handled by inline rename) -->
